@@ -232,10 +232,50 @@ HRESULT WINAPI PSGetPropertyDescriptionListFromString(LPCWSTR proplist, REFIID r
     return E_NOTIMPL;
 }
 
-HRESULT WINAPI PSGetPropertyKeyFromName(PCWSTR name, PROPERTYKEY *key)
+
+HRESULT WINAPI PSGetNameFromPropertyKey(REFPROPERTYKEY key, LPWSTR* name)
 {
-    FIXME("%s, %p\n", debugstr_w(name), key);
-    return E_NOTIMPL;
+    HRESULT hr;
+    IPropertySystem* system;
+
+    TRACE("(%s, %p)\n", debugstr_propkey(key), name);
+    hr = IPropertySystem_QueryInterface(&propsys, &IID_IPropertySystem, (void**)&system);
+    if (SUCCEEDED(hr))
+    {
+        IPropertyDescription* desc;
+
+        hr = IPropertySystem_GetPropertyDescription(system, key, &IID_IPropertyDescription, (void**)&desc);
+        if (SUCCEEDED(hr))
+        {
+            hr = IPropertyDescription_GetCanonicalName(desc, name);
+            IPropertyDescription_Release(desc);
+        }
+        IPropertySystem_Release(system);
+    }
+
+    return hr;
+}
+
+HRESULT WINAPI PSGetPropertyKeyFromName(PCWSTR name, PROPERTYKEY* key)
+{
+    HRESULT hr;
+    IPropertySystem* system;
+
+    TRACE("%s, %p\n", debugstr_w(name), debugstr_propkey(key));
+    hr = IPropertySystem_QueryInterface(&propsys, &IID_IPropertySystem, (void**)&system);
+    if (SUCCEEDED(hr))
+    {
+        IPropertyDescription* desc;
+        hr = IPropertySystem_GetPropertyDescriptionByName(system, name, &IID_IPropertyDescription, (void**)&desc);
+        if (SUCCEEDED(hr))
+        {
+            hr = IPropertyDescription_GetPropertyKey(desc, key);
+            IPropertyDescription_Release(desc);
+        }
+        IPropertySystem_Release(system);
+    }
+
+    return hr;
 }
 
 HRESULT WINAPI PSRefreshPropertySchema(void)

@@ -17,57 +17,36 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "wine/debug.h"
-#include "winreg.h"
-#include "cfgmgr32.h"
-#include "winuser.h"
-#include "dbt.h"
-#include "wine/plugplay.h"
-#include "setupapi.h"
-
-#include "initguid.h"
-#include "devpkey.h"
+#include "cfgmgr32_private.h"
+#include "wine/exception.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(setupapi);
 
-/***********************************************************************
- *           CM_MapCrToWin32Err (cfgmgr32.@)
- */
-DWORD WINAPI CM_MapCrToWin32Err( CONFIGRET code, DWORD default_error )
+static const char *debugstr_CM_NOTIFY_FILTER( const CM_NOTIFY_FILTER *filter )
 {
-    TRACE( "code: %#lx, default_error: %ld\n", code, default_error );
-
-    switch (code)
+    if (!filter) return "(null)";
+    switch (filter->FilterType)
     {
-    case CR_SUCCESS:                  return ERROR_SUCCESS;
-    case CR_OUT_OF_MEMORY:            return ERROR_NOT_ENOUGH_MEMORY;
-    case CR_INVALID_POINTER:          return ERROR_INVALID_USER_BUFFER;
-    case CR_INVALID_FLAG:             return ERROR_INVALID_FLAGS;
-    case CR_INVALID_DEVNODE:
-    case CR_INVALID_DEVICE_ID:
-    case CR_INVALID_MACHINENAME:
-    case CR_INVALID_PROPERTY:
-    case CR_INVALID_REFERENCE_STRING: return ERROR_INVALID_DATA;
-    case CR_NO_SUCH_DEVNODE:
-    case CR_NO_SUCH_VALUE:
-    case CR_NO_SUCH_DEVICE_INTERFACE: return ERROR_NOT_FOUND;
-    case CR_ALREADY_SUCH_DEVNODE:     return ERROR_ALREADY_EXISTS;
-    case CR_BUFFER_SMALL:             return ERROR_INSUFFICIENT_BUFFER;
-    case CR_NO_REGISTRY_HANDLE:       return ERROR_INVALID_HANDLE;
-    case CR_REGISTRY_ERROR:           return ERROR_REGISTRY_CORRUPT;
-    case CR_NO_SUCH_REGISTRY_KEY:     return ERROR_FILE_NOT_FOUND;
-    case CR_REMOTE_COMM_FAILURE:
-    case CR_MACHINE_UNAVAILABLE:
-    case CR_NO_CM_SERVICES:           return ERROR_SERVICE_NOT_ACTIVE;
-    case CR_ACCESS_DENIED:            return ERROR_ACCESS_DENIED;
-    case CR_CALL_NOT_IMPLEMENTED:     return ERROR_CALL_NOT_IMPLEMENTED;
+    case CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE:
+        return wine_dbg_sprintf( "{%#lx %lx CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE %lu {{%s}}}", filter->cbSize,
+                                 filter->Flags, filter->Reserved, debugstr_guid( &filter->u.DeviceInterface.ClassGuid ) );
+    case CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE:
+        return wine_dbg_sprintf( "{%#lx %lx CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE %lu {{%p}}}", filter->cbSize,
+                                 filter->Flags, filter->Reserved, filter->u.DeviceHandle.hTarget );
+    case CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE:
+        return wine_dbg_sprintf( "{%#lx %lx CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE %lu {{%s}}}", filter->cbSize,
+                                 filter->Flags, filter->Reserved, debugstr_w( filter->u.DeviceInstance.InstanceId ) );
+    default:
+        return wine_dbg_sprintf( "{%#lx %lx (unknown FilterType %d) %lu}", filter->cbSize, filter->Flags,
+                                 filter->FilterType, filter->Reserved );
     }
-
-    return default_error;
 }
+
+#define CM_NOTIFY_CONTEXT_MAGIC 0xbeef4dad
 
 struct cm_notify_context
 {
+    DWORD magic;
     HDEVNOTIFY notify;
     void *user_data;
     PCM_NOTIFY_CALLBACK callback;
@@ -139,26 +118,6 @@ CALLBACK DWORD devnotify_callback( HANDLE handle, DWORD flags, DEV_BROADCAST_HDR
     return ret;
 }
 
-static const char *debugstr_CM_NOTIFY_FILTER( const CM_NOTIFY_FILTER *filter )
-{
-    switch (filter->FilterType)
-    {
-    case CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE:
-        return wine_dbg_sprintf( "{%#lx %lx CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE %lu {{%s}}}", filter->cbSize,
-                                 filter->Flags, filter->Reserved,
-                                 debugstr_guid( &filter->u.DeviceInterface.ClassGuid ) );
-    case CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE:
-        return wine_dbg_sprintf( "{%#lx %lx CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE %lu {{%p}}}", filter->cbSize,
-                                 filter->Flags, filter->Reserved, filter->u.DeviceHandle.hTarget );
-    case CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE:
-        return wine_dbg_sprintf( "{%#lx %lx CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE %lu {{%s}}}", filter->cbSize,
-                                 filter->Flags, filter->Reserved, debugstr_w( filter->u.DeviceInstance.InstanceId ) );
-    default:
-        return wine_dbg_sprintf( "{%#lx %lx (unknown FilterType %d) %lu}", filter->cbSize, filter->Flags,
-                                 filter->FilterType, filter->Reserved );
-    }
-}
-
 static CONFIGRET create_notify_context( const CM_NOTIFY_FILTER *filter, HCMNOTIFICATION *notify_handle,
                                         PCM_NOTIFY_CALLBACK callback, void *user_data )
 {
@@ -200,6 +159,7 @@ static CONFIGRET create_notify_context( const CM_NOTIFY_FILTER *filter, HCMNOTIF
 
     if (!(ctx = calloc( 1, sizeof(*ctx) ))) return CR_OUT_OF_MEMORY;
 
+    ctx->magic = CM_NOTIFY_CONTEXT_MAGIC;
     ctx->user_data = user_data;
     ctx->callback = callback;
     if (!(ctx->notify = I_ScRegisterDeviceNotification( ctx, &notify_filter.header, devnotify_callback )))
@@ -236,63 +196,27 @@ CONFIGRET WINAPI CM_Register_Notification( CM_NOTIFY_FILTER *filter, void *conte
 CONFIGRET WINAPI CM_Unregister_Notification( HCMNOTIFICATION notify )
 {
     struct cm_notify_context *ctx = notify;
+    CONFIGRET ret = CR_SUCCESS;
 
     TRACE( "(%p)\n", notify );
 
     if (!notify) return CR_INVALID_DATA;
 
-    I_ScUnregisterDeviceNotification( ctx->notify );
-    free( ctx );
-
-    return CR_SUCCESS;
-}
-
-/***********************************************************************
- *           CM_Get_Device_Interface_PropertyW (cfgmgr32.@)
- */
-CONFIGRET WINAPI CM_Get_Device_Interface_PropertyW( LPCWSTR device_interface, const DEVPROPKEY *property_key,
-                                                    DEVPROPTYPE *property_type, BYTE *property_buffer,
-                                                    ULONG *property_buffer_size, ULONG flags )
-{
-    SP_DEVICE_INTERFACE_DATA iface = {sizeof(iface)};
-    SP_DEVINFO_DATA device = { sizeof(device) };
-    HDEVINFO set;
-    DWORD err;
-    BOOL ret;
-
-    TRACE( "%s %p %p %p %p %ld.\n", debugstr_w(device_interface), property_key, property_type, property_buffer,
-           property_buffer_size, flags);
-
-    if (!property_key) return CR_FAILURE;
-    if (!device_interface || !property_type || !property_buffer_size) return CR_INVALID_POINTER;
-    if (*property_buffer_size && !property_buffer) return CR_INVALID_POINTER;
-    if (flags) return CR_INVALID_FLAG;
-
-    if (memcmp( property_key, &DEVPKEY_Device_InstanceId, sizeof(*property_key) ))
+    __TRY
     {
-        FIXME( "property %s\\%lx.\n", debugstr_guid( &property_key->fmtid ), property_key->pid );
-        return CR_NO_SUCH_VALUE;
+        if (ctx->magic == CM_NOTIFY_CONTEXT_MAGIC)
+        {
+            I_ScUnregisterDeviceNotification( ctx->notify );
+            free( ctx );
+        }
+        else
+            ret = CR_INVALID_DATA;
     }
+    __EXCEPT_PAGE_FAULT
+    {
+        ret = CR_FAILURE;
+    }
+    __ENDTRY
 
-    set = SetupDiCreateDeviceInfoListExW( NULL, NULL, NULL, NULL );
-    if (set == INVALID_HANDLE_VALUE) return CR_OUT_OF_MEMORY;
-    if (!SetupDiOpenDeviceInterfaceW( set, device_interface, 0, &iface ))
-    {
-        SetupDiDestroyDeviceInfoList( set );
-        TRACE( "No interface %s, err %lu.\n", debugstr_w( device_interface ), GetLastError());
-        return CR_NO_SUCH_DEVICE_INTERFACE;
-    }
-    if (!SetupDiEnumDeviceInfo( set, 0, &device ))
-    {
-        SetupDiDestroyDeviceInfoList( set );
-        return CR_FAILURE;
-    }
-    ret = SetupDiGetDeviceInstanceIdW( set, &device, (WCHAR *)property_buffer, *property_buffer_size / sizeof(WCHAR),
-                                       property_buffer_size );
-    err = ret ? 0 : GetLastError();
-    SetupDiDestroyDeviceInfoList( set );
-    *property_type = DEVPROP_TYPE_STRING;
-    *property_buffer_size *= sizeof(WCHAR);
-    if (!err) return CR_SUCCESS;
-    return err == ERROR_INSUFFICIENT_BUFFER ? CR_BUFFER_SMALL : CR_FAILURE;
+    return ret;
 }

@@ -31,7 +31,7 @@
 
 #include "wine/test.h"
 
-/* Error codes could be pre-Win32 */
+ /* Error codes could be pre-Win32 */
 #define DE_SAMEFILE      0x71
 #define DE_MANYSRC1DEST  0x72
 #define DE_DIFFDIR       0x73
@@ -50,11 +50,11 @@ static BOOL old_shell32 = FALSE;
 
 static CHAR CURR_DIR[MAX_PATH];
 static const WCHAR UNICODE_PATH[] = L"c:\\\x00ae\0";
-    /* "c:\®" can be used in all codepages */
-    /* Double-null termination needed for pFrom field of SHFILEOPSTRUCT */
+/* "c:\®" can be used in all codepages */
+/* Double-null termination needed for pFrom field of SHFILEOPSTRUCT */
 
 /* creates a file with the specified name for tests */
-static void createTestFile(const CHAR *name)
+static void createTestFile(const CHAR* name)
 {
     HANDLE file;
     DWORD written;
@@ -66,7 +66,7 @@ static void createTestFile(const CHAR *name)
     CloseHandle(file);
 }
 
-static void createTestFileW(const WCHAR *name)
+static void createTestFileW(const WCHAR* name)
 {
     HANDLE file;
 
@@ -75,12 +75,12 @@ static void createTestFileW(const WCHAR *name)
     CloseHandle(file);
 }
 
-static BOOL file_exists(const CHAR *name)
+static BOOL file_exists(const CHAR* name)
 {
     return GetFileAttributesA(name) != INVALID_FILE_ATTRIBUTES;
 }
 
-static BOOL dir_exists(const CHAR *name)
+static BOOL dir_exists(const CHAR* name)
 {
     DWORD attr;
     BOOL dir;
@@ -93,10 +93,10 @@ static BOOL dir_exists(const CHAR *name)
 
 static BOOL file_existsW(LPCWSTR name)
 {
-  return GetFileAttributesW(name) != INVALID_FILE_ATTRIBUTES;
+    return GetFileAttributesW(name) != INVALID_FILE_ATTRIBUTES;
 }
 
-static BOOL file_has_content(const CHAR *name, const CHAR *content)
+static BOOL file_has_content(const CHAR* name, const CHAR* content)
 {
     CHAR buf[MAX_PATH];
     HANDLE file;
@@ -108,10 +108,10 @@ static BOOL file_has_content(const CHAR *name, const CHAR *content)
     ReadFile(file, buf, MAX_PATH - 1, &read, NULL);
     buf[read] = 0;
     CloseHandle(file);
-    return strcmp(buf, content)==0;
+    return strcmp(buf, content) == 0;
 }
 
-static void remove_directory(const WCHAR *name)
+static void remove_directory(const WCHAR* name)
 {
     SHFILEOPSTRUCTW shfo;
     WCHAR path[MAX_PATH];
@@ -133,8 +133,8 @@ static void init_shfo_tests(void)
     GetCurrentDirectoryA(MAX_PATH, CURR_DIR);
     len = lstrlenA(CURR_DIR);
 
-    if(len && (CURR_DIR[len-1] == '\\'))
-        CURR_DIR[len-1] = 0;
+    if (len && (CURR_DIR[len - 1] == '\\'))
+        CURR_DIR[len - 1] = 0;
 
     createTestFile("test1.txt");
     createTestFile("test2.txt");
@@ -220,17 +220,17 @@ static void test_get_file_info(void)
 
     /* Test whether fields of SHFILEINFOA are always cleared */
     memset(&shfi, 0xcf, sizeof(shfi));
-    rc=SHGetFileInfoA("", 0, &shfi, sizeof(shfi), 0);
+    rc = SHGetFileInfoA("", 0, &shfi, sizeof(shfi), 0);
     ok(rc == 1, "SHGetFileInfoA('' | 0) should return 1, got 0x%lx\n", rc);
     todo_wine ok(shfi.hIcon == 0, "SHGetFileInfoA('' | 0) did not clear hIcon\n");
     todo_wine ok(shfi.szDisplayName[0] == 0, "SHGetFileInfoA('' | 0) did not clear szDisplayName[0]\n");
     todo_wine ok(shfi.szTypeName[0] == 0, "SHGetFileInfoA('' | 0) did not clear szTypeName[0]\n");
     ok(shfi.iIcon == 0xcfcfcfcf ||
-       broken(shfi.iIcon != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
-       "SHGetFileInfoA('' | 0) should not clear iIcon\n");
+        broken(shfi.iIcon != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
+        "SHGetFileInfoA('' | 0) should not clear iIcon\n");
     ok(shfi.dwAttributes == 0xcfcfcfcf ||
-       broken(shfi.dwAttributes != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
-       "SHGetFileInfoA('' | 0) should not clear dwAttributes\n");
+        broken(shfi.dwAttributes != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
+        "SHGetFileInfoA('' | 0) should not clear dwAttributes\n");
 
     memset(&shfiw, 0xcf, sizeof(shfiw));
     memset(&unset_icon, 0xcf, sizeof(unset_icon));
@@ -246,9 +246,9 @@ static void test_get_file_info(void)
      * but which work anyway
      */
     memset(&shfi, 0xcf, sizeof(shfi));
-    rc=SHGetFileInfoA("c:\\nonexistent", FILE_ATTRIBUTE_DIRECTORY,
-                      &shfi, sizeof(shfi),
-                      SHGFI_ATTRIBUTES | SHGFI_USEFILEATTRIBUTES);
+    rc = SHGetFileInfoA("c:\\nonexistent", FILE_ATTRIBUTE_DIRECTORY,
+        &shfi, sizeof(shfi),
+        SHGFI_ATTRIBUTES | SHGFI_USEFILEATTRIBUTES);
     ok(rc == 1, "SHGetFileInfoA(c:\\nonexistent | SHGFI_ATTRIBUTES) should return 1, got 0x%lx\n", rc);
     if (rc)
         ok(shfi.dwAttributes != 0xcfcfcfcf, "dwFileAttributes is not set\n");
@@ -256,20 +256,20 @@ static void test_get_file_info(void)
     todo_wine ok(shfi.szDisplayName[0] == 0, "SHGetFileInfoA(c:\\nonexistent | SHGFI_ATTRIBUTES) did not clear szDisplayName[0]\n");
     todo_wine ok(shfi.szTypeName[0] == 0, "SHGetFileInfoA(c:\\nonexistent | SHGFI_ATTRIBUTES) did not clear szTypeName[0]\n");
     ok(shfi.iIcon == 0xcfcfcfcf ||
-       broken(shfi.iIcon != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
-       "SHGetFileInfoA(c:\\nonexistent | SHGFI_ATTRIBUTES) should not clear iIcon\n");
+        broken(shfi.iIcon != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
+        "SHGetFileInfoA(c:\\nonexistent | SHGFI_ATTRIBUTES) should not clear iIcon\n");
 
-    rc=SHGetFileInfoA("c:\\nonexistent", FILE_ATTRIBUTE_DIRECTORY,
-                      &shfi, sizeof(shfi),
-                      SHGFI_EXETYPE | SHGFI_USEFILEATTRIBUTES);
+    rc = SHGetFileInfoA("c:\\nonexistent", FILE_ATTRIBUTE_DIRECTORY,
+        &shfi, sizeof(shfi),
+        SHGFI_EXETYPE | SHGFI_USEFILEATTRIBUTES);
     todo_wine ok(rc == 1, "SHGetFileInfoA(c:\\nonexistent | SHGFI_EXETYPE) should return 1, got 0x%lx\n", rc);
 
     /* Test SHGFI_USEFILEATTRIBUTES support */
     strcpy(shfi.szDisplayName, "dummy");
-    shfi.iIcon=0xdeadbeef;
-    rc=SHGetFileInfoA("c:\\nonexistent", FILE_ATTRIBUTE_DIRECTORY,
-                      &shfi, sizeof(shfi),
-                      SHGFI_ICONLOCATION | SHGFI_USEFILEATTRIBUTES);
+    shfi.iIcon = 0xdeadbeef;
+    rc = SHGetFileInfoA("c:\\nonexistent", FILE_ATTRIBUTE_DIRECTORY,
+        &shfi, sizeof(shfi),
+        SHGFI_ICONLOCATION | SHGFI_USEFILEATTRIBUTES);
     ok(rc == 1, "SHGetFileInfoA(c:\\nonexistent) should return 1, got 0x%lx\n", rc);
     if (rc)
     {
@@ -283,16 +283,16 @@ static void test_get_file_info(void)
     if (SearchPathA(NULL, "notepad.exe", NULL, sizeof(notepad), notepad, NULL))
     {
         strcpy(shfi.szDisplayName, "dummy");
-        shfi.iIcon=0xdeadbeef;
-        rc=SHGetFileInfoA(notepad, GetFileAttributesA(notepad),
-                          &shfi, sizeof(shfi),
-                          SHGFI_ICONLOCATION | SHGFI_USEFILEATTRIBUTES);
+        shfi.iIcon = 0xdeadbeef;
+        rc = SHGetFileInfoA(notepad, GetFileAttributesA(notepad),
+            &shfi, sizeof(shfi),
+            SHGFI_ICONLOCATION | SHGFI_USEFILEATTRIBUTES);
         ok(rc == 1, "SHGetFileInfoA(%s, SHGFI_USEFILEATTRIBUTES) should return 1, got 0x%lx\n", notepad, rc);
         strcpy(shfi2.szDisplayName, "dummy");
-        shfi2.iIcon=0xdeadbeef;
-        rc2=SHGetFileInfoA(notepad, 0,
-                           &shfi2, sizeof(shfi2),
-                           SHGFI_ICONLOCATION);
+        shfi2.iIcon = 0xdeadbeef;
+        rc2 = SHGetFileInfoA(notepad, 0,
+            &shfi2, sizeof(shfi2),
+            SHGFI_ICONLOCATION);
         ok(rc2 == 1, "SHGetFileInfoA(%s) failed %lx\n", notepad, rc2);
         if (rc && rc2)
         {
@@ -303,16 +303,16 @@ static void test_get_file_info(void)
 
     /* with a directory now */
     strcpy(shfi.szDisplayName, "dummy");
-    shfi.iIcon=0xdeadbeef;
-    rc=SHGetFileInfoA("test4.txt", GetFileAttributesA("test4.txt"),
-                      &shfi, sizeof(shfi),
-                      SHGFI_ICONLOCATION | SHGFI_USEFILEATTRIBUTES);
+    shfi.iIcon = 0xdeadbeef;
+    rc = SHGetFileInfoA("test4.txt", GetFileAttributesA("test4.txt"),
+        &shfi, sizeof(shfi),
+        SHGFI_ICONLOCATION | SHGFI_USEFILEATTRIBUTES);
     ok(rc == 1, "SHGetFileInfoA(test4.txt/, SHGFI_USEFILEATTRIBUTES) should return 1, got 0x%lx\n", rc);
     strcpy(shfi2.szDisplayName, "dummy");
-    shfi2.iIcon=0xdeadbeef;
-    rc2=SHGetFileInfoA("test4.txt", 0,
-                      &shfi2, sizeof(shfi2),
-                      SHGFI_ICONLOCATION);
+    shfi2.iIcon = 0xdeadbeef;
+    rc2 = SHGetFileInfoA("test4.txt", 0,
+        &shfi2, sizeof(shfi2),
+        SHGFI_ICONLOCATION);
     ok(rc2 == 1, "SHGetFileInfoA(test4.txt/) should return 1, got 0x%lx\n", rc2);
     if (rc && rc2)
     {
@@ -322,47 +322,47 @@ static void test_get_file_info(void)
     /* with drive root directory */
     strcpy(shfi.szDisplayName, "dummy");
     strcpy(shfi.szTypeName, "dummy");
-    shfi.hIcon=(HICON) 0xdeadbeef;
-    shfi.iIcon=0xdeadbeef;
-    shfi.dwAttributes=0xdeadbeef;
-    rc=SHGetFileInfoA("c:\\", 0, &shfi, sizeof(shfi),
-                      SHGFI_TYPENAME | SHGFI_DISPLAYNAME | SHGFI_ICON | SHGFI_SMALLICON);
+    shfi.hIcon = (HICON)0xdeadbeef;
+    shfi.iIcon = 0xdeadbeef;
+    shfi.dwAttributes = 0xdeadbeef;
+    rc = SHGetFileInfoA("c:\\", 0, &shfi, sizeof(shfi),
+        SHGFI_TYPENAME | SHGFI_DISPLAYNAME | SHGFI_ICON | SHGFI_SMALLICON);
     ok(rc == 1, "SHGetFileInfoA(c:\\) should return 1, got 0x%lx\n", rc);
     ok(strcmp(shfi.szDisplayName, "dummy") != 0, "display name was expected to change\n");
     ok(strcmp(shfi.szTypeName, "dummy") != 0, "type name was expected to change\n");
-    ok(shfi.hIcon != (HICON) 0xdeadbeef, "hIcon was expected to change\n");
+    ok(shfi.hIcon != (HICON)0xdeadbeef, "hIcon was expected to change\n");
     ok(shfi.iIcon != 0xdeadbeef, "iIcon was expected to change\n");
 }
 
-static void check_icon_size( HICON icon, DWORD flags )
+static void check_icon_size(HICON icon, DWORD flags)
 {
     ICONINFO info;
     BITMAP bm;
     SIZE metrics_size;
     int list_cx, list_cy;
-    IImageList *list;
+    IImageList* list;
 
-    GetIconInfo( icon, &info );
-    GetObjectW( info.hbmColor, sizeof(bm), &bm );
+    GetIconInfo(icon, &info);
+    GetObjectW(info.hbmColor, sizeof(bm), &bm);
 
-    SHGetImageList( (flags & SHGFI_SMALLICON) ? SHIL_SMALL : SHIL_LARGE,
-                    &IID_IImageList, (void **)&list );
-    IImageList_GetIconSize( list, &list_cx, &list_cy );
-    IImageList_Release( list );
+    SHGetImageList((flags & SHGFI_SMALLICON) ? SHIL_SMALL : SHIL_LARGE,
+        &IID_IImageList, (void**)&list);
+    IImageList_GetIconSize(list, &list_cx, &list_cy);
+    IImageList_Release(list);
 
-    metrics_size.cx = GetSystemMetrics( (flags & SHGFI_SMALLICON) ? SM_CXSMICON : SM_CXICON );
-    metrics_size.cy = GetSystemMetrics( (flags & SHGFI_SMALLICON) ? SM_CYSMICON : SM_CYICON );
+    metrics_size.cx = GetSystemMetrics((flags & SHGFI_SMALLICON) ? SM_CXSMICON : SM_CXICON);
+    metrics_size.cy = GetSystemMetrics((flags & SHGFI_SMALLICON) ? SM_CYSMICON : SM_CYICON);
 
 
     if (flags & SHGFI_SHELLICONSIZE)
     {
-        ok( bm.bmWidth == list_cx, "got %d expected %d\n", bm.bmWidth, list_cx );
-        ok( bm.bmHeight == list_cy, "got %d expected %d\n", bm.bmHeight, list_cy );
+        ok(bm.bmWidth == list_cx, "got %d expected %d\n", bm.bmWidth, list_cx);
+        ok(bm.bmHeight == list_cy, "got %d expected %d\n", bm.bmHeight, list_cy);
     }
     else
     {
-        ok( bm.bmWidth == metrics_size.cx, "got %d expected %ld\n", bm.bmWidth, metrics_size.cx );
-        ok( bm.bmHeight == metrics_size.cy, "got %d expected %ld\n", bm.bmHeight, metrics_size.cy );
+        ok(bm.bmWidth == metrics_size.cx, "got %d expected %ld\n", bm.bmWidth, metrics_size.cx);
+        ok(bm.bmHeight == metrics_size.cy, "got %d expected %ld\n", bm.bmHeight, metrics_size.cy);
     }
 }
 
@@ -376,192 +376,192 @@ static void test_get_file_info_iconlist(void)
     LPITEMIDLIST pidList;
     SHFILEINFOA shInfoa;
     SHFILEINFOW shInfow;
-    IImageList *small_list, *large_list;
+    IImageList* small_list, * large_list;
     ULONG start_refs, refs;
 
     hr = SHGetSpecialFolderLocation(NULL, CSIDL_DESKTOP, &pidList);
     if (FAILED(hr)) {
-         skip("can't get desktop pidl\n");
-         return;
+        skip("can't get desktop pidl\n");
+        return;
     }
 
-    SHGetImageList( SHIL_LARGE, &IID_IImageList, (void **)&large_list );
-    SHGetImageList( SHIL_SMALL, &IID_IImageList, (void **)&small_list );
+    SHGetImageList(SHIL_LARGE, &IID_IImageList, (void**)&large_list);
+    SHGetImageList(SHIL_SMALL, &IID_IImageList, (void**)&small_list);
 
-    start_refs = IImageList_AddRef( small_list );
-    IImageList_Release( small_list );
+    start_refs = IImageList_AddRef(small_list);
+    IImageList_Release(small_list);
 
     memset(&shInfoa, 0xcf, sizeof(shInfoa));
-    hSysImageList = (HIMAGELIST) SHGetFileInfoA((const char *)pidList, 0,
-            &shInfoa, sizeof(shInfoa),
-	    SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_PIDL);
+    hSysImageList = (HIMAGELIST)SHGetFileInfoA((const char*)pidList, 0,
+        &shInfoa, sizeof(shInfoa),
+        SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_PIDL);
     ok(hSysImageList == (HIMAGELIST)small_list, "got %p expect %p\n", hSysImageList, small_list);
-    refs = IImageList_AddRef( small_list );
-    IImageList_Release( small_list );
-    ok( refs == start_refs + 1 ||
-        broken( refs == start_refs ), /* XP and 2003 */
-        "got %ld, start_refs %ld\n", refs, start_refs );
+    refs = IImageList_AddRef(small_list);
+    IImageList_Release(small_list);
+    ok(refs == start_refs + 1 ||
+        broken(refs == start_refs), /* XP and 2003 */
+        "got %ld, start_refs %ld\n", refs, start_refs);
     todo_wine ok(shInfoa.hIcon == 0, "SHGetFileInfoA(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) did not clear hIcon\n");
     todo_wine ok(shInfoa.szTypeName[0] == 0, "SHGetFileInfoA(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) did not clear szTypeName[0]\n");
     ok(shInfoa.iIcon != 0xcfcfcfcf, "SHGetFileInfoA(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) should set iIcon\n");
     ok(shInfoa.dwAttributes == 0xcfcfcfcf ||
-       shInfoa.dwAttributes ==  0 || /* Vista */
-       broken(shInfoa.dwAttributes != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
-       "SHGetFileInfoA(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL), unexpected dwAttributes\n");
+        shInfoa.dwAttributes == 0 || /* Vista */
+        broken(shInfoa.dwAttributes != 0xcfcfcfcf), /* NT4 doesn't clear but sets this field */
+        "SHGetFileInfoA(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL), unexpected dwAttributes\n");
     /* Don't release hSysImageList here (and in similar places below) because of the broken reference behaviour of XP and 2003. */
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST) SHGetFileInfoW((const WCHAR *)pidList, 0,
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0,
         &shInfow, sizeof(shInfow), SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_PIDL);
     ok(hSysImageList == (HIMAGELIST)small_list, "got %p expect %p\n", hSysImageList, small_list);
     todo_wine ok(shInfow.hIcon == 0, "SHGetFileInfoW(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) did not clear hIcon\n");
     ok(shInfow.szTypeName[0] == 0, "SHGetFileInfoW(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) did not clear szTypeName[0]\n");
     ok(shInfow.iIcon != 0xcfcfcfcf, "SHGetFileInfoW(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) should set iIcon\n");
     ok(shInfow.dwAttributes == 0xcfcfcfcf ||
-       shInfoa.dwAttributes ==  0, /* Vista */
-       "SHGetFileInfoW(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) unexpected dwAttributes\n");
+        shInfoa.dwAttributes == 0, /* Vista */
+        "SHGetFileInfoW(CSIDL_DESKTOP, SHGFI_SYSICONINDEX|SHGFI_SMALLICON|SHGFI_PIDL) unexpected dwAttributes\n");
 
     /* Various suposidly invalid flag testing */
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON);
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON);
     ok(hSysImageList == (HIMAGELIST)small_list, "got %p expect %p\n", hSysImageList, small_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf ||
-       shInfoa.dwAttributes==0, /* Vista */
-       "unexpected dwAttributes\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf ||
+        shInfoa.dwAttributes == 0, /* Vista */
+        "unexpected dwAttributes\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_ICON|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON);
     ok(hr != 0, " SHGFI_ICON|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON Failed\n");
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    check_icon_size( shInfow.hIcon, SHGFI_SMALLICON );
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    check_icon_size(shInfow.hIcon, SHGFI_SMALLICON);
     DestroyIcon(shInfow.hIcon);
-    todo_wine ok(shInfow.dwAttributes==0,"dwAttributes not set\n");
+    todo_wine ok(shInfow.dwAttributes == 0, "dwAttributes not set\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_ICON|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_LARGEICON);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_LARGEICON);
     ok(hr != 0, "SHGFI_ICON|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_LARGEICON Failed\n");
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    check_icon_size( shInfow.hIcon, SHGFI_LARGEICON );
-    DestroyIcon( shInfow.hIcon );
-    todo_wine ok(shInfow.dwAttributes==0,"dwAttributes not set\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    check_icon_size(shInfow.hIcon, SHGFI_LARGEICON);
+    DestroyIcon(shInfow.hIcon);
+    todo_wine ok(shInfow.dwAttributes == 0, "dwAttributes not set\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_LARGEICON);
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_LARGEICON);
     ok(hSysImageList == (HIMAGELIST)large_list, "got %p expect %p\n", hSysImageList, small_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf ||
-       shInfoa.dwAttributes==0, /* Vista */
-       "unexpected dwAttributes\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf ||
+        shInfoa.dwAttributes == 0, /* Vista */
+        "unexpected dwAttributes\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_OPENICON|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_OPENICON | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON);
     ok(hr != 0, "SHGFI_OPENICON|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf,"dwAttributes modified\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf, "dwAttributes modified\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SHELLICONSIZE|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SHELLICONSIZE | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON);
     ok(hr != 0, "SHGFI_SHELLICONSIZE|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf,"dwAttributes modified\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf, "dwAttributes modified\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SHELLICONSIZE|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SHELLICONSIZE | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON);
     ok(hr != 0, "SHGFI_SHELLICONSIZE|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf,"dwAttributes modified\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf, "dwAttributes modified\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON|
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON |
         SHGFI_ATTRIBUTES);
     ok(hSysImageList == (HIMAGELIST)small_list, "got %p expect %p\n", hSysImageList, small_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    ok(shInfow.dwAttributes!=0xcfcfcfcf,"dwAttributes not set\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    ok(shInfow.dwAttributes != 0xcfcfcfcf, "dwAttributes not set\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON|
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON |
         SHGFI_EXETYPE);
     todo_wine ok(hSysImageList == (HIMAGELIST)small_list, "got %p expect %p\n", hSysImageList, small_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf ||
-       shInfoa.dwAttributes==0, /* Vista */
-       "unexpected dwAttributes\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf ||
+        shInfoa.dwAttributes == 0, /* Vista */
+        "unexpected dwAttributes\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-        SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON|SHGFI_EXETYPE);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON | SHGFI_EXETYPE);
     todo_wine ok(hr != 0, "SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON|SHGFI_EXETYPE Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf,"dwAttributes modified\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf, "dwAttributes modified\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-        SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON|SHGFI_ATTRIBUTES);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_SMALLICON | SHGFI_ATTRIBUTES);
     ok(hr != 0, "SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_SMALLICON|SHGFI_ATTRIBUTES Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes!=0xcfcfcfcf,"dwAttributes not set\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes != 0xcfcfcfcf, "dwAttributes not set\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL |
         SHGFI_ATTRIBUTES);
     ok(hSysImageList == (HIMAGELIST)large_list, "got %p expect %p\n", hSysImageList, large_list);
     ok(hr != 0, "SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_ATTRIBUTES Failed\n");
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    ok(shInfow.dwAttributes!=0xcfcfcfcf,"dwAttributes not set\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    ok(shInfow.dwAttributes != 0xcfcfcfcf, "dwAttributes not set\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-        SHGFI_SYSICONINDEX|SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_EXETYPE);
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_EXETYPE);
     todo_wine ok(hSysImageList == (HIMAGELIST)large_list, "got %p expect %p\n", hSysImageList, large_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf ||
-       shInfoa.dwAttributes==0, /* Vista */
-       "unexpected dwAttributes\n");
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf ||
+        shInfoa.dwAttributes == 0, /* Vista */
+        "unexpected dwAttributes\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-        SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_EXETYPE);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_EXETYPE);
     todo_wine ok(hr != 0, "SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_EXETYPE Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes==0xcfcfcfcf,"dwAttributes modified\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes == 0xcfcfcfcf, "dwAttributes modified\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hr = SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-        SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_ATTRIBUTES);
+    hr = SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_USEFILEATTRIBUTES | SHGFI_PIDL | SHGFI_ATTRIBUTES);
     ok(hr != 0, "SHGFI_USEFILEATTRIBUTES|SHGFI_PIDL|SHGFI_ATTRIBUTES Failed\n");
-    todo_wine ok(shInfow.iIcon==0xcfcfcfcf, "Icon Index Modified\n");
-    ok(shInfow.dwAttributes!=0xcfcfcfcf,"dwAttributes not set\n");
+    todo_wine ok(shInfow.iIcon == 0xcfcfcfcf, "Icon Index Modified\n");
+    ok(shInfow.dwAttributes != 0xcfcfcfcf, "dwAttributes not set\n");
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_PIDL|SHGFI_SMALLICON|SHGFI_SHELLICONSIZE|SHGFI_ICON);
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_PIDL | SHGFI_SMALLICON | SHGFI_SHELLICONSIZE | SHGFI_ICON);
     ok(hSysImageList == (HIMAGELIST)small_list, "got %p expect %p\n", hSysImageList, small_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    check_icon_size( shInfow.hIcon, SHGFI_SMALLICON | SHGFI_SHELLICONSIZE );
-    DestroyIcon( shInfow.hIcon );
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    check_icon_size(shInfow.hIcon, SHGFI_SMALLICON | SHGFI_SHELLICONSIZE);
+    DestroyIcon(shInfow.hIcon);
 
     memset(&shInfow, 0xcf, sizeof(shInfow));
-    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR *)pidList, 0, &shInfow, sizeof(shInfow),
-	    SHGFI_SYSICONINDEX|SHGFI_PIDL|SHGFI_SHELLICONSIZE|SHGFI_ICON);
+    hSysImageList = (HIMAGELIST)SHGetFileInfoW((const WCHAR*)pidList, 0, &shInfow, sizeof(shInfow),
+        SHGFI_SYSICONINDEX | SHGFI_PIDL | SHGFI_SHELLICONSIZE | SHGFI_ICON);
     ok(hSysImageList == (HIMAGELIST)large_list, "got %p expect %p\n", hSysImageList, small_list);
-    ok(shInfow.iIcon!=0xcfcfcfcf, "Icon Index Missing\n");
-    check_icon_size( shInfow.hIcon, SHGFI_LARGEICON | SHGFI_SHELLICONSIZE );
-    DestroyIcon( shInfow.hIcon );
+    ok(shInfow.iIcon != 0xcfcfcfcf, "Icon Index Missing\n");
+    check_icon_size(shInfow.hIcon, SHGFI_LARGEICON | SHGFI_SHELLICONSIZE);
+    DestroyIcon(shInfow.hIcon);
 
     ILFree(pidList);
-    IImageList_Release( small_list );
-    IImageList_Release( large_list );
+    IImageList_Release(small_list);
+    IImageList_Release(large_list);
 }
 
 
@@ -570,7 +570,7 @@ static void test_get_file_info_iconlist(void)
  files - string with file names, separated by null characters. Ends on a double
  null characters
 */
-static void set_curr_dir_path(CHAR *buf, const CHAR* files)
+static void set_curr_dir_path(CHAR* buf, const CHAR* files)
 {
     buf[0] = 0;
     while (files[0])
@@ -588,8 +588,8 @@ static void set_curr_dir_path(CHAR *buf, const CHAR* files)
 
 #define check_file_operation(func, flags, from, to, expect_ret, expect_aborted, todo_ret, todo_aborted) \
         check_file_operation_(__LINE__, func, flags, from, to, expect_ret, expect_aborted, todo_ret, todo_aborted)
-void check_file_operation_(unsigned int line, UINT func, FILEOP_FLAGS flags, const char *from, const char *to,
-        DWORD expect_ret, BOOL expect_aborted, BOOL todo_ret, BOOL todo_aborted)
+void check_file_operation_(unsigned int line, UINT func, FILEOP_FLAGS flags, const char* from, const char* to,
+    DWORD expect_ret, BOOL expect_aborted, BOOL todo_ret, BOOL todo_aborted)
 {
     SHFILEOPSTRUCTA op;
     DWORD ret;
@@ -603,9 +603,9 @@ void check_file_operation_(unsigned int line, UINT func, FILEOP_FLAGS flags, con
 
     ret = SHFileOperationA(&op);
     todo_wine_if(todo_ret)
-    ok_(__FILE__, line)(ret == expect_ret, "SHFileOperationA returned %ld, expected %ld.\n", ret, expect_ret);
+        ok_(__FILE__, line)(ret == expect_ret, "SHFileOperationA returned %ld, expected %ld.\n", ret, expect_ret);
     todo_wine_if(todo_aborted)
-    ok_(__FILE__, line)(op.fAnyOperationsAborted == expect_aborted,
+        ok_(__FILE__, line)(op.fAnyOperationsAborted == expect_aborted,
             "Unexpected fAnyOperationsAborted %d, expected %d.\n",
             op.fAnyOperationsAborted, expect_aborted);
 }
@@ -618,7 +618,7 @@ static void test_delete(void)
     /* Wildcard source, with FOF_FILESONLY. */
     set_curr_dir_path(from, "test?.txt\0");
     check_file_operation(FO_DELETE, FOF_NO_UI | FOF_FILESONLY, from, NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(dir_exists("test4.txt"), "Directory should not have been removed\n");
     ok(!file_exists("test1.txt"), "File should have been removed\n");
     ok(!file_exists("test2.txt"), "File should have been removed\n");
@@ -626,32 +626,32 @@ static void test_delete(void)
 
     set_curr_dir_path(from, "test?.txt\0");
     check_file_operation(FO_DELETE, FOF_NO_UI | FOF_FILESONLY, from, NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(dir_exists("test4.txt"), "Directory should not have been removed\n");
 
     /* Wildcard source, no FOF_FILESONLY. */
     set_curr_dir_path(from, "test?.txt\0");
     check_file_operation(FO_DELETE, FOF_NO_UI, from, NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!dir_exists("test4.txt"), "Directory should have been removed\n");
 
     /* Nonexistent wildcard source. */
     set_curr_dir_path(from, "test?.txt\0");
     check_file_operation(FO_DELETE, FOF_NO_UI, from, NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     /* Delete a dir with a file inside. */
     init_shfo_tests();
     set_curr_dir_path(from, "test4.txt\0");
     ok(MoveFileA("test1.txt", "test4.txt\\test1.txt"), "Filling the subdirectory failed\n");
     check_file_operation(FO_DELETE, FOF_NO_UI, from, NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!dir_exists("test4.txt"), "Directory is not removed\n");
 
     /* Remove a dir and a file. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, "test1.txt\0test4.txt\0", NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test1.txt"), "The file should have been removed\n");
     ok(!dir_exists("test4.txt"), "Directory should have been removed\n");
     ok(file_exists("test2.txt"), "This file should not have been removed\n");
@@ -659,7 +659,7 @@ static void test_delete(void)
     /* Wildcard source, with FOF_FILESONLY. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI | FOF_FILESONLY, "*.txt\0", NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test1.txt"), "test1.txt should have been removed\n");
     ok(!file_exists("test_5.txt"), "test_5.txt should have been removed\n");
     ok(dir_exists("test4.txt"), "test4.txt should not have been removed\n");
@@ -667,7 +667,7 @@ static void test_delete(void)
     /* Explicitly specify a dir, with FOF_FILESONLY. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI | FOF_FILESONLY, "test_?.txt\0test4.txt\0", NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!dir_exists("test4.txt"), "test4.txt should have been removed\n");
     ok(!file_exists("test_5.txt"), "test_5.txt should have been removed\n");
     ok(file_exists("test1.txt"), "test1.txt should not have been removed\n");
@@ -675,57 +675,57 @@ static void test_delete(void)
     /* Empty filename. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, "\0", NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
 
     /* NULL filename. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, NULL, NULL,
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
 
     /* Invalid function. */
     init_shfo_tests();
     check_file_operation(0, FOF_NO_UI, "test1.txt\0", NULL,
-            ERROR_INVALID_PARAMETER, FALSE, FALSE, FALSE);
+        ERROR_INVALID_PARAMETER, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
 
     /* Empty filename, only one null terminator */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, "", NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
 
     /* Nonexistent file. */
     check_file_operation(FO_DELETE, FOF_NO_UI, "nonexistent.txt\0", NULL,
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
 
     /* Delete a dir, and then a file inside the dir,
      * same as deleting a nonexistent file. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, "testdir2\0testdir2\\one.txt\0", NULL,
-            DE_INVALIDFILES, FALSE, TRUE, FALSE);
+        DE_INVALIDFILES, FALSE, TRUE, FALSE);
     ok(!dir_exists("testdir2"), "Expected testdir2 to not exist\n");
     ok(!file_exists("testdir2\\one.txt"), "Expected testdir2\\one.txt to not exist\n");
 
     /* Delete an existent file and a nonexistent file. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, "test1.txt\0nonexistent.txt\0test2.txt\0", NULL,
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     todo_wine
-    ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
+        ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
     ok(file_exists("test2.txt"), "Expected test2.txt to exist\n");
 
     /* Delete a nonexistent file in an existent dir or a nonexistent dir. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI, "testdir2\\nonexistent.txt\0", NULL,
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     check_file_operation(FO_DELETE, FOF_NO_UI, "nonexistent\\one.txt\0", NULL,
-            DE_INVALIDFILES, FALSE, FALSE, FALSE);
+        DE_INVALIDFILES, FALSE, FALSE, FALSE);
 
     /* With FOF_NORECURSION, subdirs are still deleted. */
     init_shfo_tests();
     check_file_operation(FO_DELETE, FOF_NO_UI | FOF_NORECURSION, "testdir2\0", NULL,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("testdir2\\one.txt"), "Expected testdir2\\one.txt to not exist\n");
     ok(!dir_exists("testdir2\\nested"), "Expected testdir2\\nested to not exist\n");
 }
@@ -746,103 +746,103 @@ static void test_rename(void)
     set_curr_dir_path(from, "test1.txt\0");
     set_curr_dir_path(to, "test4.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            DE_FILEDESTISFLD, FALSE, FALSE, FALSE);
+        DE_FILEDESTISFLD, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "The file is renamed\n");
 
     /* Rename a dir to an existing file. */
     set_curr_dir_path(from, "test4.txt\0");
     set_curr_dir_path(to, "test1.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            DE_FLDDESTISFILE, FALSE, FALSE, FALSE);
+        DE_FLDDESTISFILE, FALSE, FALSE, FALSE);
     ok(dir_exists("test4.txt"), "The file is renamed\n");
 
     /* Rename file to a different directory. */
     set_curr_dir_path(from, "test3.txt\0");
     set_curr_dir_path(to, "test4.txt\\test1.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            DE_DIFFDIR, FALSE, FALSE, FALSE);
+        DE_DIFFDIR, FALSE, FALSE, FALSE);
     ok(!file_exists("test4.txt\\test1.txt"), "The file is renamed\n");
 
     /* Multiple sources and targets, no FOF_MULTIDESTFILES. */
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "The file is renamed - many files are specified\n");
 
     /* Multiple sources and targets, with FOF_MULTIDESTFILES. */
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "The file is not renamed - many files are specified\n");
 
     /* Sources outnumber targets, with FOF_MULTIDESTFILES. */
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "The file is not renamed - many files are specified\n");
 
     /* Rename a file. */
     set_curr_dir_path(from, "test1.txt\0");
     set_curr_dir_path(to, "test6.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test1.txt"), "The file is not renamed\n");
     ok(file_exists("test6.txt"), "The file is not renamed\n");
 
     set_curr_dir_path(from, "test6.txt\0");
     set_curr_dir_path(to, "test1.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     /* Rename a dir. */
     set_curr_dir_path(from, "test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!dir_exists("test4.txt"), "The dir is not renamed\n");
     ok(dir_exists("test6.txt"), "The dir is not renamed\n");
 
     set_curr_dir_path(from, "test6.txt\0");
     set_curr_dir_path(to, "test4.txt\0");
     check_file_operation(FO_RENAME, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(dir_exists("test4.txt"), "The dir is not renamed\n");
 
     /* Rename multiple files to a single file. */
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test1.txt\0test2.txt\0", "a.txt\0",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0", "a.txt\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
     ok(file_exists("test2.txt"), "Expected test2.txt to exist\n");
     ok(!file_exists("a.txt"), "Expected a.txt to not exist\n");
 
     /* Rename a file to multiple files. */
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test1.txt\0", "a.txt\0b.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0", "a.txt\0b.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test1.txt"), "Expected test1.txt to not exist\n");
     ok(DeleteFileA("a.txt"), "Expected a.txt to exist\n");
     ok(!DeleteFileA("b.txt"), "Expected b.txt to not exist\n");
 
     /* Rename a nonexistent file. */
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "idontexist\0", "newfile\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        "idontexist\0", "newfile\0",
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     ok(!file_exists("newfile"), "Expected newfile to not exist\n");
 
     /* Target already exists. */
     createTestFile("test1.txt");
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test1.txt\0", "test2.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0", "test2.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     if (!is_below_windows8()) /* Hangs with Windows 7 */
     {
         check_file_operation(FO_RENAME, FOF_NO_UI,
-                "testdir2\0", "testdir4\0",
-                ERROR_SUCCESS, FALSE, TRUE, FALSE);
+            "testdir2\0", "testdir4\0",
+            ERROR_SUCCESS, FALSE, TRUE, FALSE);
     }
     else
         win_skip("Skip FO_RENAME with already existing target directory.\n");
@@ -851,73 +851,73 @@ static void test_rename(void)
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "\0", "test1.txt",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "\0", "test1.txt\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "\0", "testdir2",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "\0", "testdir2\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "\0", "nonexistence",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "\0", "nonexistence\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(!file_exists("nonexistence"), "Expected nonexistence to not exist\n");
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "testdir2\0", "\0",
-            DE_DIFFDIR, FALSE, FALSE, FALSE);
+        "testdir2\0", "\0",
+        DE_DIFFDIR, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2"), "Expected testdir2 to exist\n");
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test1.txt\0", "\0",
-            DE_DIFFDIR, FALSE, FALSE, FALSE);
+        "test1.txt\0", "\0",
+        DE_DIFFDIR, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist\n");
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "nonexistence\0", "\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        "nonexistence\0", "\0",
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "\0", "\0",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "\0", "\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
 
     /* NULL source or target. */
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            NULL, "test1.txt\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "test1.txt\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            NULL, "testdir2\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "testdir2\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            NULL, "nonexistence\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "nonexistence\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test1.txt\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "test1.txt\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "testdir2\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "testdir2\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "nonexistence\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "nonexistence\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            NULL, NULL,
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, NULL,
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
 
     /* Wildcard source or target. */
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test?.txt\0", "test_target.txt\0",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "test?.txt\0", "test_target.txt\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist.\n");
     ok(!DeleteFileA("test_target.txt"), "Expected test_target.txt to not exist.\n");
 
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "t?st1.txt\0", "test_target.txt\0",
-            DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
+        "t?st1.txt\0", "test_target.txt\0",
+        DE_MANYSRC1DEST, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist.\n");
     ok(!DeleteFileA("test_target.txt"), "Expected test_target.txt to not exist.\n");
 
     check_file_operation(FO_RENAME, FOF_NO_UI,
-            "test1.txt\0", "test?.txt\0",
-            ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
+        "test1.txt\0", "test?.txt\0",
+        ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
     ok(file_exists("test1.txt"), "Expected test1.txt to exist.\n");
 }
 
@@ -933,7 +933,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test6.txt\\test1.txt"), "test6.txt\\test1.txt is not copied.\n");
     ok(DeleteFileA("test6.txt\\test2.txt"), "test6.txt\\test2.txt is not copied.\n");
     RemoveDirectoryA("test6.txt\\test4.txt");
@@ -943,9 +943,9 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("test6.txt"), "The file is not copied - many files are "
-       "specified as a target\n");
+        "specified as a target\n");
     DeleteFileA("test6.txt");
     DeleteFileA("test7.txt");
     RemoveDirectoryA("test8.txt");
@@ -954,7 +954,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            DE_DESTSAMETREE, FALSE, FALSE, FALSE);
+        DE_DESTSAMETREE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test6.txt\\test1.txt"), "The file is not copied.\n");
     RemoveDirectoryA("test6.txt");
     ok(DeleteFileA("test7.txt\\test2.txt"), "The file is not copied.\n");
@@ -965,7 +965,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test?.txt\0");
     set_curr_dir_path(to, "testdir2\0");
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test1.txt"), "The file is copied\n");
     ok(file_exists("testdir2\\test4.txt"), "The directory is copied\n");
     ok(file_exists("testdir2\\test4.txt\\test1.txt"), "The file in subdirectory is copied\n");
@@ -976,7 +976,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test?.txt\0");
     set_curr_dir_path(to, "testdir2\0");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_FILESONLY, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test1.txt"), "The file is copied\n");
     ok(!file_exists("testdir2\\test4.txt"), "The directory is copied\n");
     clean_after_shfo_tests();
@@ -986,7 +986,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0");
     set_curr_dir_path(to, "testdir2\0");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_FILESONLY, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test1.txt"), "The file is copied\n");
     ok(file_exists("testdir2\\test2.txt"), "The file is copied\n");
     clean_after_shfo_tests();
@@ -996,7 +996,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0test10.txt\0test2.txt\0");
     set_curr_dir_path(to, "testdir2\0");
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     ok(!file_exists("testdir2\\test1.txt"), "The file is copied\n");
     ok(!file_exists("testdir2\\test2.txt"), "The file is copied\n");
     clean_after_shfo_tests();
@@ -1006,7 +1006,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0");
     set_curr_dir_path(to, "nonexistent\\notreal\\test2.txt\0");
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("nonexistent"), "nonexistent not created\n");
     ok(file_exists("nonexistent\\notreal"), "nonexistent\\notreal not created\n");
     ok(file_exists("nonexistent\\notreal\\test2.txt"), "Directory not created\n");
@@ -1015,8 +1015,8 @@ static void test_copy(void)
 
     /* Relative path. */
     init_shfo_tests();
-    check_file_operation(FO_COPY, FOF_NO_UI,"test1.txt\0test2.txt\0test3.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+    check_file_operation(FO_COPY, FOF_NO_UI, "test1.txt\0test2.txt\0test3.txt\0", "testdir2\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test1.txt"), "Expected testdir2\\test1 to exist\n");
     clean_after_shfo_tests();
 
@@ -1026,8 +1026,8 @@ static void test_copy(void)
     ok(ret, "Failure to set file attributes (error %lx)\n", GetLastError());
     retval = CopyFileA("test1.txt", "test2.txt", FALSE);
     ok(!retval && GetLastError() == ERROR_ACCESS_DENIED, "CopyFileA should have fail with ERROR_ACCESS_DENIED\n");
-    check_file_operation(FO_COPY, FOF_NO_UI,"test1.txt\0", "test2.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+    check_file_operation(FO_COPY, FOF_NO_UI, "test1.txt\0", "test2.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     /* Set back normal attributes to make the file deletion succeed */
     ret = SetFileAttributesA("test2.txt", FILE_ATTRIBUTE_NORMAL);
     ok(ret, "Failure to set file attributes (error %lx)\n", GetLastError());
@@ -1038,7 +1038,7 @@ static void test_copy(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0");
     set_curr_dir_path(to, "test3.txt\0");
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            DE_INVALIDFILES, FALSE, TRUE, FALSE);
+        DE_INVALIDFILES, FALSE, TRUE, FALSE);
     ok(!file_exists("test3.txt\\test2.txt"), "Expected test3.txt\\test2.txt to not exist\n");
 
     /* Copy many files to a nonexistent directory. */
@@ -1046,7 +1046,7 @@ static void test_copy(void)
     set_curr_dir_path(to, "test3.txt\0");
     DeleteFileA(to);
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test3.txt\\test1.txt"), "Expected test3.txt\\test1.txt to exist\n");
     ok(DeleteFileA("test3.txt\\test2.txt"), "Expected test3.txt\\test1.txt to exist\n");
     ok(RemoveDirectoryA(to), "Expected test3.txt to exist\n");
@@ -1054,9 +1054,9 @@ static void test_copy(void)
     /* Targets outnumber sources, with FOF_MULTIDESTFILES. */
     init_shfo_tests();
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test2.txt\0test3.txt\0",
-            "testdir2\\a.txt\0testdir2\\b.txt\0testdir2\\c.txt\0testdir2\\d.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0test3.txt\0",
+        "testdir2\\a.txt\0testdir2\\b.txt\0testdir2\\c.txt\0testdir2\\d.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("testdir2\\a.txt\\test1.txt"), "Expected testdir2\\a.txt\\test1.txt to exist\n");
     RemoveDirectoryA("testdir2\\a.txt");
     ok(DeleteFileA("testdir2\\b.txt\\test2.txt"), "Expected testdir2\\b.txt\\test2.txt to exist\n");
@@ -1067,9 +1067,9 @@ static void test_copy(void)
 
     /* Sources outnumber targets, with FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test2.txt\0test3.txt\0",
-            "e.txt\0f.txt\0",
-            DE_SAMEFILE, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0test3.txt\0",
+        "e.txt\0f.txt\0",
+        DE_SAMEFILE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("e.txt\\test1.txt"), "Expected e.txt\\test1.txt to exist\n");
     RemoveDirectoryA("e.txt");
     ok(DeleteFileA("f.txt\\test2.txt"), "Expected f.txt\\test2.txt to exist\n");
@@ -1077,18 +1077,18 @@ static void test_copy(void)
 
     /* Sources and targets have the same number, with FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test2.txt\0test4.txt\0",
-            "testdir2\\a.txt\0testdir2\\b.txt\0testdir2\\c.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0test4.txt\0",
+        "testdir2\\a.txt\0testdir2\\b.txt\0testdir2\\c.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("testdir2\\a.txt"), "Expected testdir2\\a.txt to exist\n");
     ok(DeleteFileA("testdir2\\b.txt"), "Expected testdir2\\b.txt to exist\n");
     ok(RemoveDirectoryA("testdir2\\c.txt"), "Expected testdir2\\c.txt to exist\n");
 
     /* Sources and targets have the same number, no FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test1.txt\0test2.txt\0test3.txt\0",
-            "a.txt\0b.txt\0c.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0test3.txt\0",
+        "a.txt\0b.txt\0c.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("a.txt\\test1.txt"), "Expected a.txt\\test1.txt to exist\n");
     ok(DeleteFileA("a.txt\\test2.txt"), "Expected a.txt\\test2.txt to exist\n");
     ok(DeleteFileA("a.txt\\test3.txt"), "Expected a.txt\\test3.txt to exist\n");
@@ -1098,9 +1098,9 @@ static void test_copy(void)
 
     /* Sources outnumber targets, no FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test1.txt\0test2.txt\0test3.txt\0",
-            "a.txt\0b.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0test3.txt\0",
+        "a.txt\0b.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("a.txt\\test1.txt"), "Expected a.txt\\test1.txt to exist\n");
     ok(DeleteFileA("a.txt\\test2.txt"), "Expected a.txt\\test2.txt to exist\n");
     ok(DeleteFileA("a.txt\\test3.txt"), "Expected a.txt\\test3.txt to exist\n");
@@ -1109,7 +1109,7 @@ static void test_copy(void)
 
     /* Wildcard source. */
     check_file_operation(FO_COPY, FOF_NO_UI, "test?.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test1.txt"), "Expected testdir2\\test1.txt to exist\n");
     ok(dir_exists("testdir2\\test4.txt"), "Expected testdir2\\test4.txt to exist\n");
 
@@ -1117,7 +1117,7 @@ static void test_copy(void)
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_FILESONLY, "test?.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test1.txt"), "Expected testdir2\\test1.txt to exist\n");
     ok(!dir_exists("testdir2\\test4.txt"), "Expected testdir2\\test4.txt to not exist\n");
 
@@ -1125,8 +1125,8 @@ static void test_copy(void)
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test?.txt\0", "testdir2\\a.txt\0testdir2\\b.txt\0testdir2\\c.txt\0testdir2\\d.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test?.txt\0", "testdir2\\a.txt\0testdir2\\b.txt\0testdir2\\c.txt\0testdir2\\d.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("testdir2\\a.txt\\test1.txt"), "Expected testdir2\\a.txt\\test1.txt to exist\n");
     ok(DeleteFileA("testdir2\\a.txt\\test2.txt"), "Expected testdir2\\a.txt\\test2.txt to exist\n");
     ok(DeleteFileA("testdir2\\a.txt\\test3.txt"), "Expected testdir2\\a.txt\\test3.txt to exist\n");
@@ -1138,15 +1138,15 @@ static void test_copy(void)
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0", "b.txt\0c.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0", "b.txt\0c.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("b.txt"), "Expected b.txt to exist\n");
     ok(!DeleteFileA("c.txt"), "Expected c.txt to not exist\n");
 
     /* Copy two file to three others. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test2.txt\0", "b.txt\0c.txt\0d.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0", "b.txt\0c.txt\0d.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("b.txt\\test1.txt"), "Expected b.txt\\test1.txt to exist\n");
     RemoveDirectoryA("b.txt");
     ok(DeleteFileA("c.txt\\test2.txt"), "Expected c.txt\\test2.txt to exist\n");
@@ -1154,8 +1154,8 @@ static void test_copy(void)
 
     /* Copy one file and one directory to three others. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test4.txt\0", "b.txt\0c.txt\0d.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0test4.txt\0", "b.txt\0c.txt\0d.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("b.txt\\test1.txt"), "Expected b.txt\\test1.txt to exist\n");
     RemoveDirectoryA("b.txt");
     ok(RemoveDirectoryA("c.txt\\test4.txt"), "Expected c.txt\\test4.txt to exist\n");
@@ -1164,22 +1164,22 @@ static void test_copy(void)
     /* Copy a file and a dir containing file to another dir. */
     createTestFile("test4.txt\\a.txt");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test4.txt\0test1.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test4.txt\0test1.txt\0", "testdir2\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("testdir2\\test1.txt"), "Expected testdir2\\test1.txt to exist\n");
     ok(DeleteFileA("testdir2\\test4.txt\\a.txt"), "Expected a.txt to exist\n");
     ok(RemoveDirectoryA("testdir2\\test4.txt"), "Expected testdir2\\test4.txt to exist\n");
 
     /* Copy one dir and a file in that dir to another dir. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test4.txt\\a.txt\0test4.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test4.txt\\a.txt\0test4.txt\0", "testdir2\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("testdir2\\test4.txt\\a.txt"), "Expected a.txt to exist\n");
     ok(DeleteFileA("testdir2\\a.txt"), "Expected testdir2\\a.txt to exist\n");
 
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test4.txt\\a.txt\0test4.txt\0", "nonexistent\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test4.txt\\a.txt\0test4.txt\0", "nonexistent\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("nonexistent\\test4.txt\\a.txt"), "Expected nonexistent\\test4.txt\\a.txt to exist\n");
     RemoveDirectoryA("nonexistent\\test4.txt");
     ok(DeleteFileA("nonexistent\\a.txt"), "Expected nonexistent\\a.txt to exist\n");
@@ -1188,44 +1188,44 @@ static void test_copy(void)
 
     /* Target file is same as source file. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test2.txt\0test3.txt\0", "b.txt\0test2.txt\0c.txt\0",
-            DE_SAMEFILE, FALSE, FALSE, FALSE);
+        "test1.txt\0test2.txt\0test3.txt\0", "b.txt\0test2.txt\0c.txt\0",
+        DE_SAMEFILE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("b.txt"), "Expected b.txt to exist\n");
     ok(!file_exists("c.txt"), "Expected c.txt to not exist\n");
 
     /* Target dir is same as source dir. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test1.txt\0test4.txt\0test3.txt\0", "b.txt\0test4.txt\0c.txt\0",
-            DE_DESTSAMETREE, FALSE, FALSE, FALSE);
+        "test1.txt\0test4.txt\0test3.txt\0", "b.txt\0test4.txt\0c.txt\0",
+        DE_DESTSAMETREE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("b.txt"), "Expected b.txt to exist\n");
     ok(!file_exists("c.txt"), "Expected c.txt to not exist\n");
 
     /* Copy a dir into it's subdir. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test4.txt\0", "test4.txt\\newdir\0",
-            DE_DESTSUBTREE, FALSE, FALSE, FALSE);
+        "test4.txt\0", "test4.txt\\newdir\0",
+        DE_DESTSUBTREE, FALSE, FALSE, FALSE);
     ok(!RemoveDirectoryA("test4.txt\\newdir"), "Expected test4.txt\\newdir to not exist\n");
 
     /* Copy a dir into itself. */
     check_file_operation(FO_COPY, FOF_NO_UI, "test4.txt\0", "test4.txt\0",
-            DE_DESTSUBTREE, FALSE, FALSE, FALSE);
+        DE_DESTSUBTREE, FALSE, FALSE, FALSE);
 
     /* Copy a file into a dir, and the dir into itself. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test1.txt\0test4.txt\0", "test4.txt\0",
-            DE_DESTSUBTREE, FALSE, FALSE, FALSE);
+        "test1.txt\0test4.txt\0", "test4.txt\0",
+        DE_DESTSUBTREE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test4.txt\\test1.txt"), "Expected test4.txt\\test1.txt to exist\n");
 
     /* Copy a file to a file, and the dir into it's subdir. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test1.txt\0test4.txt\0", "test4.txt\\a.txt\0",
-            DE_DESTSUBTREE, FALSE, FALSE, FALSE);
+        "test1.txt\0test4.txt\0", "test4.txt\\a.txt\0",
+        DE_DESTSUBTREE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test4.txt\\a.txt\\test1.txt"), "Expected test4.txt\\a.txt\\test1.txt to exist\n");
     RemoveDirectoryA("test4.txt\\a.txt");
 
     /* Copy a nonexistent file to a nonexistent dir. */
     check_file_operation(FO_COPY, FOF_NO_UI, "e.txt\0", "nonexistent\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     ok(!file_exists("nonexistent\\e.txt"), "Expected nonexistent\\e.txt to not exist\n");
     ok(!file_exists("nonexistent"), "Expected nonexistent to not exist\n");
 
@@ -1235,81 +1235,81 @@ static void test_copy(void)
 
     /* Without FOF_NOCONFIRMATION the confirmation is Yes/No. */
     check_file_operation(FO_COPY, FOF_NOCONFIRMATION, "test1.txt\0", "test2.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_has_content("test2.txt", "test1.txt\n"), "The file was not copied\n");
 
     /* Without FOF_NOCONFIRMATION the confirmation is Yes/Yes to All/No/Cancel */
     check_file_operation(FO_COPY, FOF_NOCONFIRMATION | FOF_MULTIDESTFILES,
-            "test3.txt\0test1.txt\0", "test2.txt\0one.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test3.txt\0test1.txt\0", "test2.txt\0one.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_has_content("test2.txt", "test3.txt\n"), "The file was not copied\n");
 
     /* Without FOF_NOCONFIRMATION the confirmation is Yes/No */
     check_file_operation(FO_COPY, FOF_NOCONFIRMATION, "one.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_has_content("testdir2\\one.txt", "test1.txt\n"), "The file was not copied\n");
 
     createTestFile("test4.txt\\test1.txt");
     check_file_operation(FO_COPY, FOF_NOCONFIRMATION, "test4.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     createTestFile("test4.txt\\.\\test1.txt"); /* Modify the content of the file. */
     /* Without FOF_NOCONFIRMATION the confirmation is "This folder already contains a folder named ...". */
     check_file_operation(FO_COPY, FOF_NOCONFIRMATION, "test4.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_has_content("testdir2\\test4.txt\\test1.txt", "test4.txt\\.\\test1.txt\n"), "The file was not copied\n");
 
     /* pFrom contains bogus 2nd name longer than MAX_PATH */
     createTestFile("one.txt");
-    memset(from, 'a', MAX_PATH*2);
-    memset(from+MAX_PATH*2, 0, 2);
+    memset(from, 'a', MAX_PATH * 2);
+    memset(from + MAX_PATH * 2, 0, 2);
     lstrcpyA(from, "one.txt");
     check_file_operation(FO_COPY, FOF_NO_UI, from, "two.txt\0",
-            DE_INVALIDFILES, FALSE, TRUE, FALSE);
+        DE_INVALIDFILES, FALSE, TRUE, FALSE);
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     todo_wine
-    ok(RemoveDirectoryA("two.txt"), "Expected two.txt to exist\n");
+        ok(RemoveDirectoryA("two.txt"), "Expected two.txt to exist\n");
 
     /* pTo contains bogus 2nd name longer than MAX_PATH, no FOF_MULTIDESTFILES. */
     createTestFile("one.txt");
-    memset(to, 'a', MAX_PATH*2);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(to, 'a', MAX_PATH * 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(to, "two.txt");
     check_file_operation(FO_COPY, FOF_NO_UI, "one.txt\0", to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("two.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
 
     /* Copy one file to two files, no FOF_MULTIDESTFILES. */
     createTestFile("one.txt");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "one.txt\0", "two.txt\0three.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "one.txt\0", "two.txt\0three.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("two.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     ok(!DeleteFileA("three.txt"), "Expected file to not exist.\n");
 
     /* both pFrom and pTo contain bogus 2nd names longer than MAX_PATH */
     createTestFile("one.txt");
-    memset(from, 'a', MAX_PATH*2);
-    memset(from+MAX_PATH*2, 0, 2);
-    memset(to, 'a', MAX_PATH*2);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(from, 'a', MAX_PATH * 2);
+    memset(from + MAX_PATH * 2, 0, 2);
+    memset(to, 'a', MAX_PATH * 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(from, "one.txt");
     lstrcpyA(to, "two.txt");
     check_file_operation(FO_COPY, FOF_NO_UI, from, to,
-            DE_INVALIDFILES, FALSE, TRUE, FALSE);
+        DE_INVALIDFILES, FALSE, TRUE, FALSE);
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     todo_wine
-    ok(RemoveDirectoryA("two.txt"), "Expected two.txt to exist\n");
+        ok(RemoveDirectoryA("two.txt"), "Expected two.txt to exist\n");
 
     /* pTo contains bogus 2nd name longer than MAX_PATH, with FOF_MULTIDESTFILES. */
     createTestFile("one.txt");
-    memset(to, 'a', MAX_PATH*2);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(to, 'a', MAX_PATH * 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(to, "two.txt");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES, "one.txt\0", to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("two.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
 
@@ -1318,11 +1318,11 @@ static void test_copy(void)
     createTestFile("one.txt");
     createTestFile("two.txt");
     memset(to, 'a', 2 * MAX_PATH);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(to, "threedir");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "one.txt\0two.txt\0", to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "one.txt\0two.txt\0", to,
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("threedir\\one.txt"), "Expected threedir\\one.txt to exist.\n");
     ok(DeleteFileA("threedir\\two.txt"), "Expected threedir\\one.txt to exist.\n");
     ok(RemoveDirectoryA("threedir"), "Expected threedir to exist.\n");
@@ -1335,11 +1335,11 @@ static void test_copy(void)
     createTestFile("two.txt");
     CreateDirectoryA("threedir", NULL);
     memset(to, 'a', 2 * MAX_PATH);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(to, "threedir");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "one.txt\0two.txt\0", to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "one.txt\0two.txt\0", to,
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("threedir\\one.txt"), "Expected file to exist\n");
     ok(DeleteFileA("threedir\\two.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
@@ -1351,17 +1351,17 @@ static void test_copy(void)
     createTestFile("one.txt");
     createTestFile("two.txt");
     memset(to, 'a', 2 * MAX_PATH);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(to, "threedir");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "one.txt\0two.txt\0", to,
-            ERROR_ACCESS_DENIED, FALSE, TRUE, FALSE);
+        "one.txt\0two.txt\0", to,
+        ERROR_ACCESS_DENIED, FALSE, TRUE, FALSE);
     ok(!DeleteFileA("threedir\\one.txt"), "Expected file to not exist\n");
     ok(!DeleteFileA("threedir\\two.txt"), "Expected file to not exist\n");
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     ok(DeleteFileA("two.txt"), "Expected file to exist\n");
     todo_wine
-    ok(!DeleteFileA("threedir"), "Expected file to not exist\n");
+        ok(!DeleteFileA("threedir"), "Expected file to not exist\n");
 
     /* pTo contains bogus 2nd name longer than MAX_PATH,
      * multiple source files, target dir exists, with FOF_MULTIDESTFILES. */
@@ -1369,13 +1369,13 @@ static void test_copy(void)
     createTestFile("two.txt");
     CreateDirectoryA("threedir", NULL);
     memset(to, 'a', 2 * MAX_PATH);
-    memset(to+MAX_PATH*2, 0, 2);
+    memset(to + MAX_PATH * 2, 0, 2);
     lstrcpyA(to, "threedir");
     ptr = to + lstrlenA(to) + 1;
     lstrcpyA(ptr, "fourdir");
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "one.txt\0two.txt\0", to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "one.txt\0two.txt\0", to,
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     ok(DeleteFileA("two.txt"), "Expected file to exist\n");
     ok(DeleteFileA("threedir\\one.txt"), "Expected file to exist\n");
@@ -1389,8 +1389,8 @@ static void test_copy(void)
     createTestFile("two.txt");
     CreateDirectoryA("threedir", NULL);
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "one.txt\0two.txt\0", "threedir\0fourdir\0",
-            DE_FILEDESTISFLD, FALSE, FALSE, FALSE);
+        "one.txt\0two.txt\0", "threedir\0fourdir\0",
+        DE_FILEDESTISFLD, FALSE, FALSE, FALSE);
     ok(!DeleteFileA("threedir\\one.txt"), "Expected file to not exist\n");
     ok(!DeleteFileA("threedir\\two.txt"), "Expected file to not exist\n");
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
@@ -1404,8 +1404,8 @@ static void test_copy(void)
     createTestFile("two.txt");
     CreateDirectoryA("threedir", NULL);
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "one.txt\0two.txt\0", "threedir\0fourdir\0five\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "one.txt\0two.txt\0", "threedir\0fourdir\0five\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     ok(DeleteFileA("two.txt"), "Expected file to exist\n");
     ok(DeleteFileA("threedir\\one.txt"), "Expected file to exist\n");
@@ -1424,15 +1424,15 @@ static void test_copy(void)
 
     /* Test with FOF_MULTIDESTFILES with a wildcard in pFrom and single output directory. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "a*.txt\0", "one\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "a*.txt\0", "one\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one\\aa.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one\\ab.txt"), "Expected file to exist\n");
 
     /* pFrom has a glob, pTo has more than one dest, no FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "a*.txt\0", "one\0two\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "a*.txt\0", "one\0two\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one\\aa.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one\\ab.txt"), "Expected file to exist\n");
     ok(!DeleteFileA("two\\aa.txt"), "Expected file to not exist\n");
@@ -1440,8 +1440,8 @@ static void test_copy(void)
 
     /* pFrom has more than one glob, pTo has more than one dest, without FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "a*.txt\0*b.txt\0", "one\0two\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "a*.txt\0*b.txt\0", "one\0two\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one\\aa.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one\\ab.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one\\bb.txt"), "Expected file to exist\n");
@@ -1450,8 +1450,8 @@ static void test_copy(void)
 
     /* pFrom has more than one glob, pTo has more than one dest, with FOF_MULTIDESTFILES. */
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "a*.txt\0*b.txt\0", "one\0two\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "a*.txt\0*b.txt\0", "one\0two\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one\\aa.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one\\ab.txt"), "Expected file to exist\n");
     ok(DeleteFileA("two\\ab.txt"), "Expected file to exist\n");
@@ -1459,25 +1459,25 @@ static void test_copy(void)
 
     /* Wildcard target. */
     check_file_operation(FO_COPY, FOF_NO_UI, "aa.txt\0", "tw?\0",
-            ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
+        ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
     ok(!file_exists("two\\aa.txt"), "Expected file to not exist\n");
 
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "aa.txt\0", "one\0tw?\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "aa.txt\0", "one\0tw?\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one\\aa.txt"), "Expected file to exist\n");
     ok(!DeleteFileA("two\\aa.txt"), "Expected file to not exist\n");
 
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "aa.txt\0bb.txt\0", "one\0tw?\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "aa.txt\0bb.txt\0", "one\0tw?\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one\\aa.txt"), "Expected file to exist\n");
     ok(DeleteFileA("one\\bb.txt"), "Expected file to exist\n");
     ok(!DeleteFileA("two\\bb.txt"), "Expected file to not exist\n");
 
     check_file_operation(FO_COPY, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "aa.txt\0bb.txt\0", "one\0tw?\0",
-            ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
+        "aa.txt\0bb.txt\0", "one\0tw?\0",
+        ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
     ok(!DeleteFileA("one\\aa.txt"), "Expected file to not exist\n");
     ok(!DeleteFileA("two\\bb.txt"), "Expected file to not exist\n");
 
@@ -1491,61 +1491,61 @@ static void test_copy(void)
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "testdir2\\one.txt\0", "\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "testdir2\\one.txt\0", "\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("one.txt"), "Expected file to exist\n");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "testdir2\\nested\0", "\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "testdir2\\nested\0", "\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("nested\\two.txt"), "Expected file to exist\n");
     ok(RemoveDirectoryA("nested"), "Expected dir to exist\n");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "nonexistence\0", "\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        "nonexistence\0", "\0",
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "testdir2\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "\0", "testfile.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "testfile.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "\0", "nonexistence",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "nonexistence\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "\0", "\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     /* NULL source or target. */
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_COPY, FOF_NO_UI,
-            NULL, "test1.txt\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "test1.txt\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            NULL, "testdir2\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "testdir2\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            NULL, "nonexistence\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "nonexistence\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "test1.txt\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "test1.txt\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "testdir2\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "testdir2\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "nonexistence\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "nonexistence\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_COPY, FOF_NO_UI,
-            NULL, NULL,
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, NULL,
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
 
     /* Check last error after a successful file operation. */
     clean_after_shfo_tests();
     init_shfo_tests();
     SetLastError(0xdeadbeef);
     check_file_operation(FO_COPY, FOF_NO_UI, "test1.txt\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(GetLastError() == ERROR_SUCCESS, "Expected ERROR_SUCCESS, got %ld\n", GetLastError());
 
     /* Check last error after a failed file operation. */
@@ -1553,7 +1553,7 @@ static void test_copy(void)
     init_shfo_tests();
     SetLastError(0xdeadbeef);
     check_file_operation(FO_COPY, FOF_NO_UI, "nonexistence\0", "testdir2\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     ok(GetLastError() == ERROR_SUCCESS, "Expected ERROR_SUCCESS, got %ld\n", GetLastError());
 
     /* test with / */
@@ -1561,8 +1561,8 @@ static void test_copy(void)
     CreateDirectoryA("dir\\subdir", NULL);
     createTestFile("dir\\subdir\\aa.txt");
     check_file_operation(FO_COPY, FOF_NO_UI,
-            "dir/subdir/aa.txt\0", "dir\\destdir/aa.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "dir/subdir/aa.txt\0", "dir\\destdir/aa.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("dir\\destdir\\aa.txt"), "Expected file to exist\n");
     ok(RemoveDirectoryA("dir\\destdir"), "Expected dir to exist\n");
     ok(DeleteFileA("dir\\subdir\\aa.txt"), "Expected file to exist\n");
@@ -1581,7 +1581,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\*.*\0");
     set_curr_dir_path(to, "test4.txt\\*.*\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
+        ERROR_INVALID_NAME, FALSE, FALSE, FALSE);
 
     ok(file_exists("testdir2"), "dir should not be moved\n");
     ok(file_exists("testdir2\\one.txt"), "file should not be moved\n");
@@ -1591,7 +1591,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\*.*\0");
     set_curr_dir_path(to, "test4.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(file_exists("testdir2"), "dir should not be moved\n");
     ok(!file_exists("testdir2\\one.txt"), "file should be moved\n");
@@ -1610,7 +1610,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2/*.*\0");
     set_curr_dir_path(to, "test4.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(dir_exists("testdir2"), "dir should not be moved\n");
     ok(!file_exists("testdir2\\one.txt"), "file should be moved\n");
@@ -1628,7 +1628,7 @@ static void test_move(void)
     set_curr_dir_path(from, "test1.txt\0");
     set_curr_dir_path(to, "test4.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test1.txt"), "test1.txt should not exist\n");
     ok(file_exists("test4.txt\\test1.txt"), "The file is not moved\n");
 
@@ -1637,7 +1637,7 @@ static void test_move(void)
     ok(!file_exists("testdir2\\test2.txt"), "The file is not moved yet\n");
     ok(!file_exists("testdir2\\test4.txt"), "The directory is not moved yet\n");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("testdir2\\test2.txt"), "The file is moved\n");
     ok(file_exists("testdir2\\test4.txt"), "The directory is moved\n");
     ok(file_exists("testdir2\\test4.txt\\test1.txt"), "The file in subdirectory is moved\n");
@@ -1649,7 +1649,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\nested\0");
     set_curr_dir_path(to, "testdir4\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
     ok(!file_exists("testdir2\\nested\\two.txt"), "file should be moved\n");
@@ -1666,7 +1666,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\nested\0");
     set_curr_dir_path(to, "testdir4\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
 
@@ -1680,7 +1680,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\nested\0testdir4\\nested\0");
     set_curr_dir_path(to, "testdir6\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
     ok(!file_exists("testdir2\\nested\\two.txt"), "file should be moved\n");
@@ -1703,7 +1703,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\nested\0");
     set_curr_dir_path(to, "testdir6\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
     ok(!file_exists("testdir2\\nested\\two.txt"), "file should be moved\n");
@@ -1719,7 +1719,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\0");
     set_curr_dir_path(to, "testdir6\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
     ok(!file_exists("testdir2\\nested\\two.txt"), "file should be moved\n");
@@ -1735,7 +1735,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\nested\0testdir4\\nested\0");
     set_curr_dir_path(to, "testdir6\0testdir8\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
     ok(!file_exists("testdir2\\nested\\two.txt"), "file should be moved\n");
@@ -1764,7 +1764,7 @@ static void test_move(void)
     set_curr_dir_path(from, "testdir2\\nested\0testdir4\\nested\0");
     set_curr_dir_path(to, "testdir6\\nested\0testdir8\\nested\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     ok(!dir_exists("testdir2\\nested"), "dir should be moved\n");
     ok(!file_exists("testdir2\\nested\\two.txt"), "file should be moved\n");
@@ -1792,9 +1792,9 @@ static void test_move(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test6.txt"), "The file is not moved - many files are "
-       "specified as a target\n");
+        "specified as a target\n");
     ok(DeleteFileA("test7.txt"), "The file is not moved\n");
     ok(RemoveDirectoryA("test8.txt"), "The directory is not moved\n");
 
@@ -1804,7 +1804,7 @@ static void test_move(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            DE_DESTSAMETREE, FALSE, FALSE, FALSE);
+        DE_DESTSAMETREE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test6.txt\\test1.txt"), "The file is not moved\n");
     RemoveDirectoryA("test6.txt");
     ok(DeleteFileA("test7.txt\\test2.txt"), "The file is not moved\n");
@@ -1814,7 +1814,7 @@ static void test_move(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test3.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            DE_SAMEFILE, FALSE, FALSE, FALSE);
+        DE_SAMEFILE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("test6.txt\\test1.txt"), "The file is not moved\n");
     RemoveDirectoryA("test6.txt");
     ok(DeleteFileA("test7.txt\\test2.txt"), "The file is not moved\n");
@@ -1826,9 +1826,9 @@ static void test_move(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
-    ok(DeleteFileA("test6.txt\\test1.txt"),"The file is not moved\n");
-    ok(DeleteFileA("test7.txt\\test2.txt"),"The file is not moved\n");
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
+    ok(DeleteFileA("test6.txt\\test1.txt"), "The file is not moved\n");
+    ok(DeleteFileA("test7.txt\\test2.txt"), "The file is not moved\n");
     ok(!dir_exists("test8.txt") && !file_exists("test8.txt"), "Directory should not be created\n");
     RemoveDirectoryA("test6.txt");
     RemoveDirectoryA("test7.txt");
@@ -1837,9 +1837,9 @@ static void test_move(void)
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test3.txt\0");
     set_curr_dir_path(to, "test4.txt\0test5.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES, from, to,
-            DE_SAMEFILE, FALSE, FALSE, FALSE);
-    ok(DeleteFileA("test4.txt\\test1.txt"),"The file is not moved\n");
-    ok(DeleteFileA("test5.txt\\test2.txt"),"The file is not moved\n");
+        DE_SAMEFILE, FALSE, FALSE, FALSE);
+    ok(DeleteFileA("test4.txt\\test1.txt"), "The file is not moved\n");
+    ok(DeleteFileA("test5.txt\\test2.txt"), "The file is not moved\n");
     ok(file_exists("test3.txt"), "The file is not moved\n");
     RemoveDirectoryA("test4.txt");
     RemoveDirectoryA("test5.txt");
@@ -1848,52 +1848,52 @@ static void test_move(void)
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "\0", "test1.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "test1.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "\0", "testdir2\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "testdir2\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "\0", "nonexistence\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "nonexistence\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("nonexistence"), "Expected nonexistence to not exist.\n");
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "test1.txt", "\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        "test1.txt\0", "\0",
+        DE_SAMEFILE, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "testdir2", "\0",
-            DE_DESTSAMETREE, FALSE, TRUE, FALSE);
+        "testdir2\0", "\0",
+        DE_DESTSAMETREE, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "nonexistence", "\0",
-            ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
+        "nonexistence\0", "\0",
+        ERROR_FILE_NOT_FOUND, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "\0", "\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "\0", "\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     /* NULL source or target. */
     clean_after_shfo_tests();
     init_shfo_tests();
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            NULL, "test1.txt\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "test1.txt\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            NULL, "testdir2\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "testdir2\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            NULL, "nonexistence\0",
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, "nonexistence\0",
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "test1.txt\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "test1.txt\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "testdir2\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "testdir2\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "nonexistent\0", NULL,
-            ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
+        "nonexistent\0", NULL,
+        ERROR_ACCESS_DENIED, FALSE, FALSE, FALSE);
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            NULL, NULL,
-            ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
+        NULL, NULL,
+        ERROR_INVALID_PARAMETER, 0xdeadbeef, FALSE, FALSE);
 
     clean_after_shfo_tests();
     init_shfo_tests();
@@ -1901,82 +1901,82 @@ static void test_move(void)
     set_curr_dir_path(from, "test3.txt\0");
     set_curr_dir_path(to, "test4.txt\\test1.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(file_exists("test4.txt\\test1.txt"), "The file is not moved\n");
 
     set_curr_dir_path(from, "test1.txt\0test2.txt\0test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0test7.txt\0test8.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, TRUE, TRUE);
-    todo_wine ok(DeleteFileA("test6.txt\\test1.txt"), "The file is not moved. Many files are specified\n");
-    todo_wine ok(DeleteFileA("test6.txt\\test2.txt"), "The file is not moved. Many files are specified\n");
-    todo_wine ok(DeleteFileA("test6.txt\\test4.txt\\test1.txt"), "The file is not moved. Many files are specified\n");
-    todo_wine ok(RemoveDirectoryA("test6.txt\\test4.txt"), "The directory is not moved. Many files are specified\n");
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
+    ok(DeleteFileA("test6.txt\\test1.txt"), "The file is not moved. Many files are specified\n");
+    ok(DeleteFileA("test6.txt\\test2.txt"), "The file is not moved. Many files are specified\n");
+    ok(DeleteFileA("test6.txt\\test4.txt\\test1.txt"), "The file is not moved. Many files are specified\n");
+    ok(RemoveDirectoryA("test6.txt\\test4.txt"), "The directory is not moved. Many files are specified\n");
     RemoveDirectoryA("test6.txt");
     init_shfo_tests();
 
     set_curr_dir_path(from, "test1.txt\0");
     set_curr_dir_path(to, "test6.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test1.txt"), "The file is not moved\n");
     ok(file_exists("test6.txt"), "The file is not moved\n");
     set_curr_dir_path(from, "test6.txt\0");
     set_curr_dir_path(to, "test1.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     set_curr_dir_path(from, "test4.txt\0");
     set_curr_dir_path(to, "test6.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!dir_exists("test4.txt"), "The dir is not moved\n");
     ok(dir_exists("test6.txt"), "The dir is moved\n");
     set_curr_dir_path(from, "test6.txt\0");
     set_curr_dir_path(to, "test4.txt\0");
     check_file_operation(FO_MOVE, FOF_NO_UI, from, to,
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
 
     /* move one file to two others */
     init_shfo_tests();
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "test1.txt\0", "a.txt\0b.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test1.txt\0", "a.txt\0b.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("a.txt"), "Expected a.txt to exist\n");
     ok(!file_exists("test1.txt"), "Expected test1.txt to not exist\n");
     ok(!file_exists("b.txt"), "Expected b.txt to not exist\n");
 
     /* move two files to one other */
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "test2.txt\0test3.txt\0", "test1.txt\0",
-            ERROR_SUCCESS, FALSE, TRUE, TRUE);
-    todo_wine ok(DeleteFileA("test1.txt\\test2.txt"), "Expected test1.txt\\test2.txt to exist\n");
-    todo_wine ok(DeleteFileA("test1.txt\\test3.txt"), "Expected test1.txt\\test3.txt to exist\n");
+        "test2.txt\0test3.txt\0", "test1.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
+    ok(DeleteFileA("test1.txt\\test2.txt"), "Expected test1.txt\\test2.txt to exist\n");
+    ok(DeleteFileA("test1.txt\\test3.txt"), "Expected test1.txt\\test3.txt to exist\n");
     RemoveDirectoryA("test1.txt");
     createTestFile("test2.txt");
     createTestFile("test3.txt");
 
     /* move a directory into itself */
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "test4.txt\0", "test4.txt\\b.txt\0",
-            DE_DESTSUBTREE, FALSE, TRUE, FALSE);
+        "test4.txt\0", "test4.txt\\b.txt\0",
+        DE_DESTSUBTREE, FALSE, FALSE, FALSE);
     ok(!RemoveDirectoryA("test4.txt\\b.txt"), "Expected test4.txt\\b.txt to not exist\n");
     ok(dir_exists("test4.txt"), "Expected test4.txt to exist\n");
 
     /* move many files without FOF_MULTIDESTFILES */
     check_file_operation(FO_MOVE, FOF_NO_UI,
-            "test2.txt\0test3.txt\0", "d.txt\0e.txt\0",
-            ERROR_SUCCESS, FALSE, TRUE, TRUE);
-    todo_wine ok(DeleteFileA("d.txt\\test2.txt"), "Expected d.txt\\test2.txt to exist\n");
-    todo_wine ok(DeleteFileA("d.txt\\test3.txt"), "Expected d.txt\\test3.txt to exist\n");
+        "test2.txt\0test3.txt\0", "d.txt\0e.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
+    ok(DeleteFileA("d.txt\\test2.txt"), "Expected d.txt\\test2.txt to exist\n");
+    ok(DeleteFileA("d.txt\\test3.txt"), "Expected d.txt\\test3.txt to exist\n");
     RemoveDirectoryA("d.txt");
     createTestFile("test2.txt");
     createTestFile("test3.txt");
 
     /* number of sources != number of targets */
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test2.txt\0test3.txt\0", "d.txt\0",
-            DE_SAMEFILE, FALSE, FALSE, FALSE);
+        "test2.txt\0test3.txt\0", "d.txt\0",
+        DE_SAMEFILE, FALSE, FALSE, FALSE);
     ok(DeleteFileA("d.txt\\test2.txt"), "Expected d.txt\\test2.txt to exist\n");
     ok(!file_exists("d.txt\\test3.txt"), "Expected d.txt\\test3.txt to not exist\n");
     RemoveDirectoryA("d.txt");
@@ -1984,8 +1984,8 @@ static void test_move(void)
 
     /* FO_MOVE does not create dest directories */
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test2.txt\0", "dir1\\dir2\\test2.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test2.txt\0", "dir1\\dir2\\test2.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(DeleteFileA("dir1\\dir2\\test2.txt"), "Expected dir1\\dir2\\test2.txt to exist\n");
     RemoveDirectoryA("dir1\\dir2");
     RemoveDirectoryA("dir1");
@@ -1993,8 +1993,8 @@ static void test_move(void)
 
     /* try to overwrite an existing file */
     check_file_operation(FO_MOVE, FOF_NO_UI | FOF_MULTIDESTFILES,
-            "test2.txt\0", "test3.txt\0",
-            ERROR_SUCCESS, FALSE, FALSE, FALSE);
+        "test2.txt\0", "test3.txt\0",
+        ERROR_SUCCESS, FALSE, FALSE, FALSE);
     ok(!file_exists("test2.txt"), "Expected test2.txt to not exist\n");
     ok(file_exists("test3.txt"), "Expected test3.txt to exist\n");
 }
@@ -2042,7 +2042,7 @@ static void test_sh_path_prepare(void)
 
     /* directory exists, SHPPFW_IGNOREFILENAME|SHPPFW_DIRCREATE */
     set_curr_dir_path(path, "testdir2\\test4.txt\0");
-    res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_IGNOREFILENAME|SHPPFW_DIRCREATE);
+    res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_IGNOREFILENAME | SHPPFW_DIRCREATE);
     ok(res == S_OK, "res == 0x%08lx, expected S_OK\n", res);
     ok(!file_exists("nonexistent\\"), "nonexistent\\ exists but shouldn't\n");
 
@@ -2050,24 +2050,24 @@ static void test_sh_path_prepare(void)
     set_curr_dir_path(path, "test1.txt\0");
     res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_NONE);
     ok(res == HRESULT_FROM_WIN32(ERROR_DIRECTORY) ||
-       res == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) || /* WinMe */
-       res == HRESULT_FROM_WIN32(ERROR_INVALID_NAME), /* Vista */
-       "Unexpected result : 0x%08lx\n", res);
+        res == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) || /* WinMe */
+        res == HRESULT_FROM_WIN32(ERROR_INVALID_NAME), /* Vista */
+        "Unexpected result : 0x%08lx\n", res);
 
     /* file exists, SHPPFW_DIRCREATE */
     res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_DIRCREATE);
     ok(res == HRESULT_FROM_WIN32(ERROR_DIRECTORY) ||
-       res == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) || /* WinMe */
-       res == HRESULT_FROM_WIN32(ERROR_INVALID_NAME), /* Vista */
-       "Unexpected result : 0x%08lx\n", res);
+        res == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) || /* WinMe */
+        res == HRESULT_FROM_WIN32(ERROR_INVALID_NAME), /* Vista */
+        "Unexpected result : 0x%08lx\n", res);
 
     /* file exists, SHPPFW_NONE, trailing \ */
     set_curr_dir_path(path, "test1.txt\\\0");
     res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_NONE);
     ok(res == HRESULT_FROM_WIN32(ERROR_DIRECTORY) ||
-       res == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) || /* WinMe */
-       res == HRESULT_FROM_WIN32(ERROR_INVALID_NAME), /* Vista */
-       "Unexpected result : 0x%08lx\n", res);
+        res == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) || /* WinMe */
+        res == HRESULT_FROM_WIN32(ERROR_INVALID_NAME), /* Vista */
+        "Unexpected result : 0x%08lx\n", res);
 
     /* relative path exists, SHPPFW_DIRCREATE */
     res = SHPathPrepareForWriteA(0, 0, ".\\testdir2", SHPPFW_DIRCREATE);
@@ -2092,7 +2092,7 @@ static void test_sh_path_prepare(void)
 
     /* directory doesn't exist, SHPPFW_IGNOREFILENAME|SHPPFW_DIRCREATE */
     set_curr_dir_path(path, "testdir2\\test4.txt\\\0");
-    res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_IGNOREFILENAME|SHPPFW_DIRCREATE);
+    res = SHPathPrepareForWriteA(0, 0, path, SHPPFW_IGNOREFILENAME | SHPPFW_DIRCREATE);
     ok(res == S_OK, "res == 0x%08lx, expected S_OK\n", res);
     ok(file_exists("testdir2\\test4.txt\\"), "testdir2\\test4.txt doesn't exist but should\n");
 
@@ -2141,7 +2141,7 @@ static void test_sh_path_prepare(void)
 
 static void test_sh_new_link_info(void)
 {
-    BOOL ret, mustcopy=TRUE;
+    BOOL ret, mustcopy = TRUE;
     CHAR linkto[MAX_PATH];
     CHAR destdir[MAX_PATH];
     CHAR result[MAX_PATH];
@@ -2152,8 +2152,8 @@ static void test_sh_new_link_info(void)
     set_curr_dir_path(destdir, "testdir2\0");
     ret = SHGetNewLinkInfoA(linkto, destdir, result, &mustcopy, 0);
     ok(ret == FALSE ||
-       broken(ret == lstrlenA(result) + 1), /* NT4 */
-       "SHGetNewLinkInfoA succeeded\n");
+        broken(ret == lstrlenA(result) + 1), /* NT4 */
+        "SHGetNewLinkInfoA succeeded\n");
     ok(mustcopy == FALSE, "mustcopy should be FALSE\n");
 
     /* dest dir does not exist */
@@ -2161,8 +2161,8 @@ static void test_sh_new_link_info(void)
     set_curr_dir_path(destdir, "nosuchdir\0");
     ret = SHGetNewLinkInfoA(linkto, destdir, result, &mustcopy, 0);
     ok(ret == TRUE ||
-       broken(ret == lstrlenA(result) + 1), /* NT4 */
-       "SHGetNewLinkInfoA failed, err=%li\n", GetLastError());
+        broken(ret == lstrlenA(result) + 1), /* NT4 */
+        "SHGetNewLinkInfoA failed, err=%li\n", GetLastError());
     ok(mustcopy == FALSE, "mustcopy should be FALSE\n");
 
     /* source file exists */
@@ -2170,27 +2170,27 @@ static void test_sh_new_link_info(void)
     set_curr_dir_path(destdir, "testdir2\0");
     ret = SHGetNewLinkInfoA(linkto, destdir, result, &mustcopy, 0);
     ok(ret == TRUE ||
-       broken(ret == lstrlenA(result) + 1), /* NT4 */
-       "SHGetNewLinkInfoA failed, err=%li\n", GetLastError());
+        broken(ret == lstrlenA(result) + 1), /* NT4 */
+        "SHGetNewLinkInfoA failed, err=%li\n", GetLastError());
     ok(mustcopy == FALSE, "mustcopy should be FALSE\n");
     ok(CompareStringA(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, destdir,
-                      lstrlenA(destdir), result, lstrlenA(destdir)) == CSTR_EQUAL,
-       "%s does not start with %s\n", result, destdir);
-    ok(lstrlenA(result) > 4 && lstrcmpiA(result+lstrlenA(result)-4, ".lnk") == 0,
-       "%s does not end with .lnk\n", result);
+        lstrlenA(destdir), result, lstrlenA(destdir)) == CSTR_EQUAL,
+        "%s does not start with %s\n", result, destdir);
+    ok(lstrlenA(result) > 4 && lstrcmpiA(result + lstrlenA(result) - 4, ".lnk") == 0,
+        "%s does not end with .lnk\n", result);
 
     /* preferred target name already exists */
     createTestFile(result);
     ret = SHGetNewLinkInfoA(linkto, destdir, result2, &mustcopy, 0);
     ok(ret == TRUE ||
-       broken(ret == lstrlenA(result2) + 1), /* NT4 */
-       "SHGetNewLinkInfoA failed, err=%li\n", GetLastError());
+        broken(ret == lstrlenA(result2) + 1), /* NT4 */
+        "SHGetNewLinkInfoA failed, err=%li\n", GetLastError());
     ok(mustcopy == FALSE, "mustcopy should be FALSE\n");
     ok(CompareStringA(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE, destdir,
-                      lstrlenA(destdir), result2, lstrlenA(destdir)) == CSTR_EQUAL,
-       "%s does not start with %s\n", result2, destdir);
-    ok(lstrlenA(result2) > 4 && lstrcmpiA(result2+lstrlenA(result2)-4, ".lnk") == 0,
-       "%s does not end with .lnk\n", result2);
+        lstrlenA(destdir), result2, lstrlenA(destdir)) == CSTR_EQUAL,
+        "%s does not start with %s\n", result2, destdir);
+    ok(lstrlenA(result2) > 4 && lstrcmpiA(result2 + lstrlenA(result2) - 4, ".lnk") == 0,
+        "%s does not end with .lnk\n", result2);
     ok(lstrcmpiA(result, result2) != 0, "%s and %s are the same\n", result, result2);
     DeleteFileA(result);
 }
@@ -2200,7 +2200,7 @@ static void test_unicode(void)
     SHFILEOPSTRUCTW shfoW;
     int ret;
     HANDLE file;
-    static const WCHAR UNICODE_PATH_TO[] = L"c:\\\x00ae\x00ae";
+    static const WCHAR UNICODE_PATH_TO[] = L"c:\\\x00ae\x00ae\0";
     HWND hwnd;
 
     shfoW.hwnd = NULL;
@@ -2218,12 +2218,12 @@ static void test_unicode(void)
     /* Make sure we are on a system that supports unicode */
     SetLastError(0xdeadbeef);
     file = CreateFileW(UNICODE_PATH, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-    if (GetLastError()==ERROR_CALL_NOT_IMPLEMENTED)
+    if (GetLastError() == ERROR_CALL_NOT_IMPLEMENTED)
     {
         skip("Unicode tests skipped on non-unicode system\n");
         return;
     }
-    if (GetLastError()==ERROR_ACCESS_DENIED)
+    if (GetLastError() == ERROR_ACCESS_DENIED)
     {
         skip("test needs admin rights\n");
         return;
@@ -2278,8 +2278,8 @@ static void test_unicode(void)
     ok(ret == ERROR_SUCCESS, "File copy failed with %d\n", ret);
     ok(!shfoW.fAnyOperationsAborted, "Didn't expect aborted operations\n");
     ok(GetLastError() == ERROR_SUCCESS ||
-       broken(GetLastError() == ERROR_INVALID_HANDLE), /* WinXp, win2k3 */
-       "Expected ERROR_SUCCESS, got %ld\n", GetLastError());
+        broken(GetLastError() == ERROR_INVALID_HANDLE), /* WinXp, win2k3 */
+        "Expected ERROR_SUCCESS, got %ld\n", GetLastError());
     DeleteFileW(UNICODE_PATH_TO);
 
     /* Check last error after a failed file operation. */
@@ -2290,12 +2290,12 @@ static void test_unicode(void)
     ok(ret != ERROR_SUCCESS, "Unexpected ERROR_SUCCESS\n");
     ok(!shfoW.fAnyOperationsAborted, "Didn't expect aborted operations\n");
     ok(GetLastError() == ERROR_SUCCESS ||
-       broken(GetLastError() == ERROR_INVALID_HANDLE), /* WinXp, win2k3 */
-       "Expected ERROR_SUCCESS, got %ld\n", GetLastError());
+        broken(GetLastError() == ERROR_INVALID_HANDLE), /* WinXp, win2k3 */
+        "Expected ERROR_SUCCESS, got %ld\n", GetLastError());
 
     /* Check SHCreateDirectoryExW with a Hwnd
      * returns ERROR_ALREADY_EXISTS where a directory already exists */
-    /* Get any window handle */
+     /* Get any window handle */
     hwnd = FindWindowA(NULL, NULL);
     ok(hwnd != 0, "FindWindowA failed to produce a hwnd\n");
     ret = SHCreateDirectoryExW(hwnd, UNICODE_PATH, NULL);
@@ -2304,62 +2304,62 @@ static void test_unicode(void)
     ok(file_existsW(UNICODE_PATH), "The directory was not created\n");
     ret = SHCreateDirectoryExW(hwnd, UNICODE_PATH, NULL);
     ok(ret == ERROR_ALREADY_EXISTS,
-       "Expected ERROR_ALREADY_EXISTS, got %d\n", ret);
+        "Expected ERROR_ALREADY_EXISTS, got %d\n", ret);
     RemoveDirectoryW(UNICODE_PATH);
 }
 
 static void
 test_shlmenu(void) {
-	HRESULT hres;
-	HMENU src_menu, dst_menu;
-	int count;
-	MENUITEMINFOA item_info;
-	BOOL bres;
+    HRESULT hres;
+    HMENU src_menu, dst_menu;
+    int count;
+    MENUITEMINFOA item_info;
+    BOOL bres;
 
-	hres = Shell_MergeMenus (0, 0, 0x42, 0x4242, 0x424242, 0);
-	ok (hres == 0x4242, "expected 0x4242 but got %lx\n", hres);
-	hres = Shell_MergeMenus ((HMENU)42, 0, 0x42, 0x4242, 0x424242, 0);
-	ok (hres == 0x4242, "expected 0x4242 but got %lx\n", hres);
+    hres = Shell_MergeMenus(0, 0, 0x42, 0x4242, 0x424242, 0);
+    ok(hres == 0x4242, "expected 0x4242 but got %lx\n", hres);
+    hres = Shell_MergeMenus((HMENU)42, 0, 0x42, 0x4242, 0x424242, 0);
+    ok(hres == 0x4242, "expected 0x4242 but got %lx\n", hres);
 
-	src_menu = CreatePopupMenu ();
-	ok (src_menu != NULL, "CreatePopupMenu() failed, error %ld\n", GetLastError ());
+    src_menu = CreatePopupMenu();
+    ok(src_menu != NULL, "CreatePopupMenu() failed, error %ld\n", GetLastError());
 
-	dst_menu = CreatePopupMenu ();
-	ok (dst_menu != NULL, "CreatePopupMenu() failed, error %ld\n", GetLastError ());
-	bres = InsertMenuA (src_menu, -1, MF_BYPOSITION | MF_STRING, 10, "item1");
-        ok (bres, "InsertMenuA failed, error %ld\n", GetLastError());
-	bres = InsertMenuA (src_menu, -1, MF_BYPOSITION | MF_STRING, 11, "item2");
-        ok (bres, "InsertMenuA failed, error %ld\n", GetLastError());
-	hres = Shell_MergeMenus (dst_menu, src_menu, 0, 123, 133, MM_SUBMENUSHAVEIDS);
-	ok (hres == 134, "got %ld\n", hres);
-	count = GetMenuItemCount (dst_menu);
-	ok (count == 1, "got %d\n", count);
-	memset (&item_info, 0, sizeof(item_info));
-	item_info.cbSize = sizeof(item_info);
-	item_info.fMask = MIIM_ID;
-	bres = GetMenuItemInfoA (dst_menu, 0, TRUE, &item_info);
-	ok (bres, "GetMenuItemInfoA failed, error %ld\n", GetLastError ());
-	ok (item_info.wID == 133, "got %d\n", item_info.wID);
-	DestroyMenu (dst_menu);
+    dst_menu = CreatePopupMenu();
+    ok(dst_menu != NULL, "CreatePopupMenu() failed, error %ld\n", GetLastError());
+    bres = InsertMenuA(src_menu, -1, MF_BYPOSITION | MF_STRING, 10, "item1");
+    ok(bres, "InsertMenuA failed, error %ld\n", GetLastError());
+    bres = InsertMenuA(src_menu, -1, MF_BYPOSITION | MF_STRING, 11, "item2");
+    ok(bres, "InsertMenuA failed, error %ld\n", GetLastError());
+    hres = Shell_MergeMenus(dst_menu, src_menu, 0, 123, 133, MM_SUBMENUSHAVEIDS);
+    ok(hres == 134, "got %ld\n", hres);
+    count = GetMenuItemCount(dst_menu);
+    ok(count == 1, "got %d\n", count);
+    memset(&item_info, 0, sizeof(item_info));
+    item_info.cbSize = sizeof(item_info);
+    item_info.fMask = MIIM_ID;
+    bres = GetMenuItemInfoA(dst_menu, 0, TRUE, &item_info);
+    ok(bres, "GetMenuItemInfoA failed, error %ld\n", GetLastError());
+    ok(item_info.wID == 133, "got %d\n", item_info.wID);
+    DestroyMenu(dst_menu);
 
-	/* integer overflow: Shell_MergeMenus() return value is wrong, but items are still added */
-	dst_menu = CreatePopupMenu ();
-	ok (dst_menu != NULL, "CreatePopupMenu() failed, error %ld\n", GetLastError ());
-	hres = Shell_MergeMenus (dst_menu, src_menu, 0, -1, 133, MM_SUBMENUSHAVEIDS);
-	ok (hres == -1, "got %ld\n", hres);
-	count = GetMenuItemCount (dst_menu);
-	ok (count == 2, "got %d\n", count);
-	DestroyMenu (dst_menu);
+    /* integer overflow: Shell_MergeMenus() return value is wrong, but items are still added */
+    dst_menu = CreatePopupMenu();
+    ok(dst_menu != NULL, "CreatePopupMenu() failed, error %ld\n", GetLastError());
+    hres = Shell_MergeMenus(dst_menu, src_menu, 0, -1, 133, MM_SUBMENUSHAVEIDS);
+    ok(hres == -1, "got %ld\n", hres);
+    count = GetMenuItemCount(dst_menu);
+    ok(count == 2, "got %d\n", count);
+    DestroyMenu(dst_menu);
 
-	DestroyMenu (src_menu);
+    DestroyMenu(src_menu);
 }
 
 /* Check for old shell32 (4.0.x) */
 static BOOL is_old_shell32(void)
 {
     SHFILEOPSTRUCTA shfo;
-    CHAR from[5*MAX_PATH];
-    CHAR to[5*MAX_PATH];
+    CHAR from[5 * MAX_PATH];
+    CHAR to[5 * MAX_PATH];
     DWORD retval;
 
     shfo.hwnd = NULL;
@@ -2397,33 +2397,33 @@ struct progress_sink
     IFileOperationProgressSink IFileOperationProgressSink_iface;
     unsigned int instance_id;
     LONG ref;
-    struct progress_expected_notifications *expected;
+    struct progress_expected_notifications* expected;
 };
 
 struct progress_expected_notification
 {
-    const char *text;
+    const char* text;
     DWORD tsf, tsf_broken;
     HRESULT hres, hres_broken;
 };
 struct progress_expected_notifications
 {
     unsigned int index, count, line;
-    const WCHAR *dir_prefix;
-    const struct progress_expected_notification *expected;
+    const WCHAR* dir_prefix;
+    const struct progress_expected_notification* expected;
 };
 
-static inline struct progress_sink *impl_from_IFileOperationProgressSink(IFileOperationProgressSink *iface)
+static inline struct progress_sink* impl_from_IFileOperationProgressSink(IFileOperationProgressSink* iface)
 {
     return CONTAINING_RECORD(iface, struct progress_sink, IFileOperationProgressSink_iface);
 }
 
 #define progress_init_check_notifications(a, b, c, d, e) progress_init_check_notifications_(__LINE__, a, b, c, d, e)
-static void progress_init_check_notifications_(unsigned int line, IFileOperationProgressSink *iface,
-        unsigned int count, const struct progress_expected_notification *expected, const WCHAR *dir_prefix,
-        struct progress_expected_notifications *n)
+static void progress_init_check_notifications_(unsigned int line, IFileOperationProgressSink* iface,
+    unsigned int count, const struct progress_expected_notification* expected, const WCHAR* dir_prefix,
+    struct progress_expected_notifications* n)
 {
-    struct progress_sink *progress = impl_from_IFileOperationProgressSink(iface);
+    struct progress_sink* progress = impl_from_IFileOperationProgressSink(iface);
     n->line = line;
     n->index = 0;
     n->count = count;
@@ -2432,9 +2432,9 @@ static void progress_init_check_notifications_(unsigned int line, IFileOperation
     progress->expected = n;
 }
 
-static void progress_check_notification(struct progress_sink *progress, const char *text, DWORD tsf, HRESULT hres)
+static void progress_check_notification(struct progress_sink* progress, const char* text, DWORD tsf, HRESULT hres)
 {
-    struct progress_expected_notifications *e = progress->expected;
+    struct progress_expected_notifications* e = progress->expected;
     char str[4096];
 
     ok(!!e, "expected notifications are not set up.\n");
@@ -2443,31 +2443,31 @@ static void progress_check_notification(struct progress_sink *progress, const ch
     if (e->index < e->count)
     {
         ok_(__FILE__, e->line)(!strcmp(str, e->expected[e->index].text), "got notification %s, expected %s, index %u.\n",
-                debugstr_a(str), debugstr_a(e->expected[e->index].text), e->index);
+            debugstr_a(str), debugstr_a(e->expected[e->index].text), e->index);
         ok_(__FILE__, e->line)(tsf == e->expected[e->index].tsf || broken(tsf == e->expected[e->index].tsf_broken),
-                "got tsf %#lx, expected %#lx, index %u (%s).\n", tsf, e->expected[e->index].tsf, e->index, debugstr_a(text));
+            "got tsf %#lx, expected %#lx, index %u (%s).\n", tsf, e->expected[e->index].tsf, e->index, debugstr_a(text));
         ok_(__FILE__, e->line)(hres == e->expected[e->index].hres || broken(hres == e->expected[e->index].hres_broken),
-                "got hres %#lx, expected %#lx, index %u (%s).\n", hres, e->expected[e->index].hres, e->index, debugstr_a(text));
+            "got hres %#lx, expected %#lx, index %u (%s).\n", hres, e->expected[e->index].hres, e->index, debugstr_a(text));
     }
     ++e->index;
 }
 
-static void progress_end_check_notifications(IFileOperationProgressSink *iface)
+static void progress_end_check_notifications(IFileOperationProgressSink* iface)
 {
-    struct progress_sink *progress = impl_from_IFileOperationProgressSink(iface);
-    struct progress_expected_notifications *e = progress->expected;
+    struct progress_sink* progress = impl_from_IFileOperationProgressSink(iface);
+    struct progress_expected_notifications* e = progress->expected;
 
     ok(!!e, "expected notifications are not set up.\n");
     ok_(__FILE__, e->line)(e->index == e->count, "got notification count %u, expected %u.\n", e->index, e->count);
     progress->expected = NULL;
 }
 
-static const char *shellitem_str(struct progress_sink *progress, IShellItem *item)
+static const char* shellitem_str(struct progress_sink* progress, IShellItem* item)
 {
     char str[MAX_PATH];
     unsigned int len;
-    const char *ret;
-    WCHAR *path;
+    const char* ret;
+    WCHAR* path;
     HRESULT hr;
 
     if (!item)
@@ -2493,11 +2493,11 @@ static const char *shellitem_str(struct progress_sink *progress, IShellItem *ite
     return ret;
 }
 
-static HRESULT WINAPI progress_QueryInterface(IFileOperationProgressSink *iface, REFIID riid, void **out)
+static HRESULT WINAPI progress_QueryInterface(IFileOperationProgressSink* iface, REFIID riid, void** out)
 {
-    struct progress_sink *operation = impl_from_IFileOperationProgressSink(iface);
+    struct progress_sink* operation = impl_from_IFileOperationProgressSink(iface);
 
-    if (IsEqualIID(&IID_IFileOperationProgressSink, riid) ||  IsEqualIID(&IID_IUnknown, riid))
+    if (IsEqualIID(&IID_IFileOperationProgressSink, riid) || IsEqualIID(&IID_IUnknown, riid))
         *out = &operation->IFileOperationProgressSink_iface;
     else
     {
@@ -2506,20 +2506,20 @@ static HRESULT WINAPI progress_QueryInterface(IFileOperationProgressSink *iface,
         return E_NOINTERFACE;
     }
 
-    IUnknown_AddRef((IUnknown *)*out);
+    IUnknown_AddRef((IUnknown*)*out);
     return S_OK;
 }
 
-static ULONG WINAPI progress_AddRef(IFileOperationProgressSink *iface)
+static ULONG WINAPI progress_AddRef(IFileOperationProgressSink* iface)
 {
-    struct progress_sink *progress = impl_from_IFileOperationProgressSink(iface);
+    struct progress_sink* progress = impl_from_IFileOperationProgressSink(iface);
 
     return InterlockedIncrement(&progress->ref);
 }
 
-static ULONG WINAPI progress_Release(IFileOperationProgressSink *iface)
+static ULONG WINAPI progress_Release(IFileOperationProgressSink* iface)
 {
-    struct progress_sink *progress = impl_from_IFileOperationProgressSink(iface);
+    struct progress_sink* progress = impl_from_IFileOperationProgressSink(iface);
     LONG ref = InterlockedDecrement(&progress->ref);
 
     if (!ref)
@@ -2528,124 +2528,124 @@ static ULONG WINAPI progress_Release(IFileOperationProgressSink *iface)
     return ref;
 }
 
-static HRESULT WINAPI progress_StartOperations(IFileOperationProgressSink *iface)
+static HRESULT WINAPI progress_StartOperations(IFileOperationProgressSink* iface)
 {
     progress_check_notification(impl_from_IFileOperationProgressSink(iface), "StartOperations", 0, 0);
     return S_OK;
 }
 
-static HRESULT WINAPI progress_FinishOperations(IFileOperationProgressSink *iface, HRESULT result)
+static HRESULT WINAPI progress_FinishOperations(IFileOperationProgressSink* iface, HRESULT result)
 {
     progress_check_notification(impl_from_IFileOperationProgressSink(iface), "FinishOperations", 0, result);
     return S_OK;
 }
 
-static HRESULT WINAPI progress_PreRenameItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        const WCHAR *new_name)
+static HRESULT WINAPI progress_PreRenameItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    const WCHAR* new_name)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PostRenameItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        const WCHAR *new_name, HRESULT hrRename, IShellItem *newly_created)
+static HRESULT WINAPI progress_PostRenameItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    const WCHAR* new_name, HRESULT hrRename, IShellItem* newly_created)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PreMoveItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        IShellItem *dest_folder, const WCHAR *new_name)
+static HRESULT WINAPI progress_PreMoveItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    IShellItem* dest_folder, const WCHAR* new_name)
 {
-    struct progress_sink *progress = impl_from_IFileOperationProgressSink(iface);
+    struct progress_sink* progress = impl_from_IFileOperationProgressSink(iface);
     char str[1024];
 
     sprintf(str, "PreMoveItem %s, %s, %s", shellitem_str(progress, item),
-            shellitem_str(progress, dest_folder), debugstr_w(new_name) + 1);
+        shellitem_str(progress, dest_folder), debugstr_w(new_name) + 1);
     progress_check_notification(progress, str, flags, 0);
     return S_OK;
 }
 
-static HRESULT WINAPI progress_PostMoveItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        IShellItem *dest_folder, const WCHAR *new_name, HRESULT result, IShellItem *newly_created)
+static HRESULT WINAPI progress_PostMoveItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    IShellItem* dest_folder, const WCHAR* new_name, HRESULT result, IShellItem* newly_created)
 {
-    struct progress_sink *progress = impl_from_IFileOperationProgressSink(iface);
+    struct progress_sink* progress = impl_from_IFileOperationProgressSink(iface);
     char str[1024];
 
     sprintf(str, "PostMoveItem %s, %s, %s -> %s", shellitem_str(progress, item),
-            shellitem_str(progress, dest_folder), debugstr_w(new_name) + 1, shellitem_str(progress, newly_created));
+        shellitem_str(progress, dest_folder), debugstr_w(new_name) + 1, shellitem_str(progress, newly_created));
     progress_check_notification(progress, str, flags, result);
     return S_OK;
 }
 
-static HRESULT WINAPI progress_PreCopyItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        IShellItem *dest_folder,LPCWSTR pszNewName)
+static HRESULT WINAPI progress_PreCopyItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    IShellItem* dest_folder, LPCWSTR pszNewName)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PostCopyItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        IShellItem *dest_folder, const WCHAR *new_name, HRESULT result, IShellItem *newly_created)
+static HRESULT WINAPI progress_PostCopyItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    IShellItem* dest_folder, const WCHAR* new_name, HRESULT result, IShellItem* newly_created)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PreDeleteItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item)
+static HRESULT WINAPI progress_PreDeleteItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PostDeleteItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *item,
-        HRESULT result, IShellItem *newly_created)
+static HRESULT WINAPI progress_PostDeleteItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* item,
+    HRESULT result, IShellItem* newly_created)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PreNewItem(IFileOperationProgressSink *iface, DWORD flags,IShellItem *dest_folder,
-        const WCHAR *new_name)
+static HRESULT WINAPI progress_PreNewItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* dest_folder,
+    const WCHAR* new_name)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_PostNewItem(IFileOperationProgressSink *iface, DWORD flags, IShellItem *dest_folder,
-        const WCHAR *new_name, const WCHAR *template_name, DWORD file_attrs, HRESULT result, IShellItem *newly_created)
+static HRESULT WINAPI progress_PostNewItem(IFileOperationProgressSink* iface, DWORD flags, IShellItem* dest_folder,
+    const WCHAR* new_name, const WCHAR* template_name, DWORD file_attrs, HRESULT result, IShellItem* newly_created)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_UpdateProgress(IFileOperationProgressSink *iface, UINT total, UINT sofar)
+static HRESULT WINAPI progress_UpdateProgress(IFileOperationProgressSink* iface, UINT total, UINT sofar)
 {
     return S_OK;
 }
 
-static HRESULT WINAPI progress_ResetTimer(IFileOperationProgressSink *iface)
+static HRESULT WINAPI progress_ResetTimer(IFileOperationProgressSink* iface)
 {
     progress_check_notification(impl_from_IFileOperationProgressSink(iface), "ResetTimer", 0, 0);
     return S_OK;
 }
 
-static HRESULT WINAPI progress_PauseTimer(IFileOperationProgressSink *iface)
+static HRESULT WINAPI progress_PauseTimer(IFileOperationProgressSink* iface)
 {
     ok(0, ".\n");
 
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI progress_ResumeTimer(IFileOperationProgressSink *iface)
+static HRESULT WINAPI progress_ResumeTimer(IFileOperationProgressSink* iface)
 {
     ok(0, ".\n");
 
@@ -2675,9 +2675,9 @@ static const IFileOperationProgressSinkVtbl progress_vtbl =
     progress_ResumeTimer,
 };
 
-static IFileOperationProgressSink *create_progress_sink(unsigned int instance_id)
+static IFileOperationProgressSink* create_progress_sink(unsigned int instance_id)
 {
-    struct progress_sink *obj;
+    struct progress_sink* obj;
 
     obj = calloc(1, sizeof(*obj));
     obj->IFileOperationProgressSink_iface.lpVtbl = &progress_vtbl;
@@ -2686,17 +2686,17 @@ static IFileOperationProgressSink *create_progress_sink(unsigned int instance_id
     return &obj->IFileOperationProgressSink_iface;
 }
 
-static void set_shell_item_path(IShellItem *item, const WCHAR *path)
+static void set_shell_item_path(IShellItem* item, const WCHAR* path)
 {
-    IPersistIDList *idlist;
-    ITEMIDLIST *pidl;
+    IPersistIDList* idlist;
+    ITEMIDLIST* pidl;
     HRESULT hr;
 
     hr = SHParseDisplayName(path, NULL, &pidl, 0, NULL);
     ok(hr == S_OK, "got %#lx.\n", hr);
     if (FAILED(hr))
         return;
-    hr = IShellItem_QueryInterface(item, &IID_IPersistIDList, (void **)&idlist);
+    hr = IShellItem_QueryInterface(item, &IID_IPersistIDList, (void**)&idlist);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
     hr = IPersistIDList_SetIDList(idlist, pidl);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
@@ -2808,12 +2808,12 @@ static void test_file_operation(void)
 
     WCHAR dirpath[MAX_PATH], tmpfile[MAX_PATH], path[MAX_PATH];
     struct progress_expected_notifications expected_notif;
-    IFileOperationProgressSink *progress, *progress2;
-    IFileOperation *operation;
-    IShellItem *item, *item2;
-    IShellItem *folder;
+    IFileOperationProgressSink* progress, * progress2;
+    IFileOperation* operation;
+    IShellItem* item, * item2;
+    IShellItem* folder;
     LONG refcount;
-    IUnknown *unk;
+    IUnknown* unk;
     DWORD cookie;
     BOOL aborted;
     HRESULT hr;
@@ -2821,7 +2821,7 @@ static void test_file_operation(void)
     DWORD ret;
 
     hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IFileOperation, (void **)&operation);
+        &IID_IFileOperation, (void**)&operation);
     ok(hr == S_OK || broken(hr == REGDB_E_CLASSNOTREG) /* before vista */,
         "Got hr %#lx.\n", hr);
     if (hr == REGDB_E_CLASSNOTREG)
@@ -2830,7 +2830,7 @@ static void test_file_operation(void)
         return;
     }
 
-    hr = IFileOperation_QueryInterface(operation, &IID_IUnknown, (void **)&unk);
+    hr = IFileOperation_QueryInterface(operation, &IID_IUnknown, (void**)&unk);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
     IUnknown_Release(unk);
 
@@ -2844,9 +2844,9 @@ static void test_file_operation(void)
     hr = IFileOperation_PerformOperations(operation);
     ok(hr == E_UNEXPECTED, "got %#lx.\n", hr);
 
-    hr = CoCreateInstance(&CLSID_ShellItem, NULL, CLSCTX_INPROC_SERVER, &IID_IShellItem, (void **)&item);
+    hr = CoCreateInstance(&CLSID_ShellItem, NULL, CLSCTX_INPROC_SERVER, &IID_IShellItem, (void**)&item);
     ok(hr == S_OK, "got %#lx.\n", hr);
-    hr = CoCreateInstance(&CLSID_ShellItem, NULL, CLSCTX_INPROC_SERVER, &IID_IShellItem, (void **)&folder);
+    hr = CoCreateInstance(&CLSID_ShellItem, NULL, CLSCTX_INPROC_SERVER, &IID_IShellItem, (void**)&folder);
     ok(hr == S_OK, "got %#lx.\n", hr);
 
     hr = IFileOperation_MoveItem(operation, item, folder, L"test", NULL);
@@ -2942,7 +2942,7 @@ static void test_file_operation(void)
     ok(!refcount, "got %ld.\n", refcount);
 
     /* Move directory to directory. */
-    hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, (void **)&operation);
+    hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, (void**)&operation);
     ok(hr == S_OK, "got %#lx.\n", hr);
 
     hr = IFileOperation_SetOperationFlags(operation, FOF_NO_UI);
@@ -2986,7 +2986,7 @@ static void test_file_operation(void)
     IFileOperation_Release(operation);
 
     /* Source is directory, destination is absent (simple move). */
-    hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, (void **)&operation);
+    hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, (void**)&operation);
     ok(hr == S_OK, "got %#lx.\n", hr);
     hr = IFileOperation_Advise(operation, progress, &cookie);
     ok(hr == S_OK, "got %#lx.\n", hr);
@@ -3002,7 +3002,7 @@ static void test_file_operation(void)
     IFileOperation_Release(operation);
 
     /* Source and dest are directories, merge is performed. */
-    hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, (void **)&operation);
+    hr = CoCreateInstance(&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, (void**)&operation);
     ok(hr == S_OK, "got %#lx.\n", hr);
     hr = IFileOperation_Advise(operation, progress, &cookie);
     ok(hr == S_OK, "got %#lx.\n", hr);

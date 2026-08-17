@@ -4,10 +4,11 @@ set -euo pipefail
 # ==============================================================================
 # CONFIGURATION & PATHS
 # ==============================================================================
-WINE_SRC_DIR="${HOME}/wine/wine-tmp/wine-10.10-custom-main"
+WINE_SRC_DIR="./"
+WINE_SRC_DIR="$(cd "${WINE_SRC_DIR}" && pwd)"
 BUILD_DIR="${WINE_SRC_DIR}/build-x86_64"
 INSTALL_PREFIX="/tmp/wine_build"
-OUTPUT_WCP="${HOME}/wine-custom-10.15-complete.wcp"
+OUTPUT_WCP="${HOME}/wine-custom-10.12.wcp"
 
 echo "================================================================="
 echo "==> Starting Complete Wine WOW64 Build Pipeline for Winlator..."
@@ -97,14 +98,6 @@ echo "==> Running Wine ./configure..."
   --with-sdl \
   --with-gnutls \
   --with-dbus \
-  --with-openal \
-  --with-mpg123 \
-  --with-png \
-  --with-jpeg \
-  --with-tiff \
-  --with-webp \
-  --with-xml \
-  --with-xslt \
   --enable-tools \
   --disable-tests \
   --disable-win16 \
@@ -123,7 +116,6 @@ echo "==> Running Wine ./configure..."
   --without-v4l2 \
   --without-wayland \
   --without-xinerama \
-  --without-piper \
   --without-ffmpeg
 
 # 5. Compile Across All CPU Cores

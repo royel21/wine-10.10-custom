@@ -125,24 +125,6 @@ static void release_gl_drawable( struct gl_drawable *gl )
     if (gl) pthread_mutex_unlock( &drawable_mutex );
 }
 
-void destroy_gl_drawable( HWND hwnd )
-{
-    struct gl_drawable *gl;
-
-    pthread_mutex_lock( &drawable_mutex );
-    LIST_FOR_EACH_ENTRY( gl, &gl_drawables, struct gl_drawable, entry )
-    {
-        if (gl->hwnd != hwnd) continue;
-        list_remove( &gl->entry );
-        if (gl->surface) funcs->p_eglDestroySurface( egl->display, gl->surface );
-        if (gl->pbuffer) funcs->p_eglDestroySurface( egl->display, gl->pbuffer );
-        release_ioctl_window( gl->window );
-        free( gl );
-        break;
-    }
-    pthread_mutex_unlock( &drawable_mutex );
-}
-
 static BOOL refresh_context( struct android_context *ctx )
 {
     BOOL ret = InterlockedExchange( &ctx->refresh, FALSE );

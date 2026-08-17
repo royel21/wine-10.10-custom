@@ -10,7 +10,7 @@ SOURCES = \
 	bus_iohid.c \
 	bus_sdl.c \
 	bus_udev.c \
-    bus_winlator.c \
+	bus_winlator.c \
 	hid.c \
 	main.c \
 	unixlib.c \

@@ -59,14 +59,15 @@ WINE_DECLARE_DEBUG_CHANNEL(winediag);
 XVisualInfo default_visual = { 0 };
 XVisualInfo argb_visual = { 0 };
 Colormap default_colormap = None;
-XPixmapFormatValues **pixmap_formats;
+XPixmapFormatValues** pixmap_formats;
 Atom systray_atom = 0;
 HWND systray_hwnd = 0;
 unsigned int screen_bpp;
 Window root_window;
-BOOL usexvidmode = FALSE;
-BOOL usexrandr = FALSE;
+BOOL usexvidmode = TRUE;
+BOOL usexrandr = TRUE;
 BOOL usexcomposite = TRUE;
+BOOL use_egl = FALSE;
 BOOL use_take_focus = TRUE;
 BOOL use_primary_selection = FALSE;
 BOOL use_system_cursors = TRUE;
@@ -81,7 +82,7 @@ BOOL usexinput2 = FALSE;
 int copy_default_colors = 128;
 int alloc_system_colors = 256;
 int xrender_error_base = 0;
-char *process_name = NULL;
+char* process_name = NULL;
 
 static x11drv_error_callback err_callback;   /* current callback for error */
 static Display *err_callback_display;        /* display callback is set for */
@@ -101,7 +102,7 @@ static pthread_mutex_t error_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 Atom X11DRV_Atoms[NB_XATOMS - FIRST_XATOM];
 
-static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
+static const char* const atom_names[NB_XATOMS - FIRST_XATOM] =
 {
     "CLIPBOARD",
     "COMPOUND_TEXT",
@@ -189,11 +190,7 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "text/plain",
     "text/rtf",
     "text/richtext",
-    "text/uri-list",
-    "_NET_WM_HWND",
-    "_NET_WM_WOW64",
-    "_NET_WM_SURFACE",
-    "_NET_WM_GPU_INFO"
+    "text/uri-list"
 };
 
 /***********************************************************************
