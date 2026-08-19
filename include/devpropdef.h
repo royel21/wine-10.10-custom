@@ -19,7 +19,7 @@
 #ifndef _DEVPROPDEF_H_
 #define _DEVPROPDEF_H_
 
-typedef ULONG DEVPROPTYPE, *PDEVPROPTYPE;
+typedef ULONG DEVPROPTYPE, * PDEVPROPTYPE;
 
 #define DEVPROP_TYPEMOD_ARRAY 0x1000
 #define DEVPROP_TYPEMOD_LIST 0x2000
@@ -58,19 +58,19 @@ typedef ULONG DEVPROPTYPE, *PDEVPROPTYPE;
 #define DEVPROP_MASK_TYPE 0x0fff
 #define DEVPROP_MASK_TYPEMOD 0xf000
 
-typedef CHAR DEVPROP_BOOLEAN, *PDEVPROP_BOOLEAN;
+typedef CHAR DEVPROP_BOOLEAN, * PDEVPROP_BOOLEAN;
 #define DEVPROP_TRUE ((DEVPROP_BOOLEAN)-1)
 #define DEVPROP_FALSE ((DEVPROP_BOOLEAN)0)
 
 #ifndef DEVPROPKEY_DEFINED
 #define DEVPROPKEY_DEFINED
-typedef GUID DEVPROPGUID, *PDEVPROPGUID;
-typedef ULONG DEVPROPID, *PDEVPROPID;
+typedef GUID DEVPROPGUID, * PDEVPROPGUID;
+typedef ULONG DEVPROPID, * PDEVPROPID;
 
 typedef struct _DEVPROPKEY {
     DEVPROPGUID fmtid;
     DEVPROPID pid;
-} DEVPROPKEY, *PDEVPROPKEY;
+} DEVPROPKEY, * PDEVPROPKEY;
 
 #define DEVPROPID_FIRST_USABLE 2
 
@@ -100,4 +100,35 @@ typedef struct _DEVPROPKEY {
 #else
 #define IsEqualDevPropKey(a,b) (((a).pid == (b).pid) && IsEqualIID(&(a).fmtid,&(b).fmtid))
 #endif
+
+typedef enum _DEVPROPSTORE
+{
+    DEVPROP_STORE_SYSTEM,
+    DEVPROP_STORE_USER,
+} DEVPROPSTORE, * PDEVPROPSTORE;
+
+typedef struct _DEVPROPCOMPKEY
+{
+    DEVPROPKEY Key;
+    DEVPROPSTORE Store;
+    PCWSTR LocaleName;
+} DEVPROPCOMPKEY, * PDEVPROPCOMPKEY;
+
+#ifndef IsEqualLocaleName
+#define IsEqualLocaleName(a,b) ((a) == (b) || ((a) && (b) && !wcsicmp((a),(b))))
+#endif
+
+#ifndef IsEqualDevPropCompKey
+#define IsEqualDevPropCompKey(a,b) (IsEqualDevPropKey((a).Key,(b).Key) && (a).Store == (b).Store && \
+                                    IsEqualLocaleName((a).LocaleName,(b).LocaleName))
+#endif
+
+typedef struct _DEVPROPERTY
+{
+    DEVPROPCOMPKEY CompKey;
+    DEVPROPTYPE Type;
+    ULONG BufferSize;
+    void* Buffer;
+} DEVPROPERTY, * PDEVPROPERTY;
+
 #endif

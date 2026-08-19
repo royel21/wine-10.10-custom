@@ -25,42 +25,42 @@
 extern "C" {
 #endif
 
-DECLARE_HANDLE(HDEVQUERY);
-typedef HDEVQUERY *PHDEVQUERY;
+    DECLARE_HANDLE(HDEVQUERY);
+    typedef HDEVQUERY* PHDEVQUERY;
 
-typedef void (WINAPI *PDEV_QUERY_RESULT_CALLBACK)( HDEVQUERY devquery, void *user_data, const DEV_QUERY_RESULT_ACTION_DATA *action_data );
+    typedef void (WINAPI* PDEV_QUERY_RESULT_CALLBACK)(HDEVQUERY devquery, void* user_data, const DEV_QUERY_RESULT_ACTION_DATA* action_data);
 
-HRESULT WINAPI DevCreateObjectQuery( DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG filters_len,
-                                     const DEVPROP_FILTER_EXPRESSION *filters, PDEV_QUERY_RESULT_CALLBACK callback, void *user_data, HDEVQUERY *devquery );
-HRESULT WINAPI DevCreateObjectQueryEx( DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG filters_len,
-                                       const DEVPROP_FILTER_EXPRESSION *filters, ULONG params_len, const DEV_QUERY_PARAMETER *params,
-                                       PDEV_QUERY_RESULT_CALLBACK callback, void *user_data, HDEVQUERY *devquery );
+    HRESULT WINAPI DevCreateObjectQuery(DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG filters_len,
+        const DEVPROP_FILTER_EXPRESSION* filters, PDEV_QUERY_RESULT_CALLBACK callback, void* user_data, HDEVQUERY* devquery);
+    HRESULT WINAPI DevCreateObjectQueryEx(DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG filters_len,
+        const DEVPROP_FILTER_EXPRESSION* filters, ULONG params_len, const DEV_QUERY_PARAMETER* params,
+        PDEV_QUERY_RESULT_CALLBACK callback, void* user_data, HDEVQUERY* devquery);
 
-HRESULT WINAPI DevCreateObjectQueryFromId( DEV_OBJECT_TYPE type, const WCHAR *id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG filters_len,
-                                           const DEVPROP_FILTER_EXPRESSION *filters, PDEV_QUERY_RESULT_CALLBACK callback, void *user_data, HDEVQUERY *devquery );
-HRESULT WINAPI DevCreateObjectQueryFromIdEx( DEV_OBJECT_TYPE type, const WCHAR *id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props,
-                                             ULONG filters_len, const DEVPROP_FILTER_EXPRESSION *filters, ULONG params_len, const DEV_QUERY_PARAMETER *params,
-                                             PDEV_QUERY_RESULT_CALLBACK callback, void *user_data, HDEVQUERY *devquery );
-HRESULT WINAPI DevCreateObjectQueryFromIds( DEV_OBJECT_TYPE type, const WCHAR *id_sz, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG filters_len,
-                                            const DEVPROP_FILTER_EXPRESSION *filters, PDEV_QUERY_RESULT_CALLBACK callback, void *user_data, HDEVQUERY *devquery );
-HRESULT WINAPI DevCreateObjectQueryFromIdsEx( DEV_OBJECT_TYPE type, const WCHAR *id_sz, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props,
-                                              ULONG filters_len, const DEVPROP_FILTER_EXPRESSION *filters, ULONG params_len, const DEV_QUERY_PARAMETER *params,
-                                              PDEV_QUERY_RESULT_CALLBACK callback, void *user_data, HDEVQUERY *devquery );
-void WINAPI DevCloseObjectQuery( HDEVQUERY devquery );
+    HRESULT WINAPI DevCreateObjectQueryFromId(DEV_OBJECT_TYPE type, const WCHAR* id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG filters_len,
+        const DEVPROP_FILTER_EXPRESSION* filters, PDEV_QUERY_RESULT_CALLBACK callback, void* user_data, HDEVQUERY* devquery);
+    HRESULT WINAPI DevCreateObjectQueryFromIdEx(DEV_OBJECT_TYPE type, const WCHAR* id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props,
+        ULONG filters_len, const DEVPROP_FILTER_EXPRESSION* filters, ULONG params_len, const DEV_QUERY_PARAMETER* params,
+        PDEV_QUERY_RESULT_CALLBACK callback, void* user_data, HDEVQUERY* devquery);
+    HRESULT WINAPI DevCreateObjectQueryFromIds(DEV_OBJECT_TYPE type, const WCHAR* id_sz, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG filters_len,
+        const DEVPROP_FILTER_EXPRESSION* filters, PDEV_QUERY_RESULT_CALLBACK callback, void* user_data, HDEVQUERY* devquery);
+    HRESULT WINAPI DevCreateObjectQueryFromIdsEx(DEV_OBJECT_TYPE type, const WCHAR* id_sz, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props,
+        ULONG filters_len, const DEVPROP_FILTER_EXPRESSION* filters, ULONG params_len, const DEV_QUERY_PARAMETER* params,
+        PDEV_QUERY_RESULT_CALLBACK callback, void* user_data, HDEVQUERY* devquery);
+    void WINAPI DevCloseObjectQuery(HDEVQUERY devquery);
 
-HRESULT WINAPI DevGetObjects( DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG filters_len,
-                              const DEVPROP_FILTER_EXPRESSION *filters, ULONG *objs_len, const DEV_OBJECT **objs );
-HRESULT WINAPI DevGetObjectsEx( DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG filters_len,
-                                const DEVPROP_FILTER_EXPRESSION *filters, ULONG params_len, const DEV_QUERY_PARAMETER *params, ULONG *objs_len,
-                                const DEV_OBJECT **objs );
-void WINAPI DevFreeObjects( ULONG len, const DEV_OBJECT *objs );
+    HRESULT WINAPI DevGetObjects(DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG filters_len,
+        const DEVPROP_FILTER_EXPRESSION* filters, ULONG* objs_len, const DEV_OBJECT** objs);
+    HRESULT WINAPI DevGetObjectsEx(DEV_OBJECT_TYPE type, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG filters_len,
+        const DEVPROP_FILTER_EXPRESSION* filters, ULONG params_len, const DEV_QUERY_PARAMETER* params, ULONG* objs_len,
+        const DEV_OBJECT** objs);
+    void WINAPI DevFreeObjects(ULONG len, const DEV_OBJECT* objs);
 
-HRESULT WINAPI DevGetObjectProperties( DEV_OBJECT_TYPE type, const WCHAR *id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG *buf_len,
-                                       const DEVPROPERTY **buf );
-HRESULT WINAPI DevGetObjectPropertiesEx( DEV_OBJECT_TYPE type, const WCHAR *id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY *props, ULONG params_len,
-                                         const DEV_QUERY_PARAMETER *params, ULONG *buf_len, const DEVPROPERTY **buf );
-const DEVPROPERTY *WINAPI DevFindProperty( const DEVPROPKEY *key, DEVPROPSTORE store, const WCHAR *locale, ULONG props_len, const DEVPROPERTY *props );
-void WINAPI DevFreeObjectProperties( ULONG len, const DEVPROPERTY *props );
+    HRESULT WINAPI DevGetObjectProperties(DEV_OBJECT_TYPE type, const WCHAR* id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG* buf_len,
+        const DEVPROPERTY** buf);
+    HRESULT WINAPI DevGetObjectPropertiesEx(DEV_OBJECT_TYPE type, const WCHAR* id, ULONG flags, ULONG props_len, const DEVPROPCOMPKEY* props, ULONG params_len,
+        const DEV_QUERY_PARAMETER* params, ULONG* buf_len, const DEVPROPERTY** buf);
+    const DEVPROPERTY* WINAPI DevFindProperty(const DEVPROPKEY* key, DEVPROPSTORE store, const WCHAR* locale, ULONG props_len, const DEVPROPERTY* props);
+    void WINAPI DevFreeObjectProperties(ULONG len, const DEVPROPERTY* props);
 
 #ifdef __cplusplus
 }
