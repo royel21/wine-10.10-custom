@@ -694,7 +694,7 @@ static void handle_manager_message( HWND hwnd, XClientMessageEvent *event )
 /**********************************************************************
  *              handle_wm_protocols
  */
-static void handle_wm_protocols(HWND hwnd, XClientMessageEvent* event)
+static void handle_wm_protocols( HWND hwnd, XClientMessageEvent *event )
 {
     Atom protocol = (Atom)event->data.l[0];
     Time event_time = (Time)event->data.l[1];
@@ -707,7 +707,7 @@ static void handle_wm_protocols(HWND hwnd, XClientMessageEvent* event)
         {
             /* The desktop window does not have a close button that we can
              * pretend to click. Therefore, we simply send it a close command. */
-            send_message(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+            send_message( hwnd, WM_SYSCOMMAND, SC_CLOSE, 0 );
             return;
         }
 
@@ -715,64 +715,64 @@ static void handle_wm_protocols(HWND hwnd, XClientMessageEvent* event)
          * and we are in managed mode. This is to disallow applications from
          * being closed by the window manager while in a modal state.
          */
-        if (NtUserIsWindowEnabled(hwnd))
+        if (NtUserIsWindowEnabled( hwnd ))
         {
             HMENU hSysMenu;
 
-            if (NtUserGetClassLongW(hwnd, GCL_STYLE) & CS_NOCLOSE) return;
-            hSysMenu = NtUserGetSystemMenu(hwnd, FALSE);
+            if (NtUserGetClassLongW( hwnd, GCL_STYLE ) & CS_NOCLOSE) return;
+            hSysMenu = NtUserGetSystemMenu( hwnd, FALSE );
             if (hSysMenu)
             {
-                UINT state = NtUserThunkedMenuItemInfo(hSysMenu, SC_CLOSE, MF_BYCOMMAND,
-                    NtUserGetMenuState, NULL, NULL);
+                UINT state = NtUserThunkedMenuItemInfo( hSysMenu, SC_CLOSE, MF_BYCOMMAND,
+                                                        NtUserGetMenuState, NULL, NULL );
                 if (state == 0xFFFFFFFF || (state & (MF_DISABLED | MF_GRAYED)))
                     return;
             }
             if (get_active_window() != hwnd)
             {
-                LRESULT ma = send_message(hwnd, WM_MOUSEACTIVATE,
-                    (WPARAM)NtUserGetAncestor(hwnd, GA_ROOT),
-                    MAKELPARAM(HTCLOSE, WM_NCLBUTTONDOWN));
-                switch (ma)
+                LRESULT ma = send_message( hwnd, WM_MOUSEACTIVATE,
+                                           (WPARAM)NtUserGetAncestor( hwnd, GA_ROOT ),
+                                           MAKELPARAM( HTCLOSE, WM_NCLBUTTONDOWN ) );
+                switch(ma)
                 {
-                case MA_NOACTIVATEANDEAT:
-                case MA_ACTIVATEANDEAT:
-                    return;
-                case MA_NOACTIVATE:
-                    break;
-                case MA_ACTIVATE:
-                case 0:
-                    NtUserSetActiveWindow(hwnd);
-                    break;
-                default:
-                    WARN("unknown WM_MOUSEACTIVATE code %ld\n", ma);
-                    break;
+                    case MA_NOACTIVATEANDEAT:
+                    case MA_ACTIVATEANDEAT:
+                        return;
+                    case MA_NOACTIVATE:
+                        break;
+                    case MA_ACTIVATE:
+                    case 0:
+                        NtUserSetActiveWindow( hwnd );
+                        break;
+                    default:
+                        WARN( "unknown WM_MOUSEACTIVATE code %ld\n", ma );
+                        break;
                 }
             }
 
-            NtUserPostMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+            NtUserPostMessage( hwnd, WM_SYSCOMMAND, SC_CLOSE, 0 );
         }
     }
     else if (protocol == x11drv_atom(WM_TAKE_FOCUS))
     {
         HWND last_focus = x11drv_thread_data()->last_focus, foreground = NtUserGetForegroundWindow();
 
-        if (window_has_pending_wm_state(hwnd, -1) || (hwnd != foreground && !window_should_take_focus(foreground, event_time)))
+        if (window_has_pending_wm_state( hwnd, -1 ) || (hwnd != foreground && !window_should_take_focus( foreground, event_time )))
         {
-            WARN("Ignoring window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p during WM_STATE change\n",
-                hwnd, event->window, event->serial, event_time, foreground);
+            WARN( "Ignoring window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p during WM_STATE change\n",
+                  hwnd, event->window, event->serial, event_time, foreground );
             return;
         }
 
-        TRACE("window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p\n", hwnd, event->window,
-            event->serial, event_time, foreground);
-        TRACE("  enabled %u, visible %u, style %#x, focus %p, active %p, last %p\n",
-            NtUserIsWindowEnabled(hwnd), NtUserIsWindowVisible(hwnd), NtUserGetWindowLongW(hwnd, GWL_STYLE),
-            get_focus(), get_active_window(), last_focus);
+        TRACE( "window %p/%lx WM_TAKE_FOCUS serial %lu, event_time %ld, foreground %p\n", hwnd, event->window,
+               event->serial, event_time, foreground );
+        TRACE( "  enabled %u, visible %u, style %#x, focus %p, active %p, last %p\n",
+                NtUserIsWindowEnabled( hwnd ), NtUserIsWindowVisible( hwnd ), NtUserGetWindowLongW( hwnd, GWL_STYLE ),
+                get_focus(), get_active_window(), last_focus );
 
         if (can_activate_window(hwnd))
         {
-            set_focus(event->display, hwnd, event_time);
+            set_focus( event->display, hwnd, event_time );
             return;
         }
         else if (hwnd == NtUserGetDesktopWindow())
@@ -780,24 +780,24 @@ static void handle_wm_protocols(HWND hwnd, XClientMessageEvent* event)
             hwnd = foreground;
             if (!hwnd) hwnd = last_focus;
             if (!hwnd) hwnd = NtUserGetDesktopWindow();
-            set_focus(event->display, hwnd, event_time);
+            set_focus( event->display, hwnd, event_time );
             return;
         }
         /* try to find some other window to give the focus to */
         hwnd = get_focus();
-        if (hwnd) hwnd = NtUserGetAncestor(hwnd, GA_ROOT);
+        if (hwnd) hwnd = NtUserGetAncestor( hwnd, GA_ROOT );
         if (!hwnd) hwnd = get_active_window();
         if (!hwnd) hwnd = last_focus;
-        if (hwnd && can_activate_window(hwnd)) set_focus(event->display, hwnd, event_time);
+        if (hwnd && can_activate_window(hwnd)) set_focus( event->display, hwnd, event_time );
     }
     else if (protocol == x11drv_atom(_NET_WM_PING))
     {
-        XClientMessageEvent xev;
-        xev = *event;
-
-        TRACE("NET_WM Ping\n");
-        xev.window = DefaultRootWindow(xev.display);
-        XSendEvent(xev.display, xev.window, False, SubstructureRedirectMask | SubstructureNotifyMask, (XEvent*)&xev);
+      XClientMessageEvent xev;
+      xev = *event;
+      
+      TRACE("NET_WM Ping\n");
+      xev.window = DefaultRootWindow(xev.display);
+      XSendEvent(xev.display, xev.window, False, SubstructureRedirectMask | SubstructureNotifyMask, (XEvent*)&xev);
     }
 }
 

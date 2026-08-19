@@ -213,7 +213,7 @@ static struct atom_entry *find_atom_entry( struct atom_table *table, const struc
 }
 
 /* add an atom to the table */
-atom_t add_atom( struct atom_table *table, const struct unicode_str *str )
+static atom_t add_atom( struct atom_table *table, const struct unicode_str *str )
 {
     struct atom_entry *entry;
     unsigned short hash = hash_strW( str->str, str->len, table->entries_count );
@@ -271,7 +271,7 @@ static void delete_atom( struct atom_table *table, atom_t atom, int if_pinned )
 }
 
 /* find an atom in the table */
-atom_t find_atom( struct atom_table *table, const struct unicode_str *str )
+static atom_t find_atom( struct atom_table *table, const struct unicode_str *str )
 {
     struct atom_entry *entry;
 

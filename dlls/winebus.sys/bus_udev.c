@@ -1234,14 +1234,6 @@ static void udev_add_device(struct udev_device *dev, int fd)
     if (bus == BUS_BLUETOOTH) desc.is_bluetooth = TRUE;
 
     subsystem = udev_device_get_subsystem(dev);
-
-    if (!(subsystem = udev_device_get_subsystem(dev)))
-    {
-        WARN("udev_device_get_subsystem failed for %s.\n", debugstr_a(devnode));
-        close(fd);
-        return;
-    }
-
     if (!strcmp(subsystem, "hidraw"))
     {
         static const WCHAR hidraw[] = {'h','i','d','r','a','w',0};
@@ -1334,10 +1326,6 @@ static void udev_add_device(struct udev_device *dev, int fd)
         bus_event_queue_device_created(&event_queue, &impl->unix_device, &desc);
     }
 #endif
-    else
-    {
-        close(fd);
-    }
 }
 
 #ifdef HAVE_SYS_INOTIFY_H

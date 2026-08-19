@@ -93,60 +93,16 @@ static ULONG WINAPI image_presenter_Release(IVMRImagePresenter *iface)
     return refcount;
 }
 
-static HRESULT WINAPI image_presenter_StartPresenting(IVMRImagePresenter* iface, DWORD_PTR cookie)
+static HRESULT WINAPI image_presenter_StartPresenting(IVMRImagePresenter *iface, DWORD_PTR cookie)
 {
-    struct vmr7_presenter* presenter = impl_from_IVMRImagePresenter(iface);
-
-    TRACE("StartPresenting called: iface %p, cookie %#Ix\n", iface, cookie);
-
-    // If frontbuffer was previously released, re‑allocate or validate
-    if (!presenter->frontbuffer)
-    {
-        WARN("No frontbuffer allocated yet.\n");
-        // Normally the allocator (AllocateSurface) will be called before this,
-        // so you may just return S_OK here. If you want to enforce, return E_FAIL.
-    }
-
-    // Reset video state before playback
-    presenter->native_size.cx = 0;
-    presenter->native_size.cy = 0;
-    presenter->aspect_ratio.cx = 0;
-    presenter->aspect_ratio.cy = 0;
-
-    // Mark presenter as active
-    // (you can add a boolean flag like `presenting = TRUE` if you track state)
-    // presenter->presenting = TRUE;
-
-    return S_OK;
+    FIXME("iface %p, cookie %#Ix, stub!\n", iface, cookie);
+    return E_NOTIMPL;
 }
 
-static HRESULT WINAPI image_presenter_StopPresenting(IVMRImagePresenter* iface, DWORD_PTR cookie)
+static HRESULT WINAPI image_presenter_StopPresenting(IVMRImagePresenter *iface, DWORD_PTR cookie)
 {
-    struct vmr7_presenter* presenter = impl_from_IVMRImagePresenter(iface);
-
-    TRACE("StopPresenting called: iface %p, cookie %#Ix\n", iface, cookie);
-
-    // Release frontbuffer surface if allocated
-    if (presenter->frontbuffer)
-    {
-        IDirectDrawSurface7_Release(presenter->frontbuffer);
-        presenter->frontbuffer = NULL;
-    }
-
-    // Optionally release primary surface if you want to reset completely
-    if (presenter->primary)
-    {
-        IDirectDrawSurface7_Release(presenter->primary);
-        presenter->primary = NULL;
-    }
-
-    // Reset video state
-    presenter->native_size.cx = 0;
-    presenter->native_size.cy = 0;
-    presenter->aspect_ratio.cx = 0;
-    presenter->aspect_ratio.cy = 0;
-
-    return S_OK;
+    FIXME("iface %p, cookie %#Ix, stub!\n", iface, cookie);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI image_presenter_PresentImage(IVMRImagePresenter *iface,

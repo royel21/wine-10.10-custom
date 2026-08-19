@@ -979,12 +979,14 @@ BOOL ANDROID_CreateWindow( HWND hwnd )
 /***********************************************************************
  *           ANDROID_DestroyWindow
  */
-void ANDROID_DestroyWindow(HWND hwnd)
+void ANDROID_DestroyWindow( HWND hwnd )
 {
-    struct android_win_data* data;
+    struct android_win_data *data;
 
-    if (!(data = get_win_data(hwnd))) return;
-    free_win_data(data);
+    if (!(data = get_win_data( hwnd ))) return;
+
+    destroy_gl_drawable( hwnd );
+    free_win_data( data );
 }
 
 

@@ -26,11 +26,11 @@
 #include <windef.h>
 #include <winbase.h>
 
- /* Base 'class' for our Vulkan dispatchable objects such as VkDevice and VkInstance.
-  * This structure MUST be the first element of a dispatchable object as the ICD
-  * loader depends on it. For now only contains loader_magic, but over time more common
-  * functionality is expected.
-  */
+/* Base 'class' for our Vulkan dispatchable objects such as VkDevice and VkInstance.
+ * This structure MUST be the first element of a dispatchable object as the ICD
+ * loader depends on it. For now only contains loader_magic, but over time more common
+ * functionality is expected.
+ */
 struct vulkan_client_object
 {
     /* Special section in each dispatchable object for use by the ICD loader for
@@ -64,7 +64,7 @@ struct vulkan_object
         }; \
     }
 
-static inline void vulkan_object_init(struct vulkan_object* obj, UINT64 host_handle)
+static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_handle )
 {
     obj->host_handle = host_handle;
     obj->client_handle = (UINT_PTR)obj;
@@ -72,78 +72,78 @@ static inline void vulkan_object_init(struct vulkan_object* obj, UINT64 host_han
 
 struct vulkan_instance
 {
-    VULKAN_OBJECT_HEADER(VkInstance, instance);
+    VULKAN_OBJECT_HEADER( VkInstance, instance );
 #define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
     ALL_VK_INSTANCE_FUNCS
 #undef USE_VK_FUNC
-        void (*p_insert_object)(struct vulkan_instance* instance, struct vulkan_object* obj);
-    void (*p_remove_object)(struct vulkan_instance* instance, struct vulkan_object* obj);
+    void (*p_insert_object)( struct vulkan_instance *instance, struct vulkan_object *obj );
+    void (*p_remove_object)( struct vulkan_instance *instance, struct vulkan_object *obj );
 };
 
-static inline struct vulkan_instance* vulkan_instance_from_handle(VkInstance handle)
+static inline struct vulkan_instance *vulkan_instance_from_handle( VkInstance handle )
 {
-    struct vulkan_client_object* client = (struct vulkan_client_object*)handle;
-    return (struct vulkan_instance*)(UINT_PTR)client->unix_handle;
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_instance *)(UINT_PTR)client->unix_handle;
 }
 
 struct vulkan_physical_device
 {
-    VULKAN_OBJECT_HEADER(VkPhysicalDevice, physical_device);
-    struct vulkan_instance* instance;
+    VULKAN_OBJECT_HEADER( VkPhysicalDevice, physical_device );
+    struct vulkan_instance *instance;
 };
 
-static inline struct vulkan_physical_device* vulkan_physical_device_from_handle(VkPhysicalDevice handle)
+static inline struct vulkan_physical_device *vulkan_physical_device_from_handle( VkPhysicalDevice handle )
 {
-    struct vulkan_client_object* client = (struct vulkan_client_object*)handle;
-    return (struct vulkan_physical_device*)(UINT_PTR)client->unix_handle;
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_physical_device *)(UINT_PTR)client->unix_handle;
 }
 
 struct vulkan_device
 {
-    VULKAN_OBJECT_HEADER(VkDevice, device);
-    struct vulkan_physical_device* physical_device;
+    VULKAN_OBJECT_HEADER( VkDevice, device );
+    struct vulkan_physical_device *physical_device;
 #define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
     ALL_VK_DEVICE_FUNCS
 #undef USE_VK_FUNC
 };
 
-static inline struct vulkan_device* vulkan_device_from_handle(VkDevice handle)
+static inline struct vulkan_device *vulkan_device_from_handle( VkDevice handle )
 {
-    struct vulkan_client_object* client = (struct vulkan_client_object*)handle;
-    return (struct vulkan_device*)(UINT_PTR)client->unix_handle;
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_device *)(UINT_PTR)client->unix_handle;
 }
 
 struct vulkan_queue
 {
-    VULKAN_OBJECT_HEADER(VkQueue, queue);
-    struct vulkan_device* device;
+    VULKAN_OBJECT_HEADER( VkQueue, queue );
+    struct vulkan_device *device;
 };
 
-static inline struct vulkan_queue* vulkan_queue_from_handle(VkQueue handle)
+static inline struct vulkan_queue *vulkan_queue_from_handle( VkQueue handle )
 {
-    struct vulkan_client_object* client = (struct vulkan_client_object*)handle;
-    return (struct vulkan_queue*)(UINT_PTR)client->unix_handle;
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_queue *)(UINT_PTR)client->unix_handle;
 }
 
 struct vulkan_surface
 {
-    VULKAN_OBJECT_HEADER(VkSurfaceKHR, surface);
-    struct vulkan_instance* instance;
+    VULKAN_OBJECT_HEADER( VkSurfaceKHR, surface );
+    struct vulkan_instance *instance;
 };
 
-static inline struct vulkan_surface* vulkan_surface_from_handle(VkSurfaceKHR handle)
+static inline struct vulkan_surface *vulkan_surface_from_handle( VkSurfaceKHR handle )
 {
-    return (struct vulkan_surface*)(UINT_PTR)handle;
+    return (struct vulkan_surface *)(UINT_PTR)handle;
 }
 
 struct vulkan_swapchain
 {
-    VULKAN_OBJECT_HEADER(VkSwapchainKHR, swapchain);
+    VULKAN_OBJECT_HEADER( VkSwapchainKHR, swapchain );
 };
 
-static inline struct vulkan_swapchain* vulkan_swapchain_from_handle(VkSwapchainKHR handle)
+static inline struct vulkan_swapchain *vulkan_swapchain_from_handle( VkSwapchainKHR handle )
 {
-    return (struct vulkan_swapchain*)(UINT_PTR)handle;
+    return (struct vulkan_swapchain *)(UINT_PTR)handle;
 }
 
 struct vulkan_funcs
@@ -169,16 +169,20 @@ struct vulkan_funcs
     PFN_vkQueuePresentKHR p_vkQueuePresentKHR;
 
     /* winevulkan specific functions */
-    const char* (*p_get_host_surface_extension)(void);
+    const char *(*p_get_host_surface_extension)(void);
 };
 
 /* interface between win32u and the user drivers */
-struct client_surface;
 struct vulkan_driver_funcs
 {
-    VkResult(*p_vulkan_surface_create)(HWND, const struct vulkan_instance*, VkSurfaceKHR*, struct client_surface**);
-    VkBool32(*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);
-    const char* (*p_get_host_surface_extension)(void);
+    VkResult (*p_vulkan_surface_create)(HWND, const struct vulkan_instance *, VkSurfaceKHR *, void **);
+    void (*p_vulkan_surface_destroy)(HWND, void *);
+    void (*p_vulkan_surface_detach)(HWND, void *);
+    void (*p_vulkan_surface_update)(HWND, void *);
+    void (*p_vulkan_surface_presented)(HWND, void *, VkResult);
+
+    VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);
+    const char *(*p_get_host_surface_extension)(void);
 };
 
 #endif /* WINE_UNIX_LIB */

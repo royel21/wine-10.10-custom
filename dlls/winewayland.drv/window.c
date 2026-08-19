@@ -397,12 +397,13 @@ static BOOL is_window_managed(HWND hwnd, UINT swp_flags, BOOL fullscreen)
  */
 void WAYLAND_DestroyWindow(HWND hwnd)
 {
-    struct wayland_win_data* data;
+    struct wayland_win_data *data;
 
     TRACE("%p\n", hwnd);
 
     if (!(data = wayland_win_data_get(hwnd))) return;
     wayland_win_data_destroy(data);
+    wayland_destroy_gl_drawable(hwnd);
 }
 
 /***********************************************************************
