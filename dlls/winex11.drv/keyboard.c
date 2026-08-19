@@ -61,7 +61,7 @@ WINE_DECLARE_DEBUG_CHANNEL(key);
 static const unsigned int ControlMask = 1 << 2;
 
 static int min_keycode, max_keycode, keysyms_per_keycode;
-static KeySym *key_mapping;
+
 static WORD keyc2vkey[256], keyc2scan[256];
 
 static int NumLockMask, ScrollLockMask, AltGrMask; /* mask in the XKeyEvent state */
