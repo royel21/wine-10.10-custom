@@ -6,7 +6,7 @@ set -euo pipefail
 # ==============================================================================
 WINE_SRC_DIR="./"
 WINE_SRC_DIR="$(cd "${WINE_SRC_DIR}" && pwd)"
-BUILD_DIR="${WINE_SRC_DIR}/build-x86_64"
+BUILD_DIR="${WINE_SRC_DIR}/wine"
 INSTALL_PREFIX="/tmp/wine_build"
 OUTPUT_WCP="${HOME}/wine-10.12-custom.wcp"
 
