@@ -37,11 +37,10 @@ if [ "${INSTALL_DEPS}" = true ]; then
     libfreetype-dev libfontconfig1-dev libgl1-mesa-dev libglu1-mesa-dev \
     libvulkan-dev libsdl2-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
     libgstreamer-plugins-good1.0-dev libgstreamer-plugins-bad1.0-dev \
-    libasound2-dev libpulse-dev libgnutls28-dev libdbus-1-dev libmpg123-dev \
+    libasound2-dev libpulse-dev libgnutls28-dev libmpg123-dev \
     libopenal-dev libpng-dev libjpeg-dev libtiff-dev libwebp-dev liblcms2-dev \
-    libxml2-dev libxslt1-dev libx11-dev libxcursor-dev libxi-dev libxext-dev \
-    libxfixes-dev libxrandr-dev libxcomposite-dev libxxf86vm-dev libxrender-dev \
-    ocl-icd-opencl-dev tar xz-utils
+    libxml2-dev libxslt1-dev libx11-dev libxcursor-dev libxi-dev \
+    libxrandr-dev libxrender-dev tar xz-utils zstd
 fi
 
 # 3. Setup Directories
@@ -60,7 +59,6 @@ if [ ! -f "Makefile" ]; then
     --enable-archs=i386,x86_64 \
     --enable-win64 \
     --with-mingw \
-    --without-unwind \
     --with-freetype \
     --with-fontconfig \
     --with-gstreamer \
@@ -68,19 +66,27 @@ if [ ! -f "Makefile" ]; then
     --with-opengl \
     --with-sdl \
     --with-gnutls \
-    --with-dbus \
+    --with-xrandr \
+    --with-xrender \
     --enable-tools \
     --disable-tests \
     --disable-win16 \
-    --without-gettext \
-    --with-gettextpo=no \
+    --without-unwind \
+    --without-dbus \
+    --without-inotify \
+    --without-gssapi \
+    --without-krb5 \
+    --without-netapi \
     --without-xshape \
+    --without-xxf86vm \
+    --without-xshm \
+    --without-xcomposite \
+    --without-xfixes \
+    --without-xinerama \
     --without-capi \
     --without-coreaudio \
     --without-cups \
     --without-gphoto \
-    --without-krb5 \
-    --without-netapi \
     --without-oss \
     --without-pcap \
     --without-pcsclite \
@@ -89,21 +95,11 @@ if [ ! -f "Makefile" ]; then
     --without-usb \
     --without-v4l2 \
     --without-wayland \
-    --without-xinerama \
-    --without-dbus \
-    --without-gssapi \
-    --without-krb5 \
-    --without-netapi \
+    --without-ffmpeg \
     --without-opencl \
     --without-vosk \
-    --without-xcomposite \
-    --without-xfixes \
-    --with-xrandr \
-    --with-xrender \
-    --without-xshape \
-    --without-xshm \
-    --without-xxf86vm \
-    --without-ffmpeg
+    --without-gettext \
+    --with-gettextpo=no
 fi
 
 # 5. Incremental Compilation Across All CPU Cores
@@ -111,11 +107,26 @@ NPROC=$(nproc)
 echo "==> Compiling Wine using ${NPROC} threads..."
 make -j"${NPROC}"
 
-# 6. Install Binaries & Strip Debug Symbols
-echo "==> Installing stripped binaries to ${INSTALL_PREFIX}..."
+# 6. Install Binaries
+echo "==> Installing binaries to ${INSTALL_PREFIX}..."
 make install STRIP=true
 
-# 7. Verification Steps
+# 7. Aggressive Pruning & Stripping (Reduces package to ~100-130MB)
+echo "==> Pruning static libraries, def files, and manuals..."
+find "${INSTALL_PREFIX}" -type f \( -name "*.a" -o -name "*.def" \) -delete
+rm -rf "${INSTALL_PREFIX}/share/man"
+rm -rf "${INSTALL_PREFIX}/share/doc"
+
+echo "==> Stripping Linux host binaries..."
+find "${INSTALL_PREFIX}" -name "*.so*" -exec strip --strip-unneeded {} + 2>/dev/null || true
+
+echo "==> Stripping Windows MinGW PE binaries..."
+find "${INSTALL_PREFIX}" -name "*.dll" -exec x86_64-w64-mingw32-strip --strip-unneeded {} + 2>/dev/null || true
+find "${INSTALL_PREFIX}" -name "*.exe" -exec x86_64-w64-mingw32-strip --strip-unneeded {} + 2>/dev/null || true
+find "${INSTALL_PREFIX}" -name "*.dll" -exec i686-w64-mingw32-strip --strip-unneeded {} + 2>/dev/null || true
+find "${INSTALL_PREFIX}" -name "*.exe" -exec i686-w64-mingw32-strip --strip-unneeded {} + 2>/dev/null || true
+
+# 8. Verification Steps
 echo "==> Verifying PE architecture output..."
 if [ -f "${INSTALL_PREFIX}/lib/wine/i386-windows/ntdll.dll" ] && [ -f "${INSTALL_PREFIX}/lib/wine/x86_64-windows/ntdll.dll" ]; then
   echo "SUCCESS: Both i386-windows and x86_64-windows PE modules verified!"
@@ -124,16 +135,16 @@ else
   exit 1
 fi
 
-# 8. Inject Extra Package Assets
+# 9. Inject Extra Package Assets
 echo "==> Injecting profile.json and prefixPack.tzst..."
 [ -f "${WINE_SRC_DIR}/profile.json" ] && cp -v "${WINE_SRC_DIR}/profile.json" "${INSTALL_PREFIX}/"
 [ -f "${WINE_SRC_DIR}/prefixPack.tzst" ] && cp -v "${WINE_SRC_DIR}/prefixPack.tzst" "${INSTALL_PREFIX}/"
 
-# 9. Compress Package into .wcp
+# 10. Compress Package into .wcp
 echo "==> Packaging into Winlator Container Package (.wcp)..."
 cd "${INSTALL_PREFIX}"
 mkdir -p "$(dirname "${OUTPUT_WCP}")"
-tar --exclude='include' -cJvf "${OUTPUT_WCP}" .
+tar --exclude='include' --use-compress-program="zstd -T0 --ultra -16" -cf "${OUTPUT_WCP}" .
 
 echo "================================================================="
 echo "BUILD COMPLETE!"
