@@ -2067,6 +2067,10 @@ int main(int argc, char **argv)
         section_align = (target.cpu == CPU_ARM64 || target.cpu == CPU_ARM64EC) ? "0x10000" : "0x1000";
 
     if (!file_align) file_align = section_align;
+   
+    if (!is_pe && target.cpu != CPU_i386 && target.cpu != CPU_x86_64)
+        error( "Non-PE builds are not supported on this platform. You need to use something like '--target=%s-windows'.\n",
+               target.cpu == CPU_ARM ? "arm" : "aarch64" );
 
     if (!winebuild)
     {
