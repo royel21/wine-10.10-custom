@@ -10476,6 +10476,7 @@ static const struct prov_method_sequence nav_seq9[] = {
     { &Provider, PROV_GET_PROVIDER_OPTIONS, METHOD_OPTIONAL },
     { &Provider_nc, PROV_GET_PROVIDER_OPTIONS, METHOD_OPTIONAL },
     { &Provider_hwnd, PROV_GET_PROVIDER_OPTIONS, METHOD_OPTIONAL },
+    { 0 }
 };
 
 static const struct prov_method_sequence nav_seq10[] = {
