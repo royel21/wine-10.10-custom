@@ -40,7 +40,7 @@ if [ "${INSTALL_DEPS}" = true ]; then
     libasound2-dev libpulse-dev libgnutls28-dev libmpg123-dev \
     libopenal-dev libpng-dev libjpeg-dev libtiff-dev libwebp-dev liblcms2-dev \
     libxml2-dev libxslt1-dev libx11-dev libxcursor-dev libxi-dev \
-    libxrandr-dev libxrender-dev tar xz-utils zstd
+    libxrandr-dev libxrender-dev tar xz-utils zstd libkrb5-dev libgssapi-krb5-2 krb5-config
 fi
 
 # 3. Setup Directories
@@ -68,14 +68,14 @@ if [ ! -f "Makefile" ]; then
     --with-gnutls \
     --with-xrandr \
     --with-xrender \
+    --with-gssapi \
+    --with-krb5 \
     --enable-tools \
     --disable-tests \
     --disable-win16 \
     --without-unwind \
     --without-dbus \
     --without-inotify \
-    --without-gssapi \
-    --without-krb5 \
     --without-netapi \
     --without-xshape \
     --without-xxf86vm \
