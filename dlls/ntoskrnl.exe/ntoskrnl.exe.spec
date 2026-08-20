@@ -403,7 +403,6 @@
 @ stdcall IoGetCurrentProcess()
 @ stub IoGetDeviceAttachmentBaseRef
 @ stub IoGetDeviceInterfaceAlias
-@ stdcall IoGetDeviceInterfacePropertyData(ptr ptr long long long ptr ptr ptr)
 @ stdcall IoGetDeviceInterfaces(ptr ptr long ptr)
 @ stdcall IoGetDeviceObjectPointer(ptr long ptr ptr)
 @ stdcall IoGetDeviceProperty(ptr long long ptr ptr)
@@ -471,7 +470,6 @@
 @ stub IoRequestDeviceEject
 @ stdcall IoReuseIrp(ptr long)
 @ stub IoSetCompletionRoutineEx
-@ stdcall IoSetDeviceInterfacePropertyData(ptr ptr long long long long ptr)
 @ stdcall IoSetDeviceInterfaceState(ptr long)
 @ stdcall IoSetDevicePropertyData(ptr ptr long long long long ptr)
 @ stub IoSetDeviceToVerify

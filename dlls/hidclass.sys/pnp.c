@@ -621,8 +621,7 @@ static NTSTATUS pdo_pnp( DEVICE_OBJECT *device, IRP *irp )
             break;
 
         default:
-            break;
-            // TODO FIXME("Unhandled minor function %#x.\n", irpsp->MinorFunction);
+            FIXME("Unhandled minor function %#x.\n", irpsp->MinorFunction);
     }
 
     irp->IoStatus.Status = status;

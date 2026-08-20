@@ -58,11 +58,11 @@
 WINE_DEFAULT_DEBUG_CHANNEL(keyboard);
 WINE_DECLARE_DEBUG_CHANNEL(key);
 
-static KeySym* key_mapping;
-
 static const unsigned int ControlMask = 1 << 2;
 
 static int min_keycode, max_keycode, keysyms_per_keycode;
+
+static KeySym* key_mapping;
 
 static WORD keyc2vkey[256], keyc2scan[256];
 

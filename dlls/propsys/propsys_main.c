@@ -34,19 +34,20 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(propsys);
 
-static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory *iface, REFIID riid, void **ppv)
+static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory* iface, REFIID riid, void** ppv)
 {
     *ppv = NULL;
 
-    if(IsEqualGUID(&IID_IUnknown, riid)) {
+    if (IsEqualGUID(&IID_IUnknown, riid)) {
         TRACE("(%p)->(IID_IUnknown %p)\n", iface, ppv);
         *ppv = iface;
-    }else if(IsEqualGUID(&IID_IClassFactory, riid)) {
+    }
+    else if (IsEqualGUID(&IID_IClassFactory, riid)) {
         TRACE("(%p)->(IID_IClassFactory %p)\n", iface, ppv);
         *ppv = iface;
     }
 
-    if(*ppv) {
+    if (*ppv) {
         IUnknown_AddRef((IUnknown*)*ppv);
         return S_OK;
     }
@@ -55,27 +56,27 @@ static HRESULT WINAPI ClassFactory_QueryInterface(IClassFactory *iface, REFIID r
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI ClassFactory_AddRef(IClassFactory *iface)
+static ULONG WINAPI ClassFactory_AddRef(IClassFactory* iface)
 {
     TRACE("(%p)\n", iface);
     return 2;
 }
 
-static ULONG WINAPI ClassFactory_Release(IClassFactory *iface)
+static ULONG WINAPI ClassFactory_Release(IClassFactory* iface)
 {
     TRACE("(%p)\n", iface);
     return 1;
 }
 
-static HRESULT WINAPI ClassFactory_LockServer(IClassFactory *iface, BOOL fLock)
+static HRESULT WINAPI ClassFactory_LockServer(IClassFactory* iface, BOOL fLock)
 {
     TRACE("(%p)->(%x)\n", iface, fLock);
 
     return S_OK;
 }
 
-static HRESULT WINAPI InMemoryPropertyStoreFactory_CreateInstance(IClassFactory *iface, IUnknown *outer,
-        REFIID riid, void **ppv)
+static HRESULT WINAPI InMemoryPropertyStoreFactory_CreateInstance(IClassFactory* iface, IUnknown* outer,
+    REFIID riid, void** ppv)
 {
     TRACE("(%p %s %p)\n", outer, debugstr_guid(riid), ppv);
 
@@ -92,9 +93,9 @@ static const IClassFactoryVtbl InMemoryPropertyStoreFactoryVtbl = {
 
 static IClassFactory InMemoryPropertyStoreFactory = { &InMemoryPropertyStoreFactoryVtbl };
 
-HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
+HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID* ppv)
 {
-    if(IsEqualGUID(&CLSID_InMemoryPropertyStore, rclsid)) {
+    if (IsEqualGUID(&CLSID_InMemoryPropertyStore, rclsid)) {
         TRACE("(CLSID_InMemoryPropertyStore %s %p)\n", debugstr_guid(riid), ppv);
         return IClassFactory_QueryInterface(&InMemoryPropertyStoreFactory, riid, ppv);
     }
@@ -103,7 +104,7 @@ HRESULT WINAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 
-static HRESULT WINAPI propsys_QueryInterface(IPropertySystem *iface, REFIID riid, void **obj)
+static HRESULT WINAPI propsys_QueryInterface(IPropertySystem* iface, REFIID riid, void** obj)
 {
     *obj = NULL;
 
@@ -117,43 +118,43 @@ static HRESULT WINAPI propsys_QueryInterface(IPropertySystem *iface, REFIID riid
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI propsys_AddRef(IPropertySystem *iface)
+static ULONG WINAPI propsys_AddRef(IPropertySystem* iface)
 {
     return 2;
 }
 
-static ULONG WINAPI propsys_Release(IPropertySystem *iface)
+static ULONG WINAPI propsys_Release(IPropertySystem* iface)
 {
     return 1;
 }
 
-static HRESULT WINAPI propsys_GetPropertyDescription(IPropertySystem *iface,
-    REFPROPERTYKEY propkey, REFIID riid, void **ppv)
+static HRESULT WINAPI propsys_GetPropertyDescription(IPropertySystem* iface,
+    REFPROPERTYKEY propkey, REFIID riid, void** ppv)
 {
     return PSGetPropertyDescription(propkey, riid, ppv);
 }
 
-static HRESULT WINAPI propsys_GetPropertyDescriptionByName(IPropertySystem *iface,
-    LPCWSTR canonical_name, REFIID riid, void **ppv)
+static HRESULT WINAPI propsys_GetPropertyDescriptionByName(IPropertySystem* iface,
+    LPCWSTR canonical_name, REFIID riid, void** ppv)
 {
     FIXME("%s %s %p: stub\n", debugstr_w(canonical_name), debugstr_guid(riid), ppv);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI propsys_GetPropertyDescriptionListFromString(IPropertySystem *iface,
-    LPCWSTR proplist, REFIID riid, void **ppv)
+static HRESULT WINAPI propsys_GetPropertyDescriptionListFromString(IPropertySystem* iface,
+    LPCWSTR proplist, REFIID riid, void** ppv)
 {
     return PSGetPropertyDescriptionListFromString(proplist, riid, ppv);
 }
 
-static HRESULT WINAPI propsys_EnumeratePropertyDescriptions(IPropertySystem *iface,
-    PROPDESC_ENUMFILTER filter, REFIID riid, void **ppv)
+static HRESULT WINAPI propsys_EnumeratePropertyDescriptions(IPropertySystem* iface,
+    PROPDESC_ENUMFILTER filter, REFIID riid, void** ppv)
 {
     FIXME("%d %s %p: stub\n", filter, debugstr_guid(riid), ppv);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI propsys_FormatForDisplay(IPropertySystem *iface,
+static HRESULT WINAPI propsys_FormatForDisplay(IPropertySystem* iface,
     REFPROPERTYKEY key, REFPROPVARIANT propvar, PROPDESC_FORMAT_FLAGS flags,
     LPWSTR dest, DWORD destlen)
 {
@@ -161,25 +162,25 @@ static HRESULT WINAPI propsys_FormatForDisplay(IPropertySystem *iface,
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI propsys_FormatForDisplayAlloc(IPropertySystem *iface,
+static HRESULT WINAPI propsys_FormatForDisplayAlloc(IPropertySystem* iface,
     REFPROPERTYKEY key, REFPROPVARIANT propvar, PROPDESC_FORMAT_FLAGS flags,
-    LPWSTR *text)
+    LPWSTR* text)
 {
     FIXME("%p %p %x %p: stub\n", key, propvar, flags, text);
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI propsys_RegisterPropertySchema(IPropertySystem *iface, LPCWSTR path)
+static HRESULT WINAPI propsys_RegisterPropertySchema(IPropertySystem* iface, LPCWSTR path)
 {
     return PSRegisterPropertySchema(path);
 }
 
-static HRESULT WINAPI propsys_UnregisterPropertySchema(IPropertySystem *iface, LPCWSTR path)
+static HRESULT WINAPI propsys_UnregisterPropertySchema(IPropertySystem* iface, LPCWSTR path)
 {
     return PSUnregisterPropertySchema(path);
 }
 
-static HRESULT WINAPI propsys_RefreshPropertySchema(IPropertySystem *iface)
+static HRESULT WINAPI propsys_RefreshPropertySchema(IPropertySystem* iface)
 {
     return PSRefreshPropertySchema();
 }
@@ -201,7 +202,7 @@ static const IPropertySystemVtbl propsysvtbl = {
 
 static IPropertySystem propsys = { &propsysvtbl };
 
-HRESULT WINAPI PSGetPropertySystem(REFIID riid, void **obj)
+HRESULT WINAPI PSGetPropertySystem(REFIID riid, void** obj)
 {
     return IPropertySystem_QueryInterface(&propsys, riid, obj);
 }
@@ -220,22 +221,62 @@ HRESULT WINAPI PSUnregisterPropertySchema(PCWSTR path)
     return E_NOTIMPL;
 }
 
-HRESULT WINAPI PSGetPropertyDescription(REFPROPERTYKEY propkey, REFIID riid, void **ppv)
+HRESULT WINAPI PSGetPropertyDescription(REFPROPERTYKEY propkey, REFIID riid, void** ppv)
 {
     FIXME("%p, %p, %p\n", propkey, riid, ppv);
     return E_NOTIMPL;
 }
 
-HRESULT WINAPI PSGetPropertyDescriptionListFromString(LPCWSTR proplist, REFIID riid, void **ppv)
+HRESULT WINAPI PSGetPropertyDescriptionListFromString(LPCWSTR proplist, REFIID riid, void** ppv)
 {
     FIXME("%s, %p, %p\n", debugstr_w(proplist), riid, ppv);
     return E_NOTIMPL;
 }
 
-HRESULT WINAPI PSGetPropertyKeyFromName(PCWSTR name, PROPERTYKEY *key)
+
+HRESULT WINAPI PSGetNameFromPropertyKey(REFPROPERTYKEY key, LPWSTR* name)
 {
-    FIXME("%s, %p\n", debugstr_w(name), key);
-    return E_NOTIMPL;
+    HRESULT hr;
+    IPropertySystem* system;
+
+    TRACE("(%s, %p)\n", debugstr_propkey(key), name);
+    hr = IPropertySystem_QueryInterface(&propsys, &IID_IPropertySystem, (void**)&system);
+    if (SUCCEEDED(hr))
+    {
+        IPropertyDescription* desc;
+
+        hr = IPropertySystem_GetPropertyDescription(system, key, &IID_IPropertyDescription, (void**)&desc);
+        if (SUCCEEDED(hr))
+        {
+            hr = IPropertyDescription_GetCanonicalName(desc, name);
+            IPropertyDescription_Release(desc);
+        }
+        IPropertySystem_Release(system);
+    }
+
+    return hr;
+}
+
+HRESULT WINAPI PSGetPropertyKeyFromName(PCWSTR name, PROPERTYKEY* key)
+{
+    HRESULT hr;
+    IPropertySystem* system;
+
+    TRACE("%s, %p\n", debugstr_w(name), debugstr_propkey(key));
+    hr = IPropertySystem_QueryInterface(&propsys, &IID_IPropertySystem, (void**)&system);
+    if (SUCCEEDED(hr))
+    {
+        IPropertyDescription* desc;
+        hr = IPropertySystem_GetPropertyDescriptionByName(system, name, &IID_IPropertyDescription, (void**)&desc);
+        if (SUCCEEDED(hr))
+        {
+            hr = IPropertyDescription_GetPropertyKey(desc, key);
+            IPropertyDescription_Release(desc);
+        }
+        IPropertySystem_Release(system);
+    }
+
+    return hr;
 }
 
 HRESULT WINAPI PSRefreshPropertySchema(void)
@@ -266,9 +307,9 @@ HRESULT WINAPI PSStringFromPropertyKey(REFPROPERTYKEY pkey, LPWSTR psz, UINT cch
     }
 
     swprintf(psz, cch, L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}", pkey->fmtid.Data1,
-             pkey->fmtid.Data2, pkey->fmtid.Data3, pkey->fmtid.Data4[0], pkey->fmtid.Data4[1],
-             pkey->fmtid.Data4[2], pkey->fmtid.Data4[3], pkey->fmtid.Data4[4],
-             pkey->fmtid.Data4[5], pkey->fmtid.Data4[6], pkey->fmtid.Data4[7]);
+        pkey->fmtid.Data2, pkey->fmtid.Data3, pkey->fmtid.Data4[0], pkey->fmtid.Data4[1],
+        pkey->fmtid.Data4[2], pkey->fmtid.Data4[3], pkey->fmtid.Data4[4],
+        pkey->fmtid.Data4[5], pkey->fmtid.Data4[6], pkey->fmtid.Data4[7]);
 
     /* Overwrite the null terminator with the space character. */
     p += GUIDSTRING_MAX - 1;
@@ -284,7 +325,7 @@ HRESULT WINAPI PSStringFromPropertyKey(REFPROPERTYKEY pkey, LPWSTR psz, UINT cch
     }
     else
     {
-        WCHAR *ptr = pidW + len - 1;
+        WCHAR* ptr = pidW + len - 1;
 
         psz[0] = '\0';
         *p++ = '\0';
@@ -357,7 +398,7 @@ static BOOL string_to_guid(LPCWSTR s, LPGUID id)
 
     if (!validate_indices(s, 0, 8)) return FALSE;
     id->Data1 = (hex2bin[s[1]] << 28 | hex2bin[s[2]] << 24 | hex2bin[s[3]] << 20 | hex2bin[s[4]] << 16 |
-                 hex2bin[s[5]] << 12 | hex2bin[s[6]] << 8  | hex2bin[s[7]] << 4  | hex2bin[s[8]]);
+        hex2bin[s[5]] << 12 | hex2bin[s[6]] << 8 | hex2bin[s[7]] << 4 | hex2bin[s[8]]);
     if (!validate_indices(s, 9, 14)) return FALSE;
     id->Data2 = hex2bin[s[10]] << 12 | hex2bin[s[11]] << 8 | hex2bin[s[12]] << 4 | hex2bin[s[13]];
     if (!validate_indices(s, 15, 19)) return FALSE;
@@ -386,7 +427,7 @@ static BOOL string_to_guid(LPCWSTR s, LPGUID id)
     return TRUE;
 }
 
-HRESULT WINAPI PSPropertyKeyFromString(LPCWSTR pszString, PROPERTYKEY *pkey)
+HRESULT WINAPI PSPropertyKeyFromString(LPCWSTR pszString, PROPERTYKEY* pkey)
 {
     BOOL has_minus = FALSE, has_comma = FALSE;
 
@@ -468,7 +509,7 @@ HRESULT WINAPI PSPropertyKeyFromString(LPCWSTR pszString, PROPERTYKEY *pkey)
     return S_OK;
 }
 
-HRESULT WINAPI PSCreateMemoryPropertyStore(REFIID riid, void **ppv)
+HRESULT WINAPI PSCreateMemoryPropertyStore(REFIID riid, void** ppv)
 {
     TRACE("(%s, %p)\n", debugstr_guid(riid), ppv);
 

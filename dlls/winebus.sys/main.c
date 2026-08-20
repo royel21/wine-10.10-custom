@@ -1108,8 +1108,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         IoDeleteDevice(device);
         return ret;
     default:
-        break;
-        // TODO FIXME("Unhandled minor function %#x.\n", irpsp->MinorFunction);
+        FIXME("Unhandled minor function %#x.\n", irpsp->MinorFunction);
     }
 
     IoSkipCurrentIrpStackLocation(irp);
