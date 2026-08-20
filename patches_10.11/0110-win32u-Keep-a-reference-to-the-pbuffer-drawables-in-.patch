@@ -1,0 +1,115 @@
+From 7ac9ba0ea8485cf65956e7f55e11ae6d1800b7f0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Mon, 2 Jun 2025 12:43:10 +0200
+Subject: [PATCH 110/293] win32u: Keep a reference to the pbuffer drawables in
+ the DCs.
+
+---
+ dlls/win32u/dc.c            |  7 +++++++
+ dlls/win32u/ntgdi_private.h |  1 +
+ dlls/win32u/opengl.c        | 22 ++++++++++++++++++++++
+ 3 files changed, 30 insertions(+)
+
+diff --git a/dlls/win32u/dc.c b/dlls/win32u/dc.c
+index 922fa8b5317..16092141163 100644
+--- a/dlls/win32u/dc.c
++++ b/dlls/win32u/dc.c
+@@ -37,6 +37,7 @@
+ #include "winerror.h"
+ #include "ntgdi_private.h"
+ 
++#include "wine/opengl_driver.h"
+ #include "wine/debug.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(dc);
+@@ -457,6 +458,7 @@ void DC_UpdateXforms( DC *dc )
+  */
+ static BOOL reset_dc_state( HDC hdc )
+ {
++    struct opengl_drawable *drawable;
+     DC *dc, *dcs, *next;
+ 
+     if (!(dc = get_dc_ptr( hdc ))) return FALSE;
+@@ -485,7 +487,12 @@ static BOOL reset_dc_state( HDC hdc )
+     }
+     dc->saved_dc = NULL;
+     dc->attr->save_level = 0;
++
++    drawable = dc->opengl_drawable;
++    dc->opengl_drawable = NULL;
+     release_dc_ptr( dc );
++
++    if (drawable) opengl_drawable_release( drawable );
+     return TRUE;
+ }
+ 
+diff --git a/dlls/win32u/ntgdi_private.h b/dlls/win32u/ntgdi_private.h
+index 136921a211c..78b3ad89796 100644
+--- a/dlls/win32u/ntgdi_private.h
++++ b/dlls/win32u/ntgdi_private.h
+@@ -61,6 +61,7 @@ typedef struct tagDC
+     UINT         bounds_enabled:1; /* bounds tracking is enabled */
+     UINT         path_open:1;      /* path is currently open (only for saved DCs) */
+     UINT         is_display:1;     /* DC is for display device */
++    struct opengl_drawable *opengl_drawable; /* GL driver drawable for the DC */
+ 
+     RECT         device_rect;      /* rectangle for the whole device */
+     int          pixel_format;     /* pixel format (for memory DCs) */
+diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+index 7450fb91ada..817e723d94a 100644
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -755,6 +755,23 @@ static struct opengl_drawable *get_window_opengl_drawable( HWND hwnd )
+     return drawable;
+ }
+ 
++static void set_dc_opengl_drawable( HDC hdc, struct opengl_drawable *new_drawable )
++{
++    void *old_drawable = NULL;
++    DC *dc;
++
++    TRACE( "hdc %p, new_drawable %s\n", hdc, debugstr_opengl_drawable( new_drawable ) );
++
++    if ((dc = get_dc_ptr( hdc )))
++    {
++        old_drawable = dc->opengl_drawable;
++        if ((dc->opengl_drawable = new_drawable)) opengl_drawable_add_ref( new_drawable );
++        release_dc_ptr( dc );
++    }
++
++    if (old_drawable) opengl_drawable_release( old_drawable );
++}
++
+ static struct wgl_pbuffer *create_memory_pbuffer( HDC hdc, int format )
+ {
+     const struct opengl_funcs *funcs = &display_funcs;
+@@ -778,6 +795,7 @@ static struct wgl_pbuffer *create_memory_pbuffer( HDC hdc, int format )
+     {
+         int width = dib.rect.right - dib.rect.left, height = dib.rect.bottom - dib.rect.top;
+         pbuffer = funcs->p_wglCreatePbufferARB( hdc, format, width, height, NULL );
++        if (pbuffer) set_dc_opengl_drawable( hdc, pbuffer->drawable );
+     }
+ 
+     if (pbuffer) TRACE( "Created pbuffer %p for memory DC %p\n", pbuffer, hdc );
+@@ -821,6 +839,7 @@ static void destroy_memory_pbuffer( struct wgl_context *context, HDC hdc )
+ {
+     const struct opengl_funcs *funcs = &display_funcs;
+     flush_memory_pbuffer( context, hdc, FALSE, funcs->p_glFinish );
++    set_dc_opengl_drawable( hdc, NULL );
+     funcs->p_wglDestroyPbufferARB( context->memory_pbuffer );
+     context->memory_pbuffer = NULL;
+ }
+@@ -1114,7 +1133,10 @@ static struct wgl_pbuffer *win32u_wglCreatePbufferARB( HDC hdc, int format, int
+     if (driver_funcs->p_pbuffer_create( pbuffer->hdc, format, largest, pbuffer->texture_format,
+                                         pbuffer->texture_target, max_level, &pbuffer->width,
+                                         &pbuffer->height, &pbuffer->drawable ))
++    {
++        set_dc_opengl_drawable( pbuffer->hdc, pbuffer->drawable );
+         return pbuffer;
++    }
+ 
+ failed:
+     RtlSetLastWin32Error( ERROR_INVALID_DATA );
+-- 
+2.43.0
+

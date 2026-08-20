@@ -1,0 +1,153 @@
+From 18f55c306e59ef21701f16463db68c6adf1ca1ad Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Wed, 25 Jun 2025 01:40:03 +0100
+Subject: [PATCH 224/293] crypt32: Don't release context in
+ CSignedEncodeMsg_Open.
+
+The docs say it should be released in the last CryptMsgUpdate, but tests show
+it's actually released in CryptMsgClose. So let's do the same.
+
+This solve a use-after-free issue for signed messages, because they contains
+HCRYPTHASH objects which references the context internally, and will use it
+in CryptDestroyHash. If the context is released in CSignedEncodeMsg_Open, this
+will be a use-after-free.
+---
+ dlls/crypt32/msg.c       | 16 +++++++++++-----
+ dlls/crypt32/tests/msg.c | 34 +++++++++++++++++++++++++++++++---
+ 2 files changed, 42 insertions(+), 8 deletions(-)
+
+diff --git a/dlls/crypt32/msg.c b/dlls/crypt32/msg.c
+index d85731a8a8f..fafa40444dd 100644
+--- a/dlls/crypt32/msg.c
++++ b/dlls/crypt32/msg.c
+@@ -1227,6 +1227,7 @@ typedef struct _CSignedEncodeMsg
+     LPSTR           innerOID;
+     CRYPT_DATA_BLOB data;
+     CSignedMsgData  msg_data;
++    HCRYPTPROV      prov[];
+ } CSignedEncodeMsg;
+ 
+ static void CSignedEncodeMsg_Close(HCRYPTMSG hCryptMsg)
+@@ -1243,6 +1244,10 @@ static void CSignedEncodeMsg_Close(HCRYPTMSG hCryptMsg)
+     for (i = 0; i < msg->msg_data.info->cSignerInfo; i++)
+         CSignerInfo_Free(&msg->msg_data.info->rgSignerInfo[i]);
+     CSignedMsgData_CloseHandles(&msg->msg_data);
++    if (msg->base.open_flags & CMSG_CRYPT_RELEASE_CONTEXT_FLAG)
++        for (i = 0; i < msg->msg_data.info->cSignerInfo; i++)
++            if (msg->prov[i])
++                CryptReleaseContext(msg->prov[i], 0);
+     CryptMemFree(msg->msg_data.info->signerKeySpec);
+     CryptMemFree(msg->msg_data.info->rgSignerInfo);
+     CryptMemFree(msg->msg_data.info);
+@@ -1403,7 +1408,7 @@ static HCRYPTMSG CSignedEncodeMsg_Open(DWORD dwFlags,
+  PCMSG_STREAM_INFO pStreamInfo)
+ {
+     const CMSG_SIGNED_ENCODE_INFO_WITH_CMS *info = pvMsgEncodeInfo;
+-    DWORD i;
++    DWORD i, saved_prov_count = 0;
+     CSignedEncodeMsg *msg;
+ 
+     if (info->cbSize != sizeof(CMSG_SIGNED_ENCODE_INFO) &&
+@@ -1421,7 +1426,9 @@ static HCRYPTMSG CSignedEncodeMsg_Open(DWORD dwFlags,
+     for (i = 0; i < info->cSigners; i++)
+         if (!CRYPT_IsValidSigner(&info->rgSigners[i]))
+             return NULL;
+-    msg = CryptMemAlloc(sizeof(CSignedEncodeMsg));
++    if (dwFlags & CMSG_CRYPT_RELEASE_CONTEXT_FLAG)
++        saved_prov_count = info->cSigners;
++    msg = CryptMemAlloc(offsetof(CSignedEncodeMsg, prov) + sizeof(HCRYPTPROV) * saved_prov_count);
+     if (msg)
+     {
+         BOOL ret = TRUE;
+@@ -1478,11 +1485,10 @@ static HCRYPTMSG CSignedEncodeMsg_Open(DWORD dwFlags,
+                          &info->rgSigners[i]);
+                         if (ret)
+                         {
++                            if (saved_prov_count)
++                                msg->prov[i] = info->rgSigners[i].hCryptProv;
+                             ret = CSignedMsgData_ConstructSignerHandles(
+                              &msg->msg_data, i, &info->rgSigners[i].hCryptProv, &dwFlags);
+-                            if (dwFlags & CMSG_CRYPT_RELEASE_CONTEXT_FLAG)
+-                                CryptReleaseContext(info->rgSigners[i].hCryptProv,
+-                                 0);
+                         }
+                         msg->msg_data.info->signerKeySpec[i] =
+                          info->rgSigners[i].dwKeySpec;
+diff --git a/dlls/crypt32/tests/msg.c b/dlls/crypt32/tests/msg.c
+index 01ffbdbfb23..a2c18afadb2 100644
+--- a/dlls/crypt32/tests/msg.c
++++ b/dlls/crypt32/tests/msg.c
+@@ -1250,8 +1250,29 @@ static void test_signed_msg_update(void)
+     ok(ret, "CryptMsgUpdate failed: %08lx\n", GetLastError());
+     CryptMsgClose(msg);
+ 
++    /* does final update release context? */
++    msg = CryptMsgOpenToEncode(PKCS_7_ASN_ENCODING,
++     CMSG_CRYPT_RELEASE_CONTEXT_FLAG | CMSG_DETACHED_FLAG, CMSG_SIGNED, &signInfo, NULL, NULL);
++    ok(msg != NULL, "CryptMsgOpenToEncode failed: %lx\n", GetLastError());
++    /* non-final updates shouldn't release context. */
++    ret = CryptMsgUpdate(msg, msgData, sizeof(msgData), FALSE);
++    ok(ret, "CryptMsgUpdate failed: %lx\n", GetLastError());
++    ret = CryptContextAddRef(signer.hCryptProv, NULL, 0);
++    ok(ret, "non-final CryptMsgUpdate released context\n");
++    if (ret) CryptReleaseContext(signer.hCryptProv, 0);
++    /* the final update should, according to the docs, but... */
++    ret = CryptMsgUpdate(msg, msgData, sizeof(msgData), TRUE);
++    ok(ret, "CryptMsgUpdate failed: %lx\n", GetLastError());
++    ret = CryptContextAddRef(signer.hCryptProv, NULL, 0);
++    ok(ret, "final CryptMsgUpdate released context\n");
++    if (ret) CryptReleaseContext(signer.hCryptProv, 0);
++
++    /* close msg would release the context, so destroy key first. */
+     CryptDestroyKey(key);
+-    CryptReleaseContext(signer.hCryptProv, 0);
++    CryptMsgClose(msg);
++    ret = CryptContextAddRef(signer.hCryptProv, NULL, 0);
++    ok(!ret, "CryptMsgClose didn't release context\n");
++    if (ret) CryptReleaseContext(signer.hCryptProv, 0);
+     CryptAcquireContextA(&signer.hCryptProv, cspNameA, NULL, PROV_RSA_FULL,
+      CRYPT_DELETEKEYSET);
+ }
+@@ -1941,6 +1962,7 @@ static void test_signed_msg_get_param(void)
+     signers[0].SignerId.IssuerSerialNumber.Issuer.pbData = encodedCommonName;
+     signers[0].SignerId.IssuerSerialNumber.SerialNumber.cbData = sizeof(serialNum);
+     signers[0].SignerId.IssuerSerialNumber.SerialNumber.pbData = serialNum;
++    /* does CryptMsgOpenToEncode release the context? */
+     ret = CryptAcquireContextA(&signers[0].hCryptProv, cspNameA, NULL,
+      PROV_RSA_FULL, CRYPT_NEWKEYSET);
+     if (!ret && GetLastError() == NTE_EXISTS)
+@@ -1950,6 +1972,9 @@ static void test_signed_msg_get_param(void)
+     msg = CryptMsgOpenToEncode(PKCS_7_ASN_ENCODING,
+      CMSG_CRYPT_RELEASE_CONTEXT_FLAG, CMSG_SIGNED, &signInfo, NULL, NULL);
+     ok(msg != NULL, "CryptMsgOpenToEncode failed: %lx\n", GetLastError());
++    ret = CryptContextAddRef(signers[0].hCryptProv, NULL, 0);
++    ok(ret, "CryptMsgOpenToEncode released context\n");
++    if (ret) CryptReleaseContext(signers[0].hCryptProv, 0);
+     /* still results in the version being 1 when the issuer and serial number
+      * are used and no additional CMS fields are used.
+      */
+@@ -1975,6 +2000,10 @@ static void test_signed_msg_get_param(void)
+     ok(!ret && GetLastError() == CRYPT_E_INVALID_MSG_TYPE,
+      "expected CRYPT_E_INVALID_MSG_TYPE, got %08lx\n", GetLastError());
+     CryptMsgClose(msg);
++    /* does CryptMsgClose release context? (doc says it should be released by
++     * the last Update, but...) */
++    ret = CryptContextAddRef(signers[0].hCryptProv, NULL, 0);
++    ok(!ret, "CryptMsgClose didn't release context\n");
+ 
+     /* Using the KeyId field of the SignerId results in the version becoming
+      * the CMS version.
+@@ -2012,9 +2041,8 @@ static void test_signed_msg_get_param(void)
+     ret = CryptMsgGetParam(msg, CMSG_SIGNER_CERT_ID_PARAM, 0, NULL, &size);
+     ok(!ret && GetLastError() == CRYPT_E_INVALID_MSG_TYPE,
+      "expected CRYPT_E_INVALID_MSG_TYPE, got %08lx\n", GetLastError());
+-    CryptMsgClose(msg);
++    CryptMsgClose(msg); /* this releases the context. */
+ 
+-    CryptReleaseContext(signers[0].hCryptProv, 0);
+     CryptAcquireContextA(&signers[0].hCryptProv, cspNameA, MS_DEF_PROV_A,
+      PROV_RSA_FULL, CRYPT_DELETEKEYSET);
+ }
+-- 
+2.43.0
+

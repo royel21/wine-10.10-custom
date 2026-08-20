@@ -1,0 +1,26 @@
+From 1332a3546e6a7ebe560c5a51c393c2c4f78b2bd0 Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Fri, 27 Jun 2025 12:59:10 +0200
+Subject: [PATCH 277/293] makefiles: Fix program installation for Windows
+ builds.
+
+---
+ tools/makedep.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/makedep.c b/tools/makedep.c
+index 3fc127b5dda..d7316cb2ae7 100644
+--- a/tools/makedep.c
++++ b/tools/makedep.c
+@@ -3781,7 +3781,7 @@ static void output_programs( struct makefile *make )
+         strarray_addall( &make->all_targets[arch], symlinks );
+ 
+         install_dir = !strcmp( make->obj_dir, "loader" ) ? arch_install_dirs[arch] : "$(bindir)/";
+-        add_install_rule( make, program, arch, program, strmake( "p%s%s", install_dir, program ));
++        add_install_rule( make, make->programs.str[i], arch, program, strmake( "p%s%s", install_dir, program ));
+         for (j = 0; j < symlinks.count; j++)
+             add_install_rule( make, symlinks.str[j], arch, program,
+                               strmake( "y$(bindir)/%s%s", symlinks.str[j], exe_ext ));
+-- 
+2.43.0
+

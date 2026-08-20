@@ -1,0 +1,28 @@
+From 5f1b5b90192fb6366da71bd3d9689c164839c026 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Tue, 10 Jun 2025 18:21:56 -0500
+Subject: [PATCH 036/293] ir50_32: Do not validate biPlanes.
+
+---
+ dlls/ir50_32/ir50.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/ir50_32/ir50.c b/dlls/ir50_32/ir50.c
+index 53f25c984ee..611d3c076a3 100644
+--- a/dlls/ir50_32/ir50.c
++++ b/dlls/ir50_32/ir50.c
+@@ -101,9 +101,8 @@ IV50_DecompressQuery( LPBITMAPINFO in, LPBITMAPINFO out )
+             return ICERR_BADFORMAT;
+         }
+ 
+-        if ( in->bmiHeader.biPlanes != out->bmiHeader.biPlanes ||
+-             in->bmiHeader.biHeight != abs(out->bmiHeader.biHeight) ||
+-             in->bmiHeader.biWidth  != out->bmiHeader.biWidth )
++        if (in->bmiHeader.biHeight != abs(out->bmiHeader.biHeight)
++                || in->bmiHeader.biWidth != out->bmiHeader.biWidth)
+         {
+             TRACE("incompatible output dimensions requested\n");
+             return ICERR_BADFORMAT;
+-- 
+2.43.0
+

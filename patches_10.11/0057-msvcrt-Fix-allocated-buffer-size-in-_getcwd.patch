@@ -1,0 +1,33 @@
+From a2dee1f342adeb7d7db1bd522a86d8518d33e970 Mon Sep 17 00:00:00 2001
+From: Piotr Caban <piotr@codeweavers.com>
+Date: Tue, 17 Jun 2025 18:40:13 +0200
+Subject: [PATCH 057/293] msvcrt: Fix allocated buffer size in _getcwd.
+
+---
+ dlls/msvcrt/dir.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/msvcrt/dir.c b/dlls/msvcrt/dir.c
+index a047ca47aab..324e3096c72 100644
+--- a/dlls/msvcrt/dir.c
++++ b/dlls/msvcrt/dir.c
+@@ -753,10 +753,14 @@ char* CDECL _getcwd(char * buf, int size)
+ 
+     if (!_wgetcwd(dirW, ARRAY_SIZE(dirW))) return NULL;
+ 
+-    if (!buf) return astrdupw_utf8(dirW);
+     len = convert_wcs_to_acp_utf8(dirW, NULL, 0);
+     if (!len) return NULL;
+-    if (len > size)
++    if (!buf)
++    {
++        if (size < len) size = len;
++        if (!(buf = malloc(size))) return NULL;
++    }
++    else if (len > size)
+     {
+         *_errno() = ERANGE;
+         return NULL;
+-- 
+2.43.0
+

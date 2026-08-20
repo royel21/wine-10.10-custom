@@ -1,0 +1,42 @@
+From 79c3a8322825a16e968706a7af9df22a362d5f05 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 17 Jun 2025 17:05:35 +0100
+Subject: [PATCH 091/293] wininet: Use BYTE instead of char for hash
+ calculation.
+
+Since LPCSTR is signed, (*lpszKey ^ key[i]) could be negative, which means
+accessing the lookupTable with it will underflow.
+---
+ dlls/wininet/urlcache.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/wininet/urlcache.c b/dlls/wininet/urlcache.c
+index 366fa0b6bea..49c8ce9becc 100644
+--- a/dlls/wininet/urlcache.c
++++ b/dlls/wininet/urlcache.c
+@@ -1455,17 +1455,18 @@ static DWORD urlcache_hash_key(LPCSTR lpszKey)
+         0xA3, 0xC8, 0xDE, 0xEB, 0xF8, 0xF3, 0xDB, 0x0A,
+         0x98, 0x83, 0x7B, 0xE5, 0xCB, 0x4C, 0x78, 0xD1
+     };
++    const BYTE *input = (const BYTE *)lpszKey;
+     BYTE key[4];
+     DWORD i;
+ 
+     for (i = 0; i < ARRAY_SIZE(key); i++)
+-        key[i] = lookupTable[(*lpszKey + i) & 0xFF];
++        key[i] = lookupTable[(*input + i) & 0xFF];
+ 
+-    if (*lpszKey)
+-        for (lpszKey++; *lpszKey; lpszKey++)
++    if (*input)
++        for (input++; *input; input++)
+         {
+             for (i = 0; i < ARRAY_SIZE(key); i++)
+-                key[i] = lookupTable[*lpszKey ^ key[i]];
++                key[i] = lookupTable[*input ^ key[i]];
+         }
+ 
+     return *(DWORD *)key;
+-- 
+2.43.0
+

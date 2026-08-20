@@ -1,0 +1,62 @@
+From 8f864eba335270a044bc7b15bb8fccf457fb6a20 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Fri, 20 Jun 2025 11:20:14 +0200
+Subject: [PATCH 173/293] ntdll: Set returned atom to 0 when we should.
+
+---
+ dlls/ntdll/atom.c       | 6 +++---
+ dlls/ntdll/tests/atom.c | 1 -
+ dlls/ntdll/unix/sync.c  | 6 +++---
+ 3 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/dlls/ntdll/atom.c b/dlls/ntdll/atom.c
+index 45f5771e252..9d611f2e7fd 100644
+--- a/dlls/ntdll/atom.c
++++ b/dlls/ntdll/atom.c
+@@ -145,10 +145,10 @@ static NTSTATUS is_integral_atom( LPCWSTR atomstr, size_t len, RTL_ATOM* pAtom )
+         if (len > MAX_ATOM_LEN) return STATUS_INVALID_PARAMETER;
+         return STATUS_MORE_ENTRIES;
+     }
+-    else atom = LOWORD( atomstr );
++    else if ((atom = LOWORD( atomstr )) >= MAXINTATOM) return STATUS_INVALID_PARAMETER;
+ done:
+-    if (!atom || atom >= MAXINTATOM) return STATUS_INVALID_PARAMETER;
+-    *pAtom = atom;
++    if (atom >= MAXINTATOM) atom = 0;
++    if (!(*pAtom = atom)) return STATUS_INVALID_PARAMETER;
+     return STATUS_SUCCESS;
+ }
+ 
+diff --git a/dlls/ntdll/tests/atom.c b/dlls/ntdll/tests/atom.c
+index 4fbf602ef20..bcb3a25daa9 100644
+--- a/dlls/ntdll/tests/atom.c
++++ b/dlls/ntdll/tests/atom.c
+@@ -401,7 +401,6 @@ static void test_NtIntAtom(void)
+         res = RtlAddAtomToAtomTable( AtomTable, test->str, &testAtom );
+         todo_wine_if( test->status == STATUS_ACCESS_VIOLATION )
+         ok( res == test->status, "RtlAddAtomToAtomTable returned %#lx\n", res );
+-        todo_wine_if( test->value != 0xdead )
+         ok( testAtom == test->value, "got %#x\n", testAtom );
+         res = RtlDeleteAtomFromAtomTable( AtomTable, testAtom );
+         if (testAtom && testAtom != 0xdead) todo_wine_if( testAtom < 0xc000 ) ok( !res, "RtlDeleteAtomFromAtomTable returned %#lx\n", res );
+diff --git a/dlls/ntdll/unix/sync.c b/dlls/ntdll/unix/sync.c
+index a16507155c8..4be22454369 100644
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2403,10 +2403,10 @@ static unsigned int is_integral_atom( const WCHAR *atomstr, ULONG len, RTL_ATOM
+         if (len > MAX_ATOM_LEN) return STATUS_INVALID_PARAMETER;
+         return STATUS_MORE_ENTRIES;
+     }
+-    else atom = LOWORD( atomstr );
++    else if ((atom = LOWORD( atomstr )) >= MAXINTATOM) return STATUS_INVALID_PARAMETER;
+ done:
+-    if (!atom || atom >= MAXINTATOM) return STATUS_INVALID_PARAMETER;
+-    *ret_atom = atom;
++    if (atom >= MAXINTATOM) atom = 0;
++    if (!(*ret_atom = atom)) return STATUS_INVALID_PARAMETER;
+     return STATUS_SUCCESS;
+ }
+ 
+-- 
+2.43.0
+

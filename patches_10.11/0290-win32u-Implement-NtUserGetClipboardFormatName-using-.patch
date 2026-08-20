@@ -1,0 +1,61 @@
+From 6fe92116a456b387c17263573bff5f2027257fee Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Tue, 17 Jun 2025 11:06:08 +0200
+Subject: [PATCH 290/293] win32u: Implement NtUserGetClipboardFormatName using
+ NtUserGetAtomName.
+
+---
+ dlls/shell32/tests/shlfolder.c |  4 ++--
+ dlls/win32u/clipboard.c        | 20 ++------------------
+ 2 files changed, 4 insertions(+), 20 deletions(-)
+
+diff --git a/dlls/shell32/tests/shlfolder.c b/dlls/shell32/tests/shlfolder.c
+index b07db335812..af5c5e7401f 100644
+--- a/dlls/shell32/tests/shlfolder.c
++++ b/dlls/shell32/tests/shlfolder.c
+@@ -5431,9 +5431,9 @@ static void test_DataObject(void)
+         hr = IEnumFORMATETC_Next(enum_format, 1, &fmt, NULL);
+         ok(hr == S_OK, "Got hr %#lx.\n", hr);
+         ret = GetClipboardFormatNameW(fmt.cfFormat, format_name, ARRAY_SIZE(format_name));
+-        todo_wine ok(ret > 0, "Got %d.\n",ret);
++        ok(ret > 0, "Got %d.\n",ret);
+         if (ret > 0)
+-            ok(!wcscmp(format_name, CFSTR_PREFERREDDROPEFFECTW), "Got clipboard format %s.\n", debugstr_w(format_name));
++            todo_wine ok(!wcscmp(format_name, CFSTR_PREFERREDDROPEFFECTW), "Got clipboard format %s.\n", debugstr_w(format_name));
+         ok(!fmt.ptd, "Got target device %p.\n", fmt.ptd);
+         ok(fmt.dwAspect == DVASPECT_CONTENT, "Got aspect %#lx.\n", fmt.dwAspect);
+         ok(fmt.lindex == -1, "Got index %ld.\n", fmt.lindex);
+diff --git a/dlls/win32u/clipboard.c b/dlls/win32u/clipboard.c
+index 6f3e39690d2..495b57461a6 100644
+--- a/dlls/win32u/clipboard.c
++++ b/dlls/win32u/clipboard.c
+@@ -347,24 +347,8 @@ INT WINAPI NtUserGetPriorityClipboardFormat( UINT *list, INT count )
+  */
+ INT WINAPI NtUserGetClipboardFormatName( UINT format, WCHAR *buffer, INT maxlen )
+ {
+-    char buf[sizeof(ATOM_BASIC_INFORMATION) + MAX_ATOM_LEN * sizeof(WCHAR)];
+-    ATOM_BASIC_INFORMATION *abi = (ATOM_BASIC_INFORMATION *)buf;
+-    UINT length = 0;
+-
+-    if (format < MAXINTATOM || format > 0xffff) return 0;
+-    if (maxlen <= 0)
+-    {
+-        RtlSetLastWin32Error( ERROR_MORE_DATA );
+-        return 0;
+-    }
+-    if (!set_ntstatus( NtQueryInformationAtom( format, AtomBasicInformation,
+-                                               buf, sizeof(buf), NULL )))
+-        return 0;
+-
+-    length = min( abi->NameLength / sizeof(WCHAR), maxlen - 1 );
+-    if (length) memcpy( buffer, abi->Name, length * sizeof(WCHAR) );
+-    buffer[length] = 0;
+-    return length;
++    UNICODE_STRING str = {.Buffer = buffer, .MaximumLength = maxlen};
++    return NtUserGetAtomName( format, &str );
+ }
+ 
+ /**************************************************************************
+-- 
+2.43.0
+

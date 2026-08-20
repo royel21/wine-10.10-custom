@@ -1,0 +1,56 @@
+From a2b8fc1ace9a1478386114a5803c3db9de335ad0 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Tue, 10 Jun 2025 18:23:13 -0500
+Subject: [PATCH 037/293] ir50_32: Explicitly fill the whole BITMAPINFOHEADER
+ in ICM_DECOMPRESS_GET_FORMAT.
+
+---
+ dlls/ir50_32/ir50.c          |  5 ++++-
+ dlls/ir50_32/tests/ir50_32.c | 10 +++++-----
+ 2 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/dlls/ir50_32/ir50.c b/dlls/ir50_32/ir50.c
+index 611d3c076a3..1e40435ab91 100644
+--- a/dlls/ir50_32/ir50.c
++++ b/dlls/ir50_32/ir50.c
+@@ -125,9 +125,12 @@ IV50_DecompressGetFormat( LPBITMAPINFO in, LPBITMAPINFO out )
+     size = in->bmiHeader.biSize;
+     if ( out )
+     {
+-        memcpy( out, in, size );
++        memset(&out->bmiHeader, 0, sizeof(out->bmiHeader));
++        out->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
++        out->bmiHeader.biWidth = in->bmiHeader.biWidth;
+         out->bmiHeader.biHeight = abs(in->bmiHeader.biHeight);
+         out->bmiHeader.biCompression = BI_RGB;
++        out->bmiHeader.biPlanes = 1;
+         out->bmiHeader.biBitCount = 24;
+         out->bmiHeader.biSizeImage = out->bmiHeader.biWidth * out->bmiHeader.biHeight * 3;
+         return ICERR_OK;
+diff --git a/dlls/ir50_32/tests/ir50_32.c b/dlls/ir50_32/tests/ir50_32.c
+index b19a69da3c8..a82c58ee759 100644
+--- a/dlls/ir50_32/tests/ir50_32.c
++++ b/dlls/ir50_32/tests/ir50_32.c
+@@ -64,14 +64,14 @@ static void test_formats(void)
+     ok(out->bmiHeader.biSize == sizeof(BITMAPINFOHEADER), "Got size %lu.\n", out->bmiHeader.biSize);
+     ok(out->bmiHeader.biWidth == 320, "Got width %ld.\n", out->bmiHeader.biWidth);
+     ok(out->bmiHeader.biHeight == 240, "Got height %ld.\n", out->bmiHeader.biHeight);
+-    todo_wine ok(out->bmiHeader.biPlanes == 1, "Got %u planes.\n", out->bmiHeader.biPlanes);
++    ok(out->bmiHeader.biPlanes == 1, "Got %u planes.\n", out->bmiHeader.biPlanes);
+     ok(out->bmiHeader.biBitCount == 24, "Got depth %u.\n", out->bmiHeader.biBitCount);
+     ok(out->bmiHeader.biCompression == BI_RGB, "Got compression %#lx.\n", out->bmiHeader.biCompression);
+     ok(out->bmiHeader.biSizeImage == 320 * 240 * 3, "Got image size %lu.\n", out->bmiHeader.biSizeImage);
+-    todo_wine ok(!out->bmiHeader.biXPelsPerMeter, "Got horizontal resolution %ld.\n", out->bmiHeader.biXPelsPerMeter);
+-    todo_wine ok(!out->bmiHeader.biYPelsPerMeter, "Got vertical resolution %ld.\n", out->bmiHeader.biYPelsPerMeter);
+-    todo_wine ok(!out->bmiHeader.biClrUsed, "Got %lu used colours.\n", out->bmiHeader.biClrUsed);
+-    todo_wine ok(!out->bmiHeader.biClrImportant, "Got %lu important colours.\n", out->bmiHeader.biClrImportant);
++    ok(!out->bmiHeader.biXPelsPerMeter, "Got horizontal resolution %ld.\n", out->bmiHeader.biXPelsPerMeter);
++    ok(!out->bmiHeader.biYPelsPerMeter, "Got vertical resolution %ld.\n", out->bmiHeader.biYPelsPerMeter);
++    ok(!out->bmiHeader.biClrUsed, "Got %lu used colours.\n", out->bmiHeader.biClrUsed);
++    ok(!out->bmiHeader.biClrImportant, "Got %lu important colours.\n", out->bmiHeader.biClrImportant);
+     ok(out->bmiColors[0].rgbRed == 0xcc, "Expected colours to be unmodified.\n");
+ 
+     ret = ICDecompressQuery(hic, &in, out);
+-- 
+2.43.0
+

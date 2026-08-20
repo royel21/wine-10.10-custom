@@ -1,0 +1,27 @@
+From 30316eb5ded8de8dcba96a51a63ee2e52f52f111 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bernhard=20K=C3=B6lbl?= <bkoelbl@codeweavers.com>
+Date: Wed, 18 Jun 2025 17:43:47 +0200
+Subject: [PATCH 252/293] mfmediaengine: Enable XVP for playback topology.
+
+The software color converter DMO on Windows seems to be broken using
+certain topologies, making our media engine not work. As such, make
+the topology loader use the hardware accelerated one.
+---
+ dlls/mfmediaengine/main.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/dlls/mfmediaengine/main.c b/dlls/mfmediaengine/main.c
+index 51d89bde79b..aab5fd64aa2 100644
+--- a/dlls/mfmediaengine/main.c
++++ b/dlls/mfmediaengine/main.c
+@@ -1397,6 +1397,7 @@ static HRESULT media_engine_create_topology(struct media_engine *engine, IMFMedi
+         }
+ 
+         IMFTopology_SetUINT32(topology, &MF_TOPOLOGY_ENUMERATE_SOURCE_TYPES, TRUE);
++        IMFTopology_SetUINT32(topology, &MF_TOPOLOGY_ENABLE_XVP_FOR_PLAYBACK, TRUE);
+ 
+         if (SUCCEEDED(hr))
+             hr = IMFMediaSession_SetTopology(engine->session, MFSESSION_SETTOPOLOGY_IMMEDIATE, topology);
+-- 
+2.43.0
+

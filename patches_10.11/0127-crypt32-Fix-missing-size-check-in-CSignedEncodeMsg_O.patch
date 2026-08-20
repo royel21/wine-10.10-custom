@@ -1,0 +1,29 @@
+From 58dc31ace94a27bd2886ca7f32b9017156f3f257 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Thu, 19 Jun 2025 13:35:31 +0100
+Subject: [PATCH 127/293] crypt32: Fix missing size check in
+ CSignedEncodeMsg_Open.
+
+Don't access CMS fields before checking cbSize.
+---
+ dlls/crypt32/msg.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/crypt32/msg.c b/dlls/crypt32/msg.c
+index 4d49aebe4b6..0f76dcc5ac1 100644
+--- a/dlls/crypt32/msg.c
++++ b/dlls/crypt32/msg.c
+@@ -1470,8 +1470,8 @@ static HCRYPTMSG CSignedEncodeMsg_Open(DWORD dwFlags,
+                         ret = FALSE;
+                     for (i = 0; ret && i < msg->msg_data.info->cSignerInfo; i++)
+                     {
+-                        if (info->rgSigners[i].SignerId.dwIdChoice ==
+-                         CERT_ID_KEY_IDENTIFIER)
++                        if (info->rgSigners[i].cbSize == sizeof(CMSG_SIGNER_ENCODE_INFO_WITH_CMS) &&
++                                info->rgSigners[i].SignerId.dwIdChoice == CERT_ID_KEY_IDENTIFIER)
+                             msg->msg_data.info->version = CMSG_SIGNED_DATA_V3;
+                         ret = CSignerInfo_Construct(
+                          &msg->msg_data.info->rgSignerInfo[i],
+-- 
+2.43.0
+

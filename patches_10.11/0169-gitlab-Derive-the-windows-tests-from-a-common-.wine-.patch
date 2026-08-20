@@ -1,0 +1,78 @@
+From bfd90b02d2dd07641ea44cb3d7c7a3e4be1da197 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bernhard=20=C3=9Cbelacker?= <bernhardu@mailbox.org>
+Date: Sat, 21 Jun 2025 14:26:41 +0200
+Subject: [PATCH 169/293] gitlab: Derive the windows tests from a common
+ .wine-test-windows.
+
+---
+ tools/gitlab/test.yml | 26 ++++++++++----------------
+ 1 file changed, 10 insertions(+), 16 deletions(-)
+
+diff --git a/tools/gitlab/test.yml b/tools/gitlab/test.yml
+index 749e72c6a11..83075880151 100644
+--- a/tools/gitlab/test.yml
++++ b/tools/gitlab/test.yml
+@@ -47,6 +47,12 @@
+     - wineserver -w
+     - printf '\e[0Ksection_end:%s:wine_test_prepare_env\r\e[0K' "$(date +%s)"
+ 
++.wine-test-windows:
++  stage: test
++  interruptible: true
++  variables:
++    GIT_STRATEGY: none
++
+ test-linux-64:
+   extends: .wine-test
+   variables:
+@@ -84,10 +90,7 @@ test-linux-32:
+       junit: winetest.xml
+ 
+ test-win10-21h2-32:
+-  stage: test
+-  interruptible: true
+-  variables:
+-    GIT_STRATEGY: none
++  extends: .wine-test-windows
+   rules:
+     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+   needs:
+@@ -115,10 +118,7 @@ test-win10-21h2-32:
+       junit: winetest.xml
+ 
+ test-win10-21h2-64:
+-  stage: test
+-  interruptible: true
+-  variables:
+-    GIT_STRATEGY: none
++  extends: .wine-test-windows
+   rules:
+     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+   needs:
+@@ -164,10 +164,7 @@ debian-64:
+     - wine usr/local/lib/wine/x86_64-windows/winetest.exe -q
+ 
+ win10-21h2-32:
+-  stage: test
+-  interruptible: true
+-  variables:
+-    GIT_STRATEGY: none
++  extends: .wine-test-windows
+   rules:
+     - if: $CI_PIPELINE_SOURCE == 'trigger' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+   needs:
+@@ -178,10 +175,7 @@ win10-21h2-32:
+     - ./winetest.exe -q
+ 
+ win10-21h2-64:
+-  stage: test
+-  interruptible: true
+-  variables:
+-    GIT_STRATEGY: none
++  extends: .wine-test-windows
+   rules:
+     - if: $CI_PIPELINE_SOURCE == 'trigger' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+   needs:
+-- 
+2.43.0
+

@@ -1,0 +1,46 @@
+From ceb0429c798daffc11788c642208029e519565af Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Sun, 25 May 2025 17:12:23 -0500
+Subject: [PATCH 012/293] qasf/dmowrapper: Handle a NULL output buffer in
+ GetBufferAndLength().
+
+---
+ dlls/qasf/dmowrapper.c       | 4 +++-
+ dlls/qasf/tests/dmowrapper.c | 6 ++++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/qasf/dmowrapper.c b/dlls/qasf/dmowrapper.c
+index 0e6408c06d4..578e51b8ba0 100644
+--- a/dlls/qasf/dmowrapper.c
++++ b/dlls/qasf/dmowrapper.c
+@@ -108,7 +108,9 @@ static HRESULT WINAPI buffer_GetBufferAndLength(IMediaBuffer *iface, BYTE **data
+     TRACE("iface %p, data %p, len %p.\n", iface, data, len);
+ 
+     *len = IMediaSample_GetActualDataLength(buffer->sample);
+-    return IMediaSample_GetPointer(buffer->sample, data);
++    if (data)
++        return IMediaSample_GetPointer(buffer->sample, data);
++    return S_OK;
+ }
+ 
+ static const IMediaBufferVtbl buffer_vtbl =
+diff --git a/dlls/qasf/tests/dmowrapper.c b/dlls/qasf/tests/dmowrapper.c
+index 941267761cd..3ac49dfba9d 100644
+--- a/dlls/qasf/tests/dmowrapper.c
++++ b/dlls/qasf/tests/dmowrapper.c
+@@ -302,6 +302,12 @@ static HRESULT WINAPI dmo_ProcessInput(IMediaObject *iface, DWORD index,
+ 
+     ++got_ProcessInput;
+ 
++    len = 0xdeadbeef;
++    hr = IMediaBuffer_GetBufferAndLength(buffer, NULL, &len);
++    ok(hr == S_OK, "Got hr %#lx.\n", hr);
++    ok(len == 200, "Got length %lu.\n", len);
++
++    len = 0xdeadbeef;
+     hr = IMediaBuffer_GetBufferAndLength(buffer, &data, &len);
+     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+     ok(len == 200, "Got length %lu.\n", len);
+-- 
+2.43.0
+

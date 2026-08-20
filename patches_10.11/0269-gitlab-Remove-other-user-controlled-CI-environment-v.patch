@@ -1,0 +1,32 @@
+From 11aae16a340c2a03ded917d43953f04ce0bf8622 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bernhard=20=C3=9Cbelacker?= <bernhardu@mailbox.org>
+Date: Thu, 26 Jun 2025 21:49:42 +0200
+Subject: [PATCH 269/293] gitlab: Remove other user controlled CI environment
+ variables.
+
+In this variables the user could also enter UTF-8/non-ascii text,
+which would make the kernel32:process test fail in Windows.
+
+Followup to 86a72fd7.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=55019
+---
+ tools/gitlab/test.yml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tools/gitlab/test.yml b/tools/gitlab/test.yml
+index 58ce75e8cb0..d681de92575 100644
+--- a/tools/gitlab/test.yml
++++ b/tools/gitlab/test.yml
+@@ -55,6 +55,8 @@
+     # Non-ascii characters in authors name may get into the output of kernel32:process test which cause
+     # qemu-agent.py in Windows to fail with: UnicodeDecodeError: 'utf-8' codec can't decode byte ...
+     CI_COMMIT_AUTHOR: ""
++    CI_COMMIT_DESCRIPTION: ""
++    CI_COMMIT_MESSAGE: ""
+     GITLAB_USER_NAME: ""
+ 
+ test-linux-64:
+-- 
+2.43.0
+

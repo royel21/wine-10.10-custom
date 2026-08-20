@@ -1,0 +1,286 @@
+From ba8f99c75a95627485d2e2e4444cfa465291a20f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Tue, 17 Jun 2025 10:40:30 +0200
+Subject: [PATCH 291/293] server: Create and use a user atom table for class
+ names.
+
+---
+ dlls/user32/tests/clipboard.c |  5 +----
+ dlls/win32u/tests/win32u.c    | 18 ++++++++++--------
+ server/atom.c                 | 18 ++++++++++++++++--
+ server/class.c                | 10 +++++-----
+ server/directory.c            |  4 ++++
+ server/object.h               |  2 ++
+ server/window.c               |  6 +++---
+ 7 files changed, 41 insertions(+), 22 deletions(-)
+
+diff --git a/dlls/user32/tests/clipboard.c b/dlls/user32/tests/clipboard.c
+index 87df06b6621..1550bd038ce 100644
+--- a/dlls/user32/tests/clipboard.c
++++ b/dlls/user32/tests/clipboard.c
+@@ -456,7 +456,7 @@ static void test_RegisterClipboardFormatA(void)
+     lstrcpyA(buf, "foo");
+     SetLastError(0xdeadbeef);
+     len = GlobalGetAtomNameA((ATOM)format_id, buf, ARRAY_SIZE(buf));
+-    todo_wine ok(len == 0 || lstrcmpA(buf, "my_cool_clipboard_format") != 0,
++    ok(len == 0 || lstrcmpA(buf, "my_cool_clipboard_format") != 0,
+        "format_id should not be a valid global atom\n");
+     ok(len != 0 || GetLastError() == ERROR_INVALID_HANDLE,
+        "err %ld\n", GetLastError());
+@@ -466,14 +466,11 @@ static void test_RegisterClipboardFormatA(void)
+     ok(atom_id == 0, "FindAtomA should fail, but it returned %x (format_id=%x)\n", atom_id, format_id);
+     ok(GetLastError() == ERROR_FILE_NOT_FOUND, "err %ld\n", GetLastError());
+ 
+-    todo_wine
+-    {
+     /* this relies on the clipboard and global atom table being different */
+     SetLastError(0xdeadbeef);
+     atom_id = GlobalFindAtomA("my_cool_clipboard_format");
+     ok(atom_id == 0, "GlobalFindAtomA should fail, but it returned %x (format_id=%x)\n", atom_id, format_id);
+     ok(GetLastError() == ERROR_FILE_NOT_FOUND, "err %ld\n", GetLastError());
+-    }
+ 
+     for (format_id = 0; format_id < 0x10fff; format_id++)
+     {
+diff --git a/dlls/win32u/tests/win32u.c b/dlls/win32u/tests/win32u.c
+index b28c7b70b67..6f69878c512 100644
+--- a/dlls/win32u/tests/win32u.c
++++ b/dlls/win32u/tests/win32u.c
+@@ -281,7 +281,7 @@ static void test_class(void)
+ 
+     status = NtQueryInformationAtom( class, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
+     ok( status == STATUS_INVALID_HANDLE || !status, "NtQueryInformationAtom returned %#lx\n", status );
+-    if (!status) todo_wine ok( wcscmp( abi->Name, L"test" ), "buf = %s\n", debugstr_w(abi->Name) );
++    if (!status) ok( wcscmp( abi->Name, L"test" ), "buf = %s\n", debugstr_w(abi->Name) );
+ 
+     memset( buf, 0xcc, sizeof(buf) );
+     name.Buffer = buf;
+@@ -364,7 +364,7 @@ static void test_class(void)
+     class = RegisterClassW( &cls );
+     ok( class != 0, "RegisterClassW returned %#x\n", class );
+     prop = NtUserGetProp( hwnd, MAKEINTRESOURCEW(class) );
+-    todo_wine ok( prop == NULL, "NtUserGetProp returned %#lx\n", status );
++    ok( prop == NULL, "NtUserGetProp returned %#lx\n", status );
+     ret = UnregisterClassW( L"WineTestProp", GetModuleHandleW( NULL ) );
+     ok( ret, "UnregisterClassW failed: %lu\n", GetLastError() );
+     cls.lpszClassName = L"test";
+@@ -413,15 +413,17 @@ static void test_class(void)
+         winetest_push_context( "%#x: %s", global_atoms[i].atom, debugstr_w(global_atoms[i].name) );
+ 
+         status = NtQueryInformationAtom( global_atoms[i].atom, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
++        todo_wine_if( i == 0x14 || i == 0x15 || i == 0x16 )
+         ok( !status, "NtQueryInformationAtom returned %#lx\n", status );
+-        todo_wine ok( !wcscmp( abi->Name, global_atoms[i].name ), "buf = %s\n", debugstr_w(abi->Name) );
++        todo_wine_if( i != 0x16 )
++        ok( !wcscmp( abi->Name, global_atoms[i].name ), "buf = %s\n", debugstr_w(abi->Name) );
+ 
+         memset( buf, 0xcc, sizeof(buf) );
+         name.Buffer = buf;
+         name.Length = 0xdead;
+         name.MaximumLength = sizeof(buf);
+         ret = NtUserGetAtomName( global_atoms[i].atom, &name );
+-        todo_wine_if( i == 0 || i == 8 || i == 11 )
++        todo_wine_if( i == 0 || i == 8 || i == 15 )
+         ok( ret != wcslen( global_atoms[i].name ), "NtUserGetAtomName returned %lu\n", ret );
+         ok( name.Length == 0xdead, "Length = %u\n", name.Length );
+         ok( name.MaximumLength == sizeof(buf), "MaximumLength = %u\n", name.MaximumLength );
+@@ -435,7 +437,7 @@ static void test_class(void)
+         winetest_push_context( "%#x: %s", user_atoms[i].atom, debugstr_w(user_atoms[i].name) );
+ 
+         status = NtQueryInformationAtom( user_atoms[i].atom, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
+-        ok( !status, "NtQueryInformationAtom returned %#lx\n", status );
++        todo_wine_if( i >= 0x14 && i <= 0x1b ) ok( !status, "NtQueryInformationAtom returned %#lx\n", status );
+         ok( wcscmp( abi->Name, user_atoms[i].name ), "buf = %s\n", debugstr_w(abi->Name) );
+ 
+         memset( buf, 0xcc, sizeof(buf) );
+@@ -449,7 +451,7 @@ static void test_class(void)
+             win_skip( "Skipping user atoms check on W11\n" );
+             break;
+         }
+-        todo_wine_if( i != 6 && i != 12 )
++        todo_wine_if( i != 6 && i != 0x13 )
+         ok( ret == wcslen( user_atoms[i].name ), "NtUserGetAtomName returned %lu\n", ret );
+         ok( name.Length == 0xdead, "Length = %u\n", name.Length );
+         ok( name.MaximumLength == sizeof(buf), "MaximumLength = %u\n", name.MaximumLength );
+@@ -2866,7 +2868,7 @@ static void test_RegisterClipboardFormat(void)
+     ok( atom != 0, "got %#x\n", atom );
+     ok( GetLastError() == 0xdeadbeef, "got %#lx\n", GetLastError() );
+     status = NtQueryInformationAtom( atom, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
+-    todo_wine ok( status == STATUS_INVALID_HANDLE, "got %#lx\n", status );
++    ok( status == STATUS_INVALID_HANDLE, "got %#lx\n", status );
+ 
+     memset( buf, 0xcc, sizeof(buf) );
+     name.Buffer = buf;
+@@ -2917,7 +2919,7 @@ static void test_NtUserRegisterWindowMessage(void)
+     ok( atom != 0, "got %#x\n", atom );
+     ok( GetLastError() == 0xdeadbeef, "got %#lx\n", GetLastError() );
+     status = NtQueryInformationAtom( atom, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
+-    todo_wine ok( status == STATUS_INVALID_HANDLE, "got %#lx\n", status );
++    ok( status == STATUS_INVALID_HANDLE, "got %#lx\n", status );
+ 
+     memset( buf, 0xcc, sizeof(buf) );
+     name.Buffer = buf;
+diff --git a/server/atom.c b/server/atom.c
+index 63e845d1bb1..3f64bb48e02 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -96,6 +96,7 @@ static const struct object_ops atom_table_ops =
+ };
+ 
+ static struct atom_table *global_table;
++static struct atom_table *user_table;
+ 
+ struct object *create_atom_table(void)
+ {
+@@ -122,6 +123,19 @@ struct atom_table *get_global_atom_table(void)
+     return global_table;
+ }
+ 
++void set_user_atom_table( struct object *obj )
++{
++    assert( obj->ops == &atom_table_ops );
++    user_table = (struct atom_table *)obj;
++    make_object_permanent( obj );
++    grab_object( obj );
++}
++
++struct atom_table *get_user_atom_table(void)
++{
++    return user_table;
++}
++
+ /* retrieve an entry pointer from its atom */
+ static struct atom_entry *get_atom_entry( struct atom_table *table, atom_t atom )
+ {
+@@ -331,7 +345,7 @@ DECL_HANDLER(get_atom_information)
+ DECL_HANDLER(add_user_atom)
+ {
+     struct unicode_str name = get_req_unicode_str();
+-    reply->atom = add_atom( global_table, &name );
++    reply->atom = add_atom( user_table, &name );
+ }
+ 
+ /* get a user atom name */
+@@ -339,7 +353,7 @@ DECL_HANDLER(get_user_atom_name)
+ {
+     struct atom_entry *entry;
+ 
+-    if ((entry = get_atom_entry( global_table, req->atom )))
++    if ((entry = get_atom_entry( user_table, req->atom )))
+     {
+         set_reply_data( (void *)entry->str, min( entry->len, get_reply_max_size() ));
+         reply->total = entry->len;
+diff --git a/server/class.c b/server/class.c
+index 090c8accaea..5ecf60044da 100644
+--- a/server/class.c
++++ b/server/class.c
+@@ -75,7 +75,7 @@ static struct window_class *create_class( struct process *process, int extra_byt
+ 
+ static void destroy_class( struct window_class *class )
+ {
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+ 
+     release_atom( table, class->atom );
+     release_atom( table, class->base_atom );
+@@ -139,7 +139,7 @@ int is_hwnd_message_class( struct window_class *class )
+ {
+     static const WCHAR messageW[] = {'M','e','s','s','a','g','e'};
+     static const struct unicode_str name = { messageW, sizeof(messageW) };
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+ 
+     return (!class->local && class->atom == find_atom( table, &name ));
+ }
+@@ -164,7 +164,7 @@ DECL_HANDLER(create_class)
+ {
+     struct window_class *class;
+     struct unicode_str name = get_req_unicode_str();
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+     atom_t atom, base_atom;
+ 
+     if (name.len)
+@@ -233,7 +233,7 @@ DECL_HANDLER(destroy_class)
+ {
+     struct window_class *class;
+     struct unicode_str name = get_req_unicode_str();
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+     atom_t atom = req->atom;
+ 
+     if (name.len) atom = find_atom( table, &name );
+@@ -254,7 +254,7 @@ DECL_HANDLER(destroy_class)
+ DECL_HANDLER(set_class_info)
+ {
+     struct window_class *class = get_window_class( req->window );
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+ 
+     if (!class) return;
+ 
+diff --git a/server/directory.c b/server/directory.c
+index e2011a7e21e..c56c216d6d5 100644
+--- a/server/directory.c
++++ b/server/directory.c
+@@ -506,6 +506,10 @@ void init_directories( struct fd *intl_fd )
+     set_global_atom_table( atom_table );
+     release_object( atom_table );
+ 
++    atom_table = create_atom_table();
++    set_user_atom_table( atom_table );
++    release_object( atom_table );
++
+     release_object( named_pipe_device );
+     release_object( mailslot_device );
+     release_object( null_device );
+diff --git a/server/object.h b/server/object.h
+index 848f6dc977e..1bf439338d4 100644
+--- a/server/object.h
++++ b/server/object.h
+@@ -286,9 +286,11 @@ extern void init_signals(void);
+ 
+ extern struct object *create_atom_table(void);
+ extern void set_global_atom_table( struct object *obj );
++extern void set_user_atom_table( struct object *obj );
+ 
+ struct atom_table;
+ extern struct atom_table *get_global_atom_table(void);
++extern struct atom_table *get_user_atom_table(void);
+ extern atom_t add_atom( struct atom_table *table, const struct unicode_str *str );
+ extern atom_t find_atom( struct atom_table *table, const struct unicode_str *str );
+ extern int grab_atom( struct atom_table *table, atom_t atom );
+diff --git a/server/window.c b/server/window.c
+index 6af3aa8f622..0729534ad6c 100644
+--- a/server/window.c
++++ b/server/window.c
+@@ -2203,7 +2203,7 @@ DECL_HANDLER(create_window)
+ {
+     struct window *win, *parent = NULL, *owner = NULL;
+     struct unicode_str cls_name = get_req_unicode_str();
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+     unsigned int dpi_context;
+     atom_t atom;
+ 
+@@ -2318,7 +2318,7 @@ DECL_HANDLER(get_desktop_window)
+     {
+         static const WCHAR messageW[] = {'M','e','s','s','a','g','e'};
+         static const struct unicode_str name = { messageW, sizeof(messageW) };
+-        struct atom_table *table = get_global_atom_table();
++        struct atom_table *table = get_user_atom_table();
+         atom_t atom = add_atom( table, &name );
+         if (atom && (desktop->msg_window = create_window( NULL, NULL, atom, 0, 0 )))
+         {
+@@ -2533,7 +2533,7 @@ DECL_HANDLER(get_class_windows)
+     struct desktop *desktop = NULL;
+     struct window *parent = NULL, *win = NULL;
+     struct unicode_str cls_name = get_req_unicode_str();
+-    struct atom_table *table = get_global_atom_table();
++    struct atom_table *table = get_user_atom_table();
+     atom_t atom = req->atom;
+     user_handle_t *data;
+     unsigned int count = 0, max_count = get_reply_max_size() / sizeof(*data);
+-- 
+2.43.0
+

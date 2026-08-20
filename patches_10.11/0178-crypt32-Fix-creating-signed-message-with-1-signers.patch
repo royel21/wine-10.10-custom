@@ -1,0 +1,44 @@
+From edff0fb7c772f7ecc6ee75fe98f69ddc4f95187b Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Thu, 19 Jun 2025 16:32:08 +0100
+Subject: [PATCH 178/293] crypt32: Fix creating signed message with > 1
+ signers.
+
+---
+ dlls/crypt32/msg.c       | 4 ++--
+ dlls/crypt32/tests/msg.c | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/crypt32/msg.c b/dlls/crypt32/msg.c
+index 1c8711e4215..d85731a8a8f 100644
+--- a/dlls/crypt32/msg.c
++++ b/dlls/crypt32/msg.c
+@@ -992,10 +992,10 @@ static BOOL CSignedMsgData_ConstructSignerHandles(CSignedMsgData *msg_data,
+     }
+ 
+     ret = CryptCreateHash(*crypt_prov, algID, 0, 0,
+-     &msg_data->signerHandles->contentHash);
++     &msg_data->signerHandles[signerIndex].contentHash);
+     if (ret && msg_data->info->rgSignerInfo[signerIndex].AuthAttrs.cAttr > 0)
+         ret = CryptCreateHash(*crypt_prov, algID, 0, 0,
+-         &msg_data->signerHandles->authAttrHash);
++         &msg_data->signerHandles[signerIndex].authAttrHash);
+     return ret;
+ }
+ 
+diff --git a/dlls/crypt32/tests/msg.c b/dlls/crypt32/tests/msg.c
+index 6c5905b20ea..01ffbdbfb23 100644
+--- a/dlls/crypt32/tests/msg.c
++++ b/dlls/crypt32/tests/msg.c
+@@ -1919,7 +1919,7 @@ static void test_signed_msg_get_param(void)
+     ok(ret, "CryptMsgGetParam failed: %lx\n", GetLastError());
+     size = 0;
+     ret = CryptMsgGetParam(msg, CMSG_COMPUTED_HASH_PARAM, 1, NULL, &size);
+-    todo_wine ok(ret, "CryptMsgGetParam failed: %lx\n", GetLastError());
++    ok(ret, "CryptMsgGetParam failed: %lx\n", GetLastError());
+     size = 0;
+     SetLastError(0xdeadbeef);
+     ret = CryptMsgGetParam(msg, CMSG_ENCODED_SIGNER, 2, NULL, &size);
+-- 
+2.43.0
+

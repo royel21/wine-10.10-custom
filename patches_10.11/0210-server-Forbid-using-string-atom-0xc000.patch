@@ -1,0 +1,83 @@
+From 06cb5a94db4b24c1392663fbab3a37eaa3be49c3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Tue, 17 Jun 2025 11:11:50 +0200
+Subject: [PATCH 210/293] server: Forbid using string atom 0xc000.
+
+---
+ dlls/win32u/tests/win32u.c | 16 ++++++++++++++--
+ server/atom.c              |  4 ++--
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/win32u/tests/win32u.c b/dlls/win32u/tests/win32u.c
+index 10655dfbaf0..480eea0ca3d 100644
+--- a/dlls/win32u/tests/win32u.c
++++ b/dlls/win32u/tests/win32u.c
+@@ -253,6 +253,17 @@ static void test_class(void)
+     HWND hwnd;
+     ULONG ret;
+ 
++    status = NtQueryInformationAtom( 0xc000, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
++    ok( status == STATUS_INVALID_HANDLE, "NtQueryInformationAtom returned %#lx\n", status );
++
++    memset( buf, 0xcc, sizeof(buf) );
++    name.Buffer = buf;
++    name.Length = 0xdead;
++    name.MaximumLength = sizeof(buf);
++    ret = NtUserGetAtomName( 0xc000, &name );
++    ok( !ret && GetLastError() == ERROR_INVALID_HANDLE,
++        "NtUserGetAtomName returned %lx %lu\n", ret, GetLastError() );
++
+     memset( &cls, 0, sizeof(cls) );
+     cls.style         = CS_HREDRAW | CS_VREDRAW;
+     cls.lpfnWndProc   = DefWindowProcW;
+@@ -377,6 +388,7 @@ static void test_class(void)
+         name.Length = 0xdead;
+         name.MaximumLength = sizeof(buf);
+         ret = NtUserGetAtomName( global_atoms[i].atom, &name );
++        todo_wine_if( i == 0 || i == 8 || i == 11 )
+         ok( ret != wcslen( global_atoms[i].name ), "NtUserGetAtomName returned %lu\n", ret );
+         ok( name.Length == 0xdead, "Length = %u\n", name.Length );
+         ok( name.MaximumLength == sizeof(buf), "MaximumLength = %u\n", name.MaximumLength );
+@@ -404,7 +416,7 @@ static void test_class(void)
+             win_skip( "Skipping user atoms check on W11\n" );
+             break;
+         }
+-        todo_wine_if( i != 0 && i != 2 && i != 6 )
++        todo_wine_if( i != 6 && i != 12 )
+         ok( ret == wcslen( user_atoms[i].name ), "NtUserGetAtomName returned %lu\n", ret );
+         ok( name.Length == 0xdead, "Length = %u\n", name.Length );
+         ok( name.MaximumLength == sizeof(buf), "MaximumLength = %u\n", name.MaximumLength );
+@@ -415,7 +427,7 @@ static void test_class(void)
+                               CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, 0, NULL, 0 );
+         if (!user_atoms[i].class)
+         {
+-            todo_wine_if( i < 9 ) ok( !hwnd, "CreateWindowW succeeded\n" );
++            todo_wine_if( i < 10 ) ok( !hwnd, "CreateWindowW succeeded\n" );
+             todo_wine ok( GetLastError() == ERROR_CANNOT_FIND_WND_CLASS, "got error %lu\n", GetLastError() );
+             if (hwnd) DestroyWindow( hwnd );
+         }
+diff --git a/server/atom.c b/server/atom.c
+index a1fa3dc62a3..c48763b8a5a 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -116,7 +116,7 @@ static struct atom_table *create_table(int entries_count)
+         }
+         memset( table->atoms, 0, sizeof(*table->atoms) * ARRAY_SIZE(table->atoms) );
+         memset( table->entries, 0, sizeof(*table->entries) * table->entries_count );
+-        table->count = 0;
++        table->count = 1; /* atom 0xc000 is reserved */
+         return table;
+ fail:
+         release_object( table );
+@@ -139,7 +139,7 @@ static struct atom_entry *get_atom_entry( struct atom_table *table, atom_t atom
+ static atom_t add_atom_entry( struct atom_table *table, struct atom_entry *entry )
+ {
+     int i;
+-    for (i = 0; i < table->count; i++) if (!table->atoms[i]) break;
++    for (i = 1 /* atom 0xc000 is reserved */; i < table->count; i++) if (!table->atoms[i]) break;
+     if (i == ARRAY_SIZE(table->atoms)) return 0;
+     if (i == table->count) table->count++;
+     table->atoms[i] = entry;
+-- 
+2.43.0
+

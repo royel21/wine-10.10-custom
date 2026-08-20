@@ -1,0 +1,28 @@
+From d12c655973e480aca2bc41b0adf3495fe2e848b3 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Thu, 5 Jun 2025 15:43:03 -0500
+Subject: [PATCH 098/293] quartz/avidec: Don't set the data length to 0.
+
+There's no reason to do this, and it breaks on amstream's custom allocator,
+which fails when setting the data length to anything other than the sample size.
+---
+ dlls/quartz/avidec.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/dlls/quartz/avidec.c b/dlls/quartz/avidec.c
+index 6377b7b597a..1f89687506c 100644
+--- a/dlls/quartz/avidec.c
++++ b/dlls/quartz/avidec.c
+@@ -149,9 +149,6 @@ static HRESULT WINAPI avi_decompressor_sink_Receive(struct strmbase_sink *iface,
+         return hr;
+     }
+ 
+-    hr = IMediaSample_SetActualDataLength(pOutSample, 0);
+-    assert(hr == S_OK);
+-
+     hr = IMediaSample_GetPointer(pOutSample, &pbDstStream);
+     if (FAILED(hr)) {
+         ERR("Failed to get output buffer pointer, hr %#lx.\n", hr);
+-- 
+2.43.0
+

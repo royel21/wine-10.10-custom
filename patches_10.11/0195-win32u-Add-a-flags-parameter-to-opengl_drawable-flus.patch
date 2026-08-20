@@ -1,0 +1,386 @@
+From e5e2fd0a5209b0d07233d294e0ace5f1e41dfed5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Fri, 20 Jun 2025 08:42:27 +0200
+Subject: [PATCH 195/293] win32u: Add a flags parameter to opengl_drawable
+ flush.
+
+---
+ dlls/win32u/opengl.c          | 31 +++++++++++++++++++++++++++----
+ dlls/wineandroid.drv/opengl.c | 20 ++++----------------
+ dlls/winemac.drv/opengl.c     | 15 ++++++---------
+ dlls/winewayland.drv/opengl.c | 20 +++++---------------
+ dlls/winex11.drv/opengl.c     | 32 +++++++++++++-------------------
+ include/wine/opengl_driver.h  | 17 +++++++++++------
+ 6 files changed, 66 insertions(+), 69 deletions(-)
+
+diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+index 821cfc525e5..4cd0a786b3b 100644
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -174,6 +174,7 @@ void *opengl_drawable_create( UINT size, const struct opengl_drawable_funcs *fun
+     drawable->ref = 1;
+ 
+     drawable->format = format;
++    drawable->interval = INT_MIN;
+     drawable->hwnd = hwnd;
+     drawable->hdc = hdc;
+ 
+@@ -1470,10 +1471,11 @@ static int get_window_swap_interval( HWND hwnd )
+ static BOOL win32u_wgl_context_flush( struct wgl_context *context, void (*flush)(void) )
+ {
+     HDC draw_hdc = NtCurrentTeb()->glReserved1[0], read_hdc = NtCurrentTeb()->glReserved1[1];
++    const struct opengl_funcs *funcs = &display_funcs;
+     struct opengl_drawable *draw;
++    UINT flags = 0;
+     int interval;
+     HWND hwnd;
+-    BOOL ret;
+ 
+     if (!(hwnd = NtUserWindowFromDC( draw_hdc ))) interval = 0;
+     else interval = get_window_swap_interval( hwnd );
+@@ -1484,10 +1486,19 @@ static BOOL win32u_wgl_context_flush( struct wgl_context *context, void (*flush)
+     if (context->memory_pbuffer) return flush_memory_pbuffer( context, draw_hdc, FALSE, flush );
+ 
+     if (!(draw = get_dc_opengl_drawable( draw_hdc ))) return FALSE;
+-    ret = draw->funcs->flush( draw, interval, flush );
++    if (interval != draw->interval)
++    {
++        draw->interval = interval;
++        flags = GL_FLUSH_INTERVAL;
++    }
++
++    if (flush) flush();
++    if (flush == funcs->p_glFinish) flags |= GL_FLUSH_FINISHED;
++
++    if (flags) draw->funcs->flush( draw, flags );
+     opengl_drawable_release( draw );
+ 
+-    return ret;
++    return TRUE;
+ }
+ 
+ static BOOL win32u_wglSwapBuffers( HDC hdc )
+@@ -1496,6 +1507,7 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
+     struct wgl_context *context = NtCurrentTeb()->glContext;
+     const struct opengl_funcs *funcs = &display_funcs;
+     struct opengl_drawable *draw;
++    UINT flags = 0;
+     int interval;
+     HWND hwnd;
+     BOOL ret;
+@@ -1507,7 +1519,18 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
+     if (context->memory_pbuffer) return flush_memory_pbuffer( context, hdc, FALSE, funcs->p_glFlush );
+ 
+     if (!(draw = get_dc_opengl_drawable( draw_hdc ))) return FALSE;
+-    ret = draw->funcs->swap( draw, interval );
++    if (interval != draw->interval)
++    {
++        draw->interval = interval;
++        flags = GL_FLUSH_INTERVAL;
++    }
++
++    if (!draw->hwnd || !draw->funcs->swap) ret = TRUE; /* pbuffer, nothing to do */
++    else
++    {
++        if (flags) draw->funcs->flush( draw, flags );
++        ret = draw->funcs->swap( draw );
++    }
+     opengl_drawable_release( draw );
+ 
+     return ret;
+diff --git a/dlls/wineandroid.drv/opengl.c b/dlls/wineandroid.drv/opengl.c
+index db236029516..9d5d03292e1 100644
+--- a/dlls/wineandroid.drv/opengl.c
++++ b/dlls/wineandroid.drv/opengl.c
+@@ -68,7 +68,6 @@ struct gl_drawable
+     struct list     entry;
+     ANativeWindow  *window;
+     EGLSurface      surface;
+-    int             swap_interval;
+ };
+ 
+ static struct gl_drawable *impl_from_opengl_drawable( struct opengl_drawable *base )
+@@ -305,34 +304,23 @@ static void *android_get_proc_address( const char *name )
+     return funcs->p_eglGetProcAddress( name );
+ }
+ 
+-static void set_swap_interval( struct gl_drawable *gl, int interval )
+-{
+-    if (interval < 0) interval = -interval;
+-    if (gl->swap_interval == interval) return;
+-    funcs->p_eglSwapInterval( egl->display, interval );
+-    gl->swap_interval = interval;
+-}
+-
+-static BOOL android_drawable_swap( struct opengl_drawable *base, int interval )
++static BOOL android_drawable_swap( struct opengl_drawable *base )
+ {
+     struct gl_drawable *gl = impl_from_opengl_drawable( base );
+ 
+     TRACE( "drawable %s surface %p\n", debugstr_opengl_drawable( base ), gl->surface );
+ 
+-    set_swap_interval( gl, interval );
+     funcs->p_eglSwapBuffers( egl->display, gl->surface );
+     return TRUE;
+ }
+ 
+-static BOOL android_drawable_flush( struct opengl_drawable *base, int interval, void (*flush)(void) )
++static void android_drawable_flush( struct opengl_drawable *base, UINT flags )
+ {
+     struct gl_drawable *gl = impl_from_opengl_drawable( base );
+ 
+-    TRACE( "drawable %s surface %p\n", debugstr_opengl_drawable( base ), gl->surface );
++    TRACE( "drawable %s, surface %p, flags %#x\n", debugstr_opengl_drawable( base ), gl->surface, flags );
+ 
+-    set_swap_interval( gl, interval );
+-    if (flush) flush();
+-    return TRUE;
++    if (flags & GL_FLUSH_INTERVAL) funcs->p_eglSwapInterval( egl->display, abs( base->interval ) );
+ }
+ 
+ static const char *android_init_wgl_extensions( struct opengl_funcs *funcs )
+diff --git a/dlls/winemac.drv/opengl.c b/dlls/winemac.drv/opengl.c
+index 822cb32d7c5..f93890f6af1 100644
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -2075,13 +2075,13 @@ static void macdrv_glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height,
+ }
+ 
+ 
+-static BOOL macdrv_surface_flush(struct opengl_drawable *base, int interval, void (*flush)(void))
++static void macdrv_surface_flush(struct opengl_drawable *base, UINT flags)
+ {
+     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+ 
+-    set_swap_interval(context, interval);
++    TRACE("%s flags %#x\n", debugstr_opengl_drawable(base), flags);
+ 
+-    return FALSE;
++    if (flags & GL_FLUSH_INTERVAL) set_swap_interval(context, base->interval);
+ }
+ 
+ 
+@@ -2374,12 +2374,11 @@ static void macdrv_pbuffer_destroy(struct opengl_drawable *base)
+     CGLReleasePBuffer(gl->pbuffer);
+ }
+ 
+-static BOOL macdrv_pbuffer_flush(struct opengl_drawable *base, int interval, void (*flush)(void))
++static void macdrv_pbuffer_flush(struct opengl_drawable *base, UINT flags)
+ {
+-    return FALSE;
+ }
+ 
+-static BOOL macdrv_pbuffer_swap(struct opengl_drawable *base, int interval)
++static BOOL macdrv_pbuffer_swap(struct opengl_drawable *base)
+ {
+     return FALSE;
+ }
+@@ -2951,7 +2950,7 @@ static void *macdrv_get_proc_address(const char *name)
+     return dlsym(opengl_handle, name);
+ }
+ 
+-static BOOL macdrv_surface_swap(struct opengl_drawable *base, int interval)
++static BOOL macdrv_surface_swap(struct opengl_drawable *base)
+ {
+     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+     HWND hwnd = base->hwnd;
+@@ -2961,8 +2960,6 @@ static BOOL macdrv_surface_swap(struct opengl_drawable *base, int interval)
+     TRACE("hdc %p context %p/%p/%p\n", hdc, context, (context ? context->context : NULL),
+           (context ? context->cglcontext : NULL));
+ 
+-    if (context) set_swap_interval(context, interval);
+-
+     if (hwnd)
+     {
+         struct macdrv_win_data *data;
+diff --git a/dlls/winewayland.drv/opengl.c b/dlls/winewayland.drv/opengl.c
+index f06caf66b5b..ead93917733 100644
+--- a/dlls/winewayland.drv/opengl.c
++++ b/dlls/winewayland.drv/opengl.c
+@@ -58,7 +58,6 @@ struct wayland_gl_drawable
+     struct wl_egl_window *wl_egl_window;
+     EGLSurface surface;
+     LONG resized;
+-    int swap_interval;
+     BOOL double_buffered;
+ };
+ 
+@@ -174,7 +173,6 @@ static struct wayland_gl_drawable *wayland_gl_drawable_create(HWND hwnd, HDC hdc
+     *attrib++ = EGL_NONE;
+ 
+     if (!(gl = opengl_drawable_create(sizeof(*gl), &wayland_drawable_funcs, format, hwnd, hdc))) return NULL;
+-    gl->swap_interval = 1;
+ 
+     /* Get the client surface for the HWND. If don't have a wayland surface
+      * (e.g., HWND_MESSAGE windows) just create a dummy surface to act as the
+@@ -419,32 +417,24 @@ static EGLenum wayland_init_egl_platform(const struct egl_platform *platform, EG
+     return EGL_PLATFORM_WAYLAND_KHR;
+ }
+ 
+-static BOOL wayland_drawable_flush(struct opengl_drawable *base, int interval, void (*flush)(void))
++static void wayland_drawable_flush(struct opengl_drawable *base, UINT flags)
+ {
+     struct wayland_gl_drawable *gl = impl_from_opengl_drawable(base);
+ 
+-    TRACE("drawable %s\n", debugstr_opengl_drawable(base));
++    TRACE("drawable %s, flags %#x\n", debugstr_opengl_drawable(base), flags);
++
++    if (flags & GL_FLUSH_INTERVAL) funcs->p_eglSwapInterval(egl->display, abs(base->interval));
+ 
+     /* Since context_flush is called from operations that may latch the native size,
+      * perform any pending resizes before calling them. */
+     wayland_gl_drawable_sync_size(gl);
+-
+-    if (flush) flush();
+-    return TRUE;
+ }
+ 
+-static BOOL wayland_drawable_swap(struct opengl_drawable *base, int interval)
++static BOOL wayland_drawable_swap(struct opengl_drawable *base)
+ {
+     HWND hwnd = base->hwnd, toplevel = NtUserGetAncestor(hwnd, GA_ROOT);
+     struct wayland_gl_drawable *gl = impl_from_opengl_drawable(base);
+ 
+-    if (interval < 0) interval = -interval;
+-    if (gl->swap_interval != interval)
+-    {
+-        funcs->p_eglSwapInterval(egl->display, interval);
+-        gl->swap_interval = interval;
+-    }
+-
+     ensure_window_surface_contents(toplevel);
+     set_client_surface(hwnd, gl->client);
+ 
+diff --git a/dlls/winex11.drv/opengl.c b/dlls/winex11.drv/opengl.c
+index dc0261a54e8..37bb99d3bcc 100644
+--- a/dlls/winex11.drv/opengl.c
++++ b/dlls/winex11.drv/opengl.c
+@@ -210,7 +210,6 @@ struct gl_drawable
+     Window                         window;       /* window if drawable is a GLXWindow */
+     Colormap                       colormap;     /* colormap for the client window */
+     Pixmap                         pixmap;       /* base pixmap if drawable is a GLXPixmap */
+-    int                            swap_interval;
+     BOOL                           offscreen;
+     HDC                            hdc_src;
+     HDC                            hdc_dst;
+@@ -846,7 +845,6 @@ static BOOL set_swap_interval( struct gl_drawable *gl, int interval )
+     BOOL ret = TRUE;
+ 
+     if (interval < 0 && !has_swap_control_tear) interval = -interval;
+-    if (gl->swap_interval == interval) return TRUE;
+ 
+     switch (swap_control_method)
+     {
+@@ -920,7 +918,6 @@ static BOOL x11drv_surface_create( HWND hwnd, HDC hdc, int format, struct opengl
+ 
+     if (!(gl = opengl_drawable_create( sizeof(*gl), &x11drv_surface_funcs, format, hwnd, hdc ))) return FALSE;
+     /* Default GLX and WGL swap interval is 1, but in case of glXSwapIntervalSGI there is no way to query it. */
+-    gl->swap_interval = INT_MIN;
+     gl->rect = rect;
+ 
+     gl->colormap = XCreateColormap( gdi_display, get_dummy_parent(), fmt->visual->visual,
+@@ -1364,21 +1361,23 @@ static void present_gl_drawable( struct gl_drawable *gl, BOOL flush, BOOL gl_fin
+     if (region) NtGdiDeleteObjectApp( region );
+ }
+ 
+-static BOOL x11drv_surface_flush( struct opengl_drawable *base, int interval, void (*flush)(void) )
++static void x11drv_surface_flush( struct opengl_drawable *base, UINT flags )
+ {
+     struct gl_drawable *gl = impl_from_opengl_drawable( base );
+ 
+-    pthread_mutex_lock( &context_mutex );
+-    set_swap_interval( gl, interval );
+-    pthread_mutex_unlock( &context_mutex );
++    TRACE( "%s flags %#x\n", debugstr_opengl_drawable( base ), flags );
+ 
+-    if (flush) flush();
++    if (flags & GL_FLUSH_INTERVAL)
++    {
++        pthread_mutex_lock( &context_mutex );
++        set_swap_interval( gl, base->interval );
++        pthread_mutex_unlock( &context_mutex );
++    }
+ 
+     update_gl_drawable_size( gl );
+     update_gl_drawable_offscreen( gl );
+ 
+-    present_gl_drawable( gl, TRUE, flush != funcs->p_glFinish );
+-    return TRUE;
++    present_gl_drawable( gl, TRUE, !(flags & GL_FLUSH_FINISHED) );
+ }
+ 
+ /***********************************************************************
+@@ -1521,12 +1520,11 @@ static void x11drv_pbuffer_destroy( struct opengl_drawable *base )
+     pglXDestroyPbuffer( gdi_display, gl->drawable );
+ }
+ 
+-static BOOL x11drv_pbuffer_flush( struct opengl_drawable *base, int interval, void (*flush)(void) )
++static void x11drv_pbuffer_flush( struct opengl_drawable *base, UINT flags )
+ {
+-    return FALSE;
+ }
+ 
+-static BOOL x11drv_pbuffer_swap( struct opengl_drawable *base, int interval )
++static BOOL x11drv_pbuffer_swap( struct opengl_drawable *base )
+ {
+     return FALSE;
+ }
+@@ -1654,17 +1652,13 @@ static const char *x11drv_init_wgl_extensions( struct opengl_funcs *funcs )
+     return wglExtensions;
+ }
+ 
+-static BOOL x11drv_surface_swap( struct opengl_drawable *base, int interval )
++static BOOL x11drv_surface_swap( struct opengl_drawable *base )
+ {
+     struct x11drv_context *ctx = NtCurrentTeb()->glReserved2;
+     struct gl_drawable *gl = impl_from_opengl_drawable( base );
+     INT64 ust, msc, sbc, target_sbc = 0;
+ 
+-    TRACE( "drawable %s, interval %d\n", debugstr_opengl_drawable( base ), interval );
+-
+-    pthread_mutex_lock( &context_mutex );
+-    set_swap_interval( gl, interval );
+-    pthread_mutex_unlock( &context_mutex );
++    TRACE( "drawable %s\n", debugstr_opengl_drawable( base ) );
+ 
+     if (!ctx || gl->offscreen || !pglXSwapBuffersMscOML) pglXSwapBuffers( gdi_display, gl->drawable );
+     else
+diff --git a/include/wine/opengl_driver.h b/include/wine/opengl_driver.h
+index cabb5c04e15..3fd609e0f27 100644
+--- a/include/wine/opengl_driver.h
++++ b/include/wine/opengl_driver.h
+@@ -131,20 +131,25 @@ struct opengl_drawable;
+ struct opengl_drawable_funcs
+ {
+     void (*destroy)( struct opengl_drawable *iface );
+-    /* flush the drawable and the opengl context, called from render thread */
+-    BOOL (*flush)( struct opengl_drawable *iface, int interval, void (*flush)(void) );
++    /* flush and update the drawable front buffer, called from render thread */
++    void (*flush)( struct opengl_drawable *iface, UINT flags );
+     /* swap and present the drawable buffers, called from render thread */
+-    BOOL (*swap)( struct opengl_drawable *iface, int interval );
++    BOOL (*swap)( struct opengl_drawable *iface );
+ };
+ 
++/* flags for opengl_drawable flush */
++#define GL_FLUSH_FINISHED      0x01
++#define GL_FLUSH_INTERVAL      0x02
++
+ struct opengl_drawable
+ {
+     const struct opengl_drawable_funcs *funcs;
+     LONG ref;
+ 
+-    int format;  /* pixel format of the drawable */
+-    HWND hwnd;   /* window the drawable was created for */
+-    HDC hdc;     /* DC the drawable was created for */
++    int         format;         /* pixel format of the drawable */
++    int         interval;       /* last set surface swap interval */
++    HWND        hwnd;           /* window the drawable was created for */
++    HDC         hdc;            /* DC the drawable was created for */
+ };
+ 
+ static inline const char *debugstr_opengl_drawable( struct opengl_drawable *drawable )
+-- 
+2.43.0
+

@@ -1,0 +1,26 @@
+From 1c586991c802a7368137ae2c0470880bb359de78 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bernhard=20=C3=9Cbelacker?= <bernhardu@mailbox.org>
+Date: Sun, 22 Jun 2025 22:45:25 +0200
+Subject: [PATCH 247/293] winetest: Use LRESULT to return value from
+ CallWindowProcA.
+
+---
+ programs/winetest/gui.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/programs/winetest/gui.c b/programs/winetest/gui.c
+index 88ba105bf4d..b0b176c50b4 100644
+--- a/programs/winetest/gui.c
++++ b/programs/winetest/gui.c
+@@ -311,7 +311,7 @@ guiAsk (va_list ap)
+     return ret;
+ }
+ 
+-static BOOL CALLBACK
++static LRESULT CALLBACK
+ EditTagProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+ {
+     switch (msg) {
+-- 
+2.43.0
+

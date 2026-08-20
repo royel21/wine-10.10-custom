@@ -1,0 +1,58 @@
+From 7ad5d0408db7a2919b8c445701c4f22f774f8594 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Fri, 20 Jun 2025 11:33:00 +0200
+Subject: [PATCH 174/293] ntdll: Allow deleting integral atoms from tables.
+
+---
+ dlls/ntdll/atom.c       | 5 +++--
+ dlls/ntdll/tests/atom.c | 2 +-
+ dlls/ntdll/unix/sync.c  | 4 +++-
+ 3 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/ntdll/atom.c b/dlls/ntdll/atom.c
+index 9d611f2e7fd..d609904ddae 100644
+--- a/dlls/ntdll/atom.c
++++ b/dlls/ntdll/atom.c
+@@ -162,8 +162,9 @@ NTSTATUS WINAPI RtlDeleteAtomFromAtomTable( RTL_ATOM_TABLE table, RTL_ATOM atom
+ 
+     if ((status = lock_atom_table( table ))) return status;
+ 
+-    if (atom >= MAXINTATOM && RtlIsValidIndexHandle( &table->HandleTable, atom - MAXINTATOM,
+-                                                     (RTL_HANDLE **)&handle ))
++    if (!atom) status = STATUS_INVALID_HANDLE;
++    else if (atom < MAXINTATOM) status = STATUS_SUCCESS;
++    else if (RtlIsValidIndexHandle( &table->HandleTable, atom - MAXINTATOM, (RTL_HANDLE **)&handle ))
+     {
+         if (handle->entry->Flags) status = STATUS_WAS_LOCKED;
+         else if (!--handle->entry->ReferenceCount)
+diff --git a/dlls/ntdll/tests/atom.c b/dlls/ntdll/tests/atom.c
+index bcb3a25daa9..8febaae4e6a 100644
+--- a/dlls/ntdll/tests/atom.c
++++ b/dlls/ntdll/tests/atom.c
+@@ -403,7 +403,7 @@ static void test_NtIntAtom(void)
+         ok( res == test->status, "RtlAddAtomToAtomTable returned %#lx\n", res );
+         ok( testAtom == test->value, "got %#x\n", testAtom );
+         res = RtlDeleteAtomFromAtomTable( AtomTable, testAtom );
+-        if (testAtom && testAtom != 0xdead) todo_wine_if( testAtom < 0xc000 ) ok( !res, "RtlDeleteAtomFromAtomTable returned %#lx\n", res );
++        if (testAtom && testAtom != 0xdead) ok( !res, "RtlDeleteAtomFromAtomTable returned %#lx\n", res );
+         else ok( res == STATUS_INVALID_HANDLE, "RtlDeleteAtomFromAtomTable returned %#lx\n", res );
+ 
+         winetest_pop_context();
+diff --git a/dlls/ntdll/unix/sync.c b/dlls/ntdll/unix/sync.c
+index 4be22454369..3ad06e1f720 100644
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2455,7 +2455,9 @@ NTSTATUS WINAPI NtDeleteAtom( RTL_ATOM atom )
+ {
+     unsigned int status;
+ 
+-    SERVER_START_REQ( delete_atom )
++    if (!atom) status = STATUS_INVALID_HANDLE;
++    else if (atom < MAXINTATOM) status = STATUS_SUCCESS;
++    else SERVER_START_REQ( delete_atom )
+     {
+         req->atom = atom;
+         status = wine_server_call( req );
+-- 
+2.43.0
+

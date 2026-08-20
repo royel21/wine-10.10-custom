@@ -1,0 +1,26 @@
+From 6517fab8af88559c2c7522657880300c8fb83254 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Fri, 20 Jun 2025 11:38:17 +0200
+Subject: [PATCH 175/293] user32: Clamp atom to MAXINTATOM in
+ get_int_atom_value.
+
+---
+ dlls/user32/class.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/user32/class.c b/dlls/user32/class.c
+index 9c7bd3a5c6b..3ace0d5528f 100644
+--- a/dlls/user32/class.c
++++ b/dlls/user32/class.c
+@@ -52,7 +52,7 @@ ATOM get_int_atom_value( UNICODE_STRING *name )
+     {
+         if (*ptr < '0' || *ptr > '9') return 0;
+         ret = ret * 10 + *ptr++ - '0';
+-        if (ret > 0xffff) return 0;
++        if (ret >= MAXINTATOM) return 0;
+     }
+     return ret;
+ }
+-- 
+2.43.0
+

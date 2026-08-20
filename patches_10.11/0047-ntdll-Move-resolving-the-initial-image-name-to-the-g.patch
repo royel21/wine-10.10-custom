@@ -1,0 +1,238 @@
+From 787dc335de5365188f0bec899834871ba8236299 Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Tue, 17 Jun 2025 13:47:28 +0200
+Subject: [PATCH 047/293] ntdll: Move resolving the initial image name to the
+ get_full_path() helper.
+
+---
+ dlls/ntdll/unix/env.c          | 15 ++++++--
+ dlls/ntdll/unix/file.c         | 70 ++++++++++++++++++++--------------
+ dlls/ntdll/unix/loader.c       | 44 ++-------------------
+ dlls/ntdll/unix/unix_private.h |  5 +--
+ 4 files changed, 58 insertions(+), 76 deletions(-)
+
+diff --git a/dlls/ntdll/unix/env.c b/dlls/ntdll/unix/env.c
+index 403507b5874..244d5ba566f 100644
+--- a/dlls/ntdll/unix/env.c
++++ b/dlls/ntdll/unix/env.c
+@@ -1972,7 +1972,16 @@ static RTL_USER_PROCESS_PARAMETERS *build_initial_params( void **module )
+     add_registry_environment( &env, &env_pos, &env_size );
+     env[env_pos++] = 0;
+ 
+-    status = load_main_exe( &nt_name, main_argv[1], curdir, 0, module );
++    get_full_path( main_argv[1], curdir, &nt_name );
++    status = load_main_exe( &nt_name, 0, module );
++    /* fail only if the file contained an explicit path */
++    if (status == STATUS_DLL_NOT_FOUND &&
++        (strpbrk( main_argv[1], "/\\" ) || (main_argv[1][0] && main_argv[1][1] == ':')))
++    {
++        MESSAGE( "wine: failed to open %s\n", debugstr_a(main_argv[1]) );
++        NtTerminateProcess( GetCurrentProcess(), status );
++    }
++
+     if (NT_SUCCESS(status))
+     {
+         char *loader;
+@@ -2153,10 +2162,10 @@ void init_startup_info(void)
+     free( env );
+     free( info );
+ 
+-    status = load_main_exe( &nt_name, NULL, NULL, machine, &module );
++    status = load_main_exe( &nt_name, machine, &module );
+     if (!NT_SUCCESS(status))
+     {
+-        MESSAGE( "wine: failed to start %s\n", debugstr_us(&params->ImagePathName) );
++        MESSAGE( "wine: failed to start %s: %x\n", debugstr_us(&params->ImagePathName), status );
+         NtTerminateProcess( GetCurrentProcess(), status );
+     }
+     rebuild_argv();
+diff --git a/dlls/ntdll/unix/file.c b/dlls/ntdll/unix/file.c
+index e7d80eedf7b..0b5164e9554 100644
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -4020,51 +4020,63 @@ NTSTATUS WINAPI wine_unix_to_nt_file_name( const char *name, WCHAR *buffer, ULON
+  *
+  * Simplified version of RtlGetFullPathName_U.
+  */
+-NTSTATUS get_full_path( const WCHAR *name, const WCHAR *curdir, UNICODE_STRING *nt_name )
++NTSTATUS get_full_path( const char *name, const WCHAR *curdir, UNICODE_STRING *nt_name )
+ {
+-    static const WCHAR uncW[] = {'\\','?','?','\\','U','N','C','\\',0};
+-    static const WCHAR devW[] = {'\\','?','?','\\',0};
+-    static const WCHAR unixW[] = {'u','n','i','x'};
+-    WCHAR *ret, root[] = {'\\','?','?','\\','C',':','\\',0};
+-    NTSTATUS status = STATUS_SUCCESS;
+-    const WCHAR *prefix;
++    static const WCHAR unix_prefixW[] = {'\\','?','?','\\','u','n','i','x'};
++    static const WCHAR uncW[] = {'\\','?','?','\\','U','N','C','\\'};
++    static const WCHAR devW[] = {'\\','?','?','\\'};
++    static const WCHAR rootW[] = {'\\','?','?','\\','C',':','\\'};
++    WCHAR *ret;
++    struct stat st;
++    ULONG prefix_len, len = max( ARRAY_SIZE(unix_prefixW), wcslen(curdir) ) + strlen(name) + 1;
++
++    if (!(ret = malloc( len * sizeof(WCHAR) ))) return STATUS_NO_MEMORY;
+ 
+-    if (IS_SEPARATOR(name[0]) && IS_SEPARATOR(name[1]))  /* \\ prefix */
++    /* special case for Unix file name */
++    if (name && name[0] == '/' && !stat( name, &st ))
++    {
++        memcpy( ret, unix_prefixW, sizeof(unix_prefixW) );
++        prefix_len = ARRAY_SIZE(unix_prefixW);
++    }
++    else if (IS_SEPARATOR(name[0]) && name[1] == '?' && name[2] == '?' && IS_SEPARATOR(name[3]))  /* \??\ */
++    {
++        prefix_len = 0;
++    }
++    else if (IS_SEPARATOR(name[0]) && IS_SEPARATOR(name[1]))  /* \\ prefix */
+     {
+         if ((name[2] == '.' || name[2] == '?') && IS_SEPARATOR(name[3])) /* \\?\ device */
+         {
+             name += 4;
+-            if (!wcsnicmp( name, unixW, 4 ) && IS_SEPARATOR(name[4]))  /* \\?\unix special name */
+-            {
+-                char *unix_name;
+-                name += 4;
+-                unix_name = malloc( wcslen(name) * 3 + 1 );
+-                ntdll_wcstoumbs( name, wcslen(name) + 1, unix_name, wcslen(name) * 3 + 1, FALSE );
+-                status = unix_to_nt_file_name( unix_name, &ret );
+-                if (!status) init_unicode_string( nt_name, ret );
+-                free( unix_name );
+-                return status;
+-            }
+-            prefix = devW;
++            memcpy( ret, devW, sizeof(devW) );
++            prefix_len = ARRAY_SIZE(devW);
++        }
++        else  /* UNC path */
++        {
++            name += 2;
++            memcpy( ret, uncW, sizeof(uncW) );
++            prefix_len = ARRAY_SIZE(uncW);
+         }
+-        else prefix = uncW;  /* UNC path */
+     }
+     else if (IS_SEPARATOR(name[0]))  /* absolute path */
+     {
+-        root[4] = curdir[4];
+-        prefix = root;
++        memcpy( ret, rootW, sizeof(rootW) );
++        prefix_len = ARRAY_SIZE(rootW);
++        ret[4] = curdir[4];
+     }
+     else if (name[0] && name[1] == ':')  /* drive letter */
+     {
+-        root[4] = towupper(name[0]);
++        memcpy( ret, rootW, sizeof(rootW) );
++        prefix_len = ARRAY_SIZE(rootW);
++        ret[4] = towupper(name[0]);
+         name += 2;
+-        prefix = root;
+     }
+-    else prefix = curdir;  /* relative path */
++    else  /* relative path */
++    {
++        prefix_len = wcslen( curdir );
++        memcpy( ret, curdir, prefix_len * sizeof(WCHAR) );
++    }
+ 
+-    ret = malloc( (wcslen(prefix) + wcslen(name) + 1) * sizeof(WCHAR) );
+-    wcscpy( ret, prefix );
+-    wcscat( ret, name );
++    ntdll_umbstowcs( name, strlen(name) + 1, ret + prefix_len, len - prefix_len );
+     collapse_path( ret );
+     init_unicode_string( nt_name, ret );
+     return STATUS_SUCCESS;
+diff --git a/dlls/ntdll/unix/loader.c b/dlls/ntdll/unix/loader.c
+index 6cb7cddc9e3..d44583acf10 100644
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -1493,59 +1493,21 @@ static NTSTATUS open_main_image( UNICODE_STRING *nt_name, void **module, SECTION
+ /***********************************************************************
+  *           load_main_exe
+  */
+-NTSTATUS load_main_exe( UNICODE_STRING *nt_name, const char *unix_name, const WCHAR *curdir,
+-                        USHORT load_machine, void **module )
++NTSTATUS load_main_exe( UNICODE_STRING *nt_name, USHORT load_machine, void **module )
+ {
+-    enum loadorder loadorder = LO_INVALID;
+-    WCHAR *image;
+-    BOOL contains_path = TRUE;
++    enum loadorder loadorder = get_load_order( nt_name );
+     unsigned int status;
+     SIZE_T size;
+-    struct stat st;
+     USHORT search_machine;
+ 
+-    /* special case for Unix file name */
+-    if (unix_name && unix_name[0] == '/' && !stat( unix_name, &st ))
+-    {
+-        if ((status = unix_to_nt_file_name( unix_name, &image ))) goto failed;
+-        init_unicode_string( nt_name, image );
+-        loadorder = get_load_order( nt_name );
+-        status = open_main_image( nt_name, module, &main_image_info, loadorder, load_machine );
+-        if (status != STATUS_DLL_NOT_FOUND) return status;
+-        free( image );
+-    }
+-
+-    if (unix_name)
+-    {
+-        image = malloc( (strlen(unix_name) + 1) * sizeof(WCHAR) );
+-        ntdll_umbstowcs( unix_name, strlen(unix_name) + 1, image, strlen(unix_name) + 1 );
+-        contains_path = (wcschr( image, '/' ) ||
+-                         wcschr( image, '\\' ) ||
+-                         (image[0] && image[1] == ':'));
+-
+-        if ((status = get_full_path( image, curdir, nt_name ))) goto failed;
+-        free( image );
+-    }
+-
+-    if (loadorder == LO_INVALID) loadorder = get_load_order( nt_name );
+-
+     status = open_main_image( nt_name, module, &main_image_info, loadorder, load_machine );
+     if (status != STATUS_DLL_NOT_FOUND) return status;
+ 
+     /* if path is in system dir, we can load the builtin even if the file itself doesn't exist */
+     if (loadorder != LO_NATIVE && is_builtin_path( nt_name, &search_machine ))
+-    {
+         status = find_builtin_dll( nt_name, module, &size, &main_image_info, 0, 0,
+                                    search_machine, load_machine, FALSE );
+-        if (status != STATUS_DLL_NOT_FOUND) return status;
+-    }
+-    if (!contains_path) return STATUS_DLL_NOT_FOUND;
+-
+-failed:
+-    MESSAGE( "wine: failed to open %s: %x\n",
+-             unix_name ? debugstr_a(unix_name) : debugstr_us(nt_name), status );
+-    NtTerminateProcess( GetCurrentProcess(), status );
+-    return status;  /* unreached */
++    return status;
+ }
+ 
+ 
+diff --git a/dlls/ntdll/unix/unix_private.h b/dlls/ntdll/unix/unix_private.h
+index 08bd7ec7b26..455d5786b84 100644
+--- a/dlls/ntdll/unix/unix_private.h
++++ b/dlls/ntdll/unix/unix_private.h
+@@ -216,8 +216,7 @@ extern NTSTATUS load_builtin( const struct pe_image_info *image_info, WCHAR *fil
+                               SECTION_IMAGE_INFORMATION *info, void **module, SIZE_T *size,
+                               ULONG_PTR limit_low, ULONG_PTR limit_high );
+ extern BOOL is_builtin_path( const UNICODE_STRING *path, WORD *machine );
+-extern NTSTATUS load_main_exe( UNICODE_STRING *nt_name, const char *unix_name, const WCHAR *curdir,
+-                               USHORT load_machine, void **module );
++extern NTSTATUS load_main_exe( UNICODE_STRING *nt_name, USHORT load_machine, void **module );
+ extern NTSTATUS load_start_exe( UNICODE_STRING *nt_name, void **module );
+ extern ULONG_PTR redirect_arm64ec_rva( void *module, ULONG_PTR rva, const IMAGE_ARM64EC_METADATA *metadata );
+ extern void start_server( BOOL debug );
+@@ -360,7 +359,7 @@ extern NTSTATUS errno_to_status( int err );
+ extern BOOL get_redirect( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *redir );
+ extern NTSTATUS nt_to_unix_file_name( const OBJECT_ATTRIBUTES *attr, char **name_ret, UINT disposition );
+ extern NTSTATUS unix_to_nt_file_name( const char *name, WCHAR **nt );
+-extern NTSTATUS get_full_path( const WCHAR *name, const WCHAR *curdir, UNICODE_STRING *nt_name );
++extern NTSTATUS get_full_path( const char *name, const WCHAR *curdir, UNICODE_STRING *nt_name );
+ extern NTSTATUS open_unix_file( HANDLE *handle, const char *unix_name, ACCESS_MASK access,
+                                 OBJECT_ATTRIBUTES *attr, ULONG attributes, ULONG sharing, ULONG disposition,
+                                 ULONG options, void *ea_buffer, ULONG ea_length );
+-- 
+2.43.0
+

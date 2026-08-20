@@ -1,0 +1,53 @@
+From 36af62553ad3b29b9e1b8db9b4c3b192386dbb5e Mon Sep 17 00:00:00 2001
+From: Esme Povirk <esme@codeweavers.com>
+Date: Fri, 20 Jun 2025 20:39:07 +0000
+Subject: [PATCH 187/293] comctl32: Implement OBJID_QUERYCLASSNAMEIDX for edit
+ controls.
+
+---
+ dlls/comctl32/edit.c       | 5 +++++
+ dlls/comctl32/tests/edit.c | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/dlls/comctl32/edit.c b/dlls/comctl32/edit.c
+index c1d35fda3d3..b8f995057f4 100644
+--- a/dlls/comctl32/edit.c
++++ b/dlls/comctl32/edit.c
+@@ -4824,6 +4824,11 @@ static LRESULT CALLBACK EDIT_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
+         result = (LRESULT)es->font;
+         break;
+ 
++    case WM_GETOBJECT:
++        if ((LONG)lParam == OBJID_QUERYCLASSNAMEIDX)
++            return 0x10004;
++        break;
++
+     case WM_GETTEXT:
+         result = (LRESULT)EDIT_WM_GetText(es, (INT)wParam, (LPWSTR)lParam);
+         break;
+diff --git a/dlls/comctl32/tests/edit.c b/dlls/comctl32/tests/edit.c
+index ec74311909b..d0a9d1901a4 100644
+--- a/dlls/comctl32/tests/edit.c
++++ b/dlls/comctl32/tests/edit.c
+@@ -768,6 +768,7 @@ static void test_edit_control_1(void)
+     MSG msMessage;
+     int i;
+     LONG r;
++    DWORD idx;
+ 
+     msMessage.message = WM_KEYDOWN;
+ 
+@@ -775,6 +776,10 @@ static void test_edit_control_1(void)
+     hwEdit = create_editcontrol(ES_AUTOHSCROLL | ES_AUTOVSCROLL, 0);
+     r = get_edit_style(hwEdit);
+     ok(r == (ES_AUTOVSCROLL | ES_AUTOHSCROLL), "Wrong style expected 0xc0 got: 0x%lx\n", r);
++
++    idx = SendMessageA(hwEdit, WM_GETOBJECT, 0, OBJID_QUERYCLASSNAMEIDX);
++    ok(idx == 0x10004, "Got index 0x%08lx\n", idx);
++
+     for (i = 0; i < 65535; i++)
+     {
+         msMessage.wParam = i;
+-- 
+2.43.0
+

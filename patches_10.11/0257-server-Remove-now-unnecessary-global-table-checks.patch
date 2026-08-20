@@ -1,0 +1,71 @@
+From e7df64c8e994f63f5d6b19424c0e20023efda5cd Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Tue, 17 Jun 2025 10:10:33 +0200
+Subject: [PATCH 257/293] server: Remove now unnecessary global table checks.
+
+---
+ server/atom.c | 31 ++++++++++---------------------
+ 1 file changed, 10 insertions(+), 21 deletions(-)
+
+diff --git a/server/atom.c b/server/atom.c
+index 1ff178bc3f6..1f8b9cd5502 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -342,44 +342,33 @@ void release_global_atom( struct winstation *winstation, atom_t atom )
+ DECL_HANDLER(add_atom)
+ {
+     struct unicode_str name = get_req_unicode_str();
+-    struct atom_table *table = get_global_table( NULL, 1 );
+-
+-    if (table) reply->atom = add_atom( table, &name );
++    reply->atom = add_atom( global_table, &name );
+ }
+ 
+ /* delete a global atom */
+ DECL_HANDLER(delete_atom)
+ {
+-    struct atom_table *table = get_global_table( NULL, 0 );
+-
+-    if (table) delete_atom( table, req->atom, 0 );
++    delete_atom( global_table, req->atom, 0 );
+ }
+ 
+ /* find a global atom */
+ DECL_HANDLER(find_atom)
+ {
+     struct unicode_str name = get_req_unicode_str();
+-    struct atom_table *table = get_global_table( NULL, 0 );
+-
+-    if (table) reply->atom = find_atom( table, &name );
++    reply->atom = find_atom( global_table, &name );
+ }
+ 
+ /* get global atom name */
+ DECL_HANDLER(get_atom_information)
+ {
+-    struct atom_table *table = get_global_table( NULL, 0 );
++    struct atom_entry *entry;
+ 
+-    if (table)
++    if ((entry = get_atom_entry( global_table, req->atom )))
+     {
+-        struct atom_entry *entry;
+-
+-        if ((entry = get_atom_entry( table, req->atom )))
+-        {
+-            set_reply_data( entry->str, min( entry->len, get_reply_max_size() ));
+-            reply->count = entry->count;
+-            reply->pinned = 0;
+-            reply->total = entry->len;
+-        }
+-        else reply->count = -1;
++        set_reply_data( entry->str, min( entry->len, get_reply_max_size() ));
++        reply->count = entry->count;
++        reply->pinned = 0;
++        reply->total = entry->len;
+     }
++    else reply->count = -1;
+ }
+-- 
+2.43.0
+

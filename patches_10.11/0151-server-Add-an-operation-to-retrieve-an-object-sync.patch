@@ -1,0 +1,848 @@
+From acde7e3bdcdd5c5f44748dc0b9db624a8cbdf2bc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Wed, 21 May 2025 00:09:06 +0200
+Subject: [PATCH 151/293] server: Add an operation to retrieve an object sync.
+
+---
+ server/async.c      |  2 ++
+ server/atom.c       |  1 +
+ server/change.c     |  1 +
+ server/clipboard.c  |  1 +
+ server/completion.c |  2 ++
+ server/console.c    |  7 +++++++
+ server/debugger.c   |  2 ++
+ server/device.c     |  4 ++++
+ server/directory.c  |  2 ++
+ server/event.c      |  2 ++
+ server/fd.c         |  4 ++++
+ server/file.c       |  1 +
+ server/handle.c     |  1 +
+ server/hook.c       |  1 +
+ server/mailslot.c   |  4 ++++
+ server/mapping.c    |  3 +++
+ server/mutex.c      |  1 +
+ server/named_pipe.c |  6 ++++++
+ server/object.c     |  7 +++++++
+ server/object.h     |  4 ++++
+ server/process.c    |  3 +++
+ server/queue.c      |  2 ++
+ server/registry.c   |  1 +
+ server/request.c    |  1 +
+ server/semaphore.c  |  1 +
+ server/serial.c     |  1 +
+ server/signal.c     |  1 +
+ server/sock.c       |  3 +++
+ server/symlink.c    |  1 +
+ server/thread.c     | 45 +++++++++++++++++++++++++++++++++++++++------
+ server/timer.c      |  1 +
+ server/token.c      |  1 +
+ server/window.c     |  1 +
+ server/winstation.c |  2 ++
+ 34 files changed, 114 insertions(+), 6 deletions(-)
+
+diff --git a/server/async.c b/server/async.c
+index d2d929c9709..1ed241dcb65 100644
+--- a/server/async.c
++++ b/server/async.c
+@@ -81,6 +81,7 @@ static const struct object_ops async_ops =
+     async_satisfied,           /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -701,6 +702,7 @@ static const struct object_ops iosb_ops =
+     NULL,                     /* satisfied */
+     no_signal,                /* signal */
+     no_get_fd,                /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     default_get_sd,           /* get_sd */
+     default_set_sd,           /* set_sd */
+diff --git a/server/atom.c b/server/atom.c
+index ff0799f5880..d93f1568588 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -82,6 +82,7 @@ static const struct object_ops atom_table_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/change.c b/server/change.c
+index 02c01610d4d..bac87b1bd2a 100644
+--- a/server/change.c
++++ b/server/change.c
+@@ -115,6 +115,7 @@ static const struct object_ops dir_ops =
+     no_satisfied,             /* satisfied */
+     no_signal,                /* signal */
+     dir_get_fd,               /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     dir_get_sd,               /* get_sd */
+     dir_set_sd,               /* set_sd */
+diff --git a/server/clipboard.c b/server/clipboard.c
+index 91f159bc7c9..59a50354b48 100644
+--- a/server/clipboard.c
++++ b/server/clipboard.c
+@@ -79,6 +79,7 @@ static const struct object_ops clipboard_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/completion.c b/server/completion.c
+index 99680ae0680..fd623b36d5a 100644
+--- a/server/completion.c
++++ b/server/completion.c
+@@ -95,6 +95,7 @@ static const struct object_ops completion_wait_ops =
+     completion_wait_satisfied,      /* satisfied */
+     no_signal,                      /* signal */
+     no_get_fd,                      /* get_fd */
++    default_get_sync,               /* get_sync */
+     default_map_access,             /* map_access */
+     default_get_sd,                 /* get_sd */
+     default_set_sd,                 /* set_sd */
+@@ -169,6 +170,7 @@ static const struct object_ops completion_ops =
+     no_satisfied,              /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+diff --git a/server/console.c b/server/console.c
+index de6f4e73e31..aa7ec863605 100644
+--- a/server/console.c
++++ b/server/console.c
+@@ -87,6 +87,7 @@ static const struct object_ops console_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     console_get_fd,                   /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -164,6 +165,7 @@ static const struct object_ops console_server_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     console_server_get_fd,            /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -233,6 +235,7 @@ static const struct object_ops screen_buffer_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     screen_buffer_get_fd,             /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -282,6 +285,7 @@ static const struct object_ops console_device_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     no_get_fd,                        /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -321,6 +325,7 @@ static const struct object_ops console_input_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     console_input_get_fd,             /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -380,6 +385,7 @@ static const struct object_ops console_output_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     console_output_get_fd,            /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -438,6 +444,7 @@ static const struct object_ops console_connection_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     console_connection_get_fd,        /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+diff --git a/server/debugger.c b/server/debugger.c
+index 39a740e07e5..43d01fbf246 100644
+--- a/server/debugger.c
++++ b/server/debugger.c
+@@ -89,6 +89,7 @@ static const struct object_ops debug_event_ops =
+     no_satisfied,                  /* satisfied */
+     no_signal,                     /* signal */
+     no_get_fd,                     /* get_fd */
++    default_get_sync,              /* get_sync */
+     default_map_access,            /* map_access */
+     default_get_sd,                /* get_sd */
+     default_set_sd,                /* set_sd */
+@@ -117,6 +118,7 @@ static const struct object_ops debug_obj_ops =
+     no_satisfied,                  /* satisfied */
+     no_signal,                     /* signal */
+     no_get_fd,                     /* get_fd */
++    default_get_sync,              /* get_sync */
+     default_map_access,            /* map_access */
+     default_get_sd,                /* get_sd */
+     default_set_sd,                /* set_sd */
+diff --git a/server/device.c b/server/device.c
+index 2e3c5eb5bff..d4cdacf7132 100644
+--- a/server/device.c
++++ b/server/device.c
+@@ -69,6 +69,7 @@ static const struct object_ops irp_call_ops =
+     NULL,                             /* satisfied */
+     no_signal,                        /* signal */
+     no_get_fd,                        /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -109,6 +110,7 @@ static const struct object_ops device_manager_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     no_get_fd,                        /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -166,6 +168,7 @@ static const struct object_ops device_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     no_get_fd,                        /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -218,6 +221,7 @@ static const struct object_ops device_file_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     device_file_get_fd,               /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+diff --git a/server/directory.c b/server/directory.c
+index fd689c561bc..c8dc3d1901d 100644
+--- a/server/directory.c
++++ b/server/directory.c
+@@ -72,6 +72,7 @@ static const struct object_ops object_type_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+@@ -122,6 +123,7 @@ static const struct object_ops directory_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/event.c b/server/event.c
+index ad7c09acc99..8d4a78d988a 100644
+--- a/server/event.c
++++ b/server/event.c
+@@ -75,6 +75,7 @@ static const struct object_ops event_ops =
+     event_satisfied,           /* satisfied */
+     event_signal,              /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -122,6 +123,7 @@ static const struct object_ops keyed_event_ops =
+     no_satisfied,                /* satisfied */
+     no_signal,                   /* signal */
+     no_get_fd,                   /* get_fd */
++    default_get_sync,            /* get_sync */
+     default_map_access,          /* map_access */
+     default_get_sd,              /* get_sd */
+     default_set_sd,              /* set_sd */
+diff --git a/server/fd.c b/server/fd.c
+index f3eaccab6e5..7bcc2d80274 100644
+--- a/server/fd.c
++++ b/server/fd.c
+@@ -170,6 +170,7 @@ static const struct object_ops fd_ops =
+     NULL,                     /* satisfied */
+     no_signal,                /* signal */
+     no_get_fd,                /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     default_get_sd,           /* get_sd */
+     default_set_sd,           /* set_sd */
+@@ -211,6 +212,7 @@ static const struct object_ops device_ops =
+     NULL,                     /* satisfied */
+     no_signal,                /* signal */
+     no_get_fd,                /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     default_get_sd,           /* get_sd */
+     default_set_sd,           /* set_sd */
+@@ -251,6 +253,7 @@ static const struct object_ops inode_ops =
+     NULL,                     /* satisfied */
+     no_signal,                /* signal */
+     no_get_fd,                /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     default_get_sd,           /* get_sd */
+     default_set_sd,           /* set_sd */
+@@ -293,6 +296,7 @@ static const struct object_ops file_lock_ops =
+     no_satisfied,               /* satisfied */
+     no_signal,                  /* signal */
+     no_get_fd,                  /* get_fd */
++    default_get_sync,           /* get_sync */
+     default_map_access,         /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+diff --git a/server/file.c b/server/file.c
+index 230bf1452ea..60cd9a96ce7 100644
+--- a/server/file.c
++++ b/server/file.c
+@@ -97,6 +97,7 @@ static const struct object_ops file_ops =
+     no_satisfied,                 /* satisfied */
+     no_signal,                    /* signal */
+     file_get_fd,                  /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     file_get_sd,                  /* get_sd */
+     file_set_sd,                  /* set_sd */
+diff --git a/server/handle.c b/server/handle.c
+index 44232daf48c..e4e843f4e39 100644
+--- a/server/handle.c
++++ b/server/handle.c
+@@ -129,6 +129,7 @@ static const struct object_ops handle_table_ops =
+     NULL,                            /* satisfied */
+     no_signal,                       /* signal */
+     no_get_fd,                       /* get_fd */
++    default_get_sync,                /* get_sync */
+     default_map_access,              /* map_access */
+     default_get_sd,                  /* get_sd */
+     default_set_sd,                  /* set_sd */
+diff --git a/server/hook.c b/server/hook.c
+index 4c55c565968..7ba1f3ea9bf 100644
+--- a/server/hook.c
++++ b/server/hook.c
+@@ -84,6 +84,7 @@ static const struct object_ops hook_table_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/mailslot.c b/server/mailslot.c
+index 420e3d67345..15b9909caf2 100644
+--- a/server/mailslot.c
++++ b/server/mailslot.c
+@@ -85,6 +85,7 @@ static const struct object_ops mailslot_ops =
+     no_satisfied,              /* satisfied */
+     no_signal,                 /* signal */
+     mailslot_get_fd,           /* get_fd */
++    default_get_sync,          /* get_sync */
+     mailslot_map_access,       /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -146,6 +147,7 @@ static const struct object_ops mail_writer_ops =
+     NULL,                       /* satisfied */
+     no_signal,                  /* signal */
+     mail_writer_get_fd,         /* get_fd */
++    default_get_sync,           /* get_sync */
+     mail_writer_map_access,     /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+@@ -211,6 +213,7 @@ static const struct object_ops mailslot_device_ops =
+     no_satisfied,                   /* satisfied */
+     no_signal,                      /* signal */
+     no_get_fd,                      /* get_fd */
++    default_get_sync,               /* get_sync */
+     default_map_access,             /* map_access */
+     default_get_sd,                 /* get_sd */
+     default_set_sd,                 /* set_sd */
+@@ -241,6 +244,7 @@ static const struct object_ops mailslot_device_file_ops =
+     no_satisfied,                           /* satisfied */
+     no_signal,                              /* signal */
+     mailslot_device_file_get_fd,            /* get_fd */
++    default_get_sync,                       /* get_sync */
+     default_map_access,                     /* map_access */
+     default_get_sd,                         /* get_sd */
+     default_set_sd,                         /* set_sd */
+diff --git a/server/mapping.c b/server/mapping.c
+index 7edadcbbeda..c3f57b6394c 100644
+--- a/server/mapping.c
++++ b/server/mapping.c
+@@ -70,6 +70,7 @@ static const struct object_ops ranges_ops =
+     NULL,                      /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -106,6 +107,7 @@ static const struct object_ops shared_map_ops =
+     NULL,                      /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -179,6 +181,7 @@ static const struct object_ops mapping_ops =
+     NULL,                        /* satisfied */
+     no_signal,                   /* signal */
+     mapping_get_fd,              /* get_fd */
++    default_get_sync,            /* get_sync */
+     default_map_access,          /* map_access */
+     default_get_sd,              /* get_sd */
+     default_set_sd,              /* set_sd */
+diff --git a/server/mutex.c b/server/mutex.c
+index af0efe72132..4737b6f711b 100644
+--- a/server/mutex.c
++++ b/server/mutex.c
+@@ -76,6 +76,7 @@ static const struct object_ops mutex_ops =
+     mutex_satisfied,           /* satisfied */
+     mutex_signal,              /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+diff --git a/server/named_pipe.c b/server/named_pipe.c
+index f1263013bf1..d83428233f4 100644
+--- a/server/named_pipe.c
++++ b/server/named_pipe.c
+@@ -122,6 +122,7 @@ static const struct object_ops named_pipe_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     named_pipe_map_access,        /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+@@ -170,6 +171,7 @@ static const struct object_ops pipe_server_ops =
+     no_satisfied,                 /* satisfied */
+     no_signal,                    /* signal */
+     pipe_end_get_fd,              /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     pipe_end_get_sd,              /* get_sd */
+     pipe_end_set_sd,              /* set_sd */
+@@ -214,6 +216,7 @@ static const struct object_ops pipe_client_ops =
+     no_satisfied,                 /* satisfied */
+     no_signal,                    /* signal */
+     pipe_end_get_fd,              /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     pipe_end_get_sd,              /* get_sd */
+     pipe_end_set_sd,              /* set_sd */
+@@ -262,6 +265,7 @@ static const struct object_ops named_pipe_device_ops =
+     no_satisfied,                     /* satisfied */
+     no_signal,                        /* signal */
+     no_get_fd,                        /* get_fd */
++    default_get_sync,                 /* get_sync */
+     default_map_access,               /* map_access */
+     default_get_sd,                   /* get_sd */
+     default_set_sd,                   /* set_sd */
+@@ -293,6 +297,7 @@ static const struct object_ops named_pipe_device_file_ops =
+     no_satisfied,                            /* satisfied */
+     no_signal,                               /* signal */
+     named_pipe_device_file_get_fd,           /* get_fd */
++    default_get_sync,                        /* get_sync */
+     default_map_access,                      /* map_access */
+     default_get_sd,                          /* get_sd */
+     default_set_sd,                          /* set_sd */
+@@ -343,6 +348,7 @@ static const struct object_ops named_pipe_dir_ops =
+     no_satisfied,                            /* satisfied */
+     no_signal,                               /* signal */
+     named_pipe_dir_get_fd,                   /* get_fd */
++    default_get_sync,                        /* get_sync */
+     default_map_access,                      /* map_access */
+     default_get_sd,                          /* get_sd */
+     default_set_sd,                          /* set_sd */
+diff --git a/server/object.c b/server/object.c
+index 7cb2ccbd93f..28bda0db77b 100644
+--- a/server/object.c
++++ b/server/object.c
+@@ -111,6 +111,7 @@ static const struct object_ops apc_reserve_ops =
+     no_satisfied,               /* satisfied */
+     no_signal,                  /* signal */
+     no_get_fd,                  /* get_fd */
++    default_get_sync,           /* get_sync */
+     default_map_access,         /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+@@ -135,6 +136,7 @@ static const struct object_ops completion_reserve_ops =
+     no_satisfied,              /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -640,6 +642,11 @@ struct fd *no_get_fd( struct object *obj )
+     return NULL;
+ }
+ 
++struct object *default_get_sync( struct object *obj )
++{
++    return grab_object( obj );
++}
++
+ unsigned int default_map_access( struct object *obj, unsigned int access )
+ {
+     return map_access( access, &obj->ops->type->mapping );
+diff --git a/server/object.h b/server/object.h
+index 9211d2f9633..d4f58595ad1 100644
+--- a/server/object.h
++++ b/server/object.h
+@@ -84,6 +84,8 @@ struct object_ops
+     int  (*signal)(struct object *, unsigned int);
+     /* return an fd object that can be used to read/write from the object */
+     struct fd *(*get_fd)(struct object *);
++    /* return a sync that can be used to wait/signal the object */
++    struct object *(*get_sync)(struct object *);
+     /* map access rights to the specific rights for this object */
+     unsigned int (*map_access)(struct object *, unsigned int);
+     /* returns the security descriptor of the object */
+@@ -170,6 +172,8 @@ extern int no_add_queue( struct object *obj, struct wait_queue_entry *entry );
+ extern void no_satisfied( struct object *obj, struct wait_queue_entry *entry );
+ extern int no_signal( struct object *obj, unsigned int access );
+ extern struct fd *no_get_fd( struct object *obj );
++extern struct object *default_get_sync( struct object *obj );
++static inline struct object *get_obj_sync( struct object *obj ) { return obj->ops->get_sync( obj ); }
+ extern unsigned int default_map_access( struct object *obj, unsigned int access );
+ extern struct security_descriptor *default_get_sd( struct object *obj );
+ extern int default_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );
+diff --git a/server/process.c b/server/process.c
+index 3b9f311e337..b169b412253 100644
+--- a/server/process.c
++++ b/server/process.c
+@@ -109,6 +109,7 @@ static const struct object_ops process_ops =
+     no_satisfied,                /* satisfied */
+     no_signal,                   /* signal */
+     no_get_fd,                   /* get_fd */
++    default_get_sync,            /* get_sync */
+     process_map_access,          /* map_access */
+     process_get_sd,              /* get_sd */
+     default_set_sd,              /* set_sd */
+@@ -160,6 +161,7 @@ static const struct object_ops startup_info_ops =
+     no_satisfied,                  /* satisfied */
+     no_signal,                     /* signal */
+     no_get_fd,                     /* get_fd */
++    default_get_sync,              /* get_sync */
+     default_map_access,            /* map_access */
+     default_get_sd,                /* get_sd */
+     default_set_sd,                /* set_sd */
+@@ -221,6 +223,7 @@ static const struct object_ops job_ops =
+     no_satisfied,                  /* satisfied */
+     no_signal,                     /* signal */
+     no_get_fd,                     /* get_fd */
++    default_get_sync,              /* get_sync */
+     default_map_access,            /* map_access */
+     default_get_sd,                /* get_sd */
+     default_set_sd,                /* set_sd */
+diff --git a/server/queue.c b/server/queue.c
+index 10c8b70f659..3b0bd1826ef 100644
+--- a/server/queue.c
++++ b/server/queue.c
+@@ -168,6 +168,7 @@ static const struct object_ops msg_queue_ops =
+     msg_queue_satisfied,       /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+@@ -205,6 +206,7 @@ static const struct object_ops thread_input_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/registry.c b/server/registry.c
+index dba7e0f8d7b..36e95b48f15 100644
+--- a/server/registry.c
++++ b/server/registry.c
+@@ -183,6 +183,7 @@ static const struct object_ops key_ops =
+     NULL,                    /* satisfied */
+     no_signal,               /* signal */
+     no_get_fd,               /* get_fd */
++    default_get_sync,        /* get_sync */
+     key_map_access,          /* map_access */
+     key_get_sd,              /* get_sd */
+     default_set_sd,          /* set_sd */
+diff --git a/server/request.c b/server/request.c
+index 2254315b79e..835ea30cec3 100644
+--- a/server/request.c
++++ b/server/request.c
+@@ -92,6 +92,7 @@ static const struct object_ops master_socket_ops =
+     NULL,                          /* satisfied */
+     no_signal,                     /* signal */
+     no_get_fd,                     /* get_fd */
++    default_get_sync,              /* get_sync */
+     default_map_access,            /* map_access */
+     default_get_sd,                /* get_sd */
+     default_set_sd,                /* set_sd */
+diff --git a/server/semaphore.c b/server/semaphore.c
+index 53b42a886df..304a821bcec 100644
+--- a/server/semaphore.c
++++ b/server/semaphore.c
+@@ -73,6 +73,7 @@ static const struct object_ops semaphore_ops =
+     semaphore_satisfied,           /* satisfied */
+     semaphore_signal,              /* signal */
+     no_get_fd,                     /* get_fd */
++    default_get_sync,              /* get_sync */
+     default_map_access,            /* map_access */
+     default_get_sd,                /* get_sd */
+     default_set_sd,                /* set_sd */
+diff --git a/server/serial.c b/server/serial.c
+index 209f2e9174e..fc0939e402b 100644
+--- a/server/serial.c
++++ b/server/serial.c
+@@ -94,6 +94,7 @@ static const struct object_ops serial_ops =
+     no_satisfied,                 /* satisfied */
+     no_signal,                    /* signal */
+     serial_get_fd,                /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/signal.c b/server/signal.c
+index 19b76d44c16..078951af6e4 100644
+--- a/server/signal.c
++++ b/server/signal.c
+@@ -65,6 +65,7 @@ static const struct object_ops handler_ops =
+     NULL,                     /* satisfied */
+     no_signal,                /* signal */
+     no_get_fd,                /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     default_get_sd,           /* get_sd */
+     default_set_sd,           /* set_sd */
+diff --git a/server/sock.c b/server/sock.c
+index e064f867ff4..0dd0f308337 100644
+--- a/server/sock.c
++++ b/server/sock.c
+@@ -489,6 +489,7 @@ static const struct object_ops sock_ops =
+     no_satisfied,                 /* satisfied */
+     no_signal,                    /* signal */
+     sock_get_fd,                  /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+@@ -3698,6 +3699,7 @@ static const struct object_ops ifchange_ops =
+     no_satisfied,            /* satisfied */
+     no_signal,               /* signal */
+     ifchange_get_fd,         /* get_fd */
++    default_get_sync,        /* get_sync */
+     default_map_access,      /* map_access */
+     default_get_sd,          /* get_sd */
+     default_set_sd,          /* set_sd */
+@@ -3919,6 +3921,7 @@ static const struct object_ops socket_device_ops =
+     no_satisfied,               /* satisfied */
+     no_signal,                  /* signal */
+     no_get_fd,                  /* get_fd */
++    default_get_sync,           /* get_sync */
+     default_map_access,         /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+diff --git a/server/symlink.c b/server/symlink.c
+index 55638a502bd..238dcfad1c7 100644
+--- a/server/symlink.c
++++ b/server/symlink.c
+@@ -74,6 +74,7 @@ static const struct object_ops symlink_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+diff --git a/server/thread.c b/server/thread.c
+index c870afca192..83fa8760474 100644
+--- a/server/thread.c
++++ b/server/thread.c
+@@ -109,6 +109,7 @@ static const struct object_ops thread_apc_ops =
+     no_satisfied,               /* satisfied */
+     no_signal,                  /* signal */
+     no_get_fd,                  /* get_fd */
++    default_get_sync,           /* get_sync */
+     default_map_access,         /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+@@ -151,6 +152,7 @@ static const struct object_ops context_ops =
+     no_satisfied,               /* satisfied */
+     no_signal,                  /* signal */
+     no_get_fd,                  /* get_fd */
++    default_get_sync,           /* get_sync */
+     default_map_access,         /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+@@ -200,6 +202,7 @@ static const struct object_ops thread_ops =
+     no_satisfied,               /* satisfied */
+     no_signal,                  /* signal */
+     no_get_fd,                  /* get_fd */
++    default_get_sync,           /* get_sync */
+     thread_map_access,          /* map_access */
+     default_get_sd,             /* get_sd */
+     default_set_sd,             /* set_sd */
+@@ -949,6 +952,36 @@ void set_wait_status( struct wait_queue_entry *entry, int status )
+     entry->wait->status = status;
+ }
+ 
++static void object_sync_satisfied( struct object *obj, struct wait_queue_entry *entry )
++{
++    struct object *sync = get_obj_sync( obj );
++    sync->ops->satisfied( sync, entry );
++    release_object( sync );
++}
++
++static void object_sync_remove_queue( struct object *obj, struct wait_queue_entry *entry )
++{
++    struct object *sync = get_obj_sync( obj );
++    sync->ops->remove_queue( sync, entry );
++    release_object( sync );
++}
++
++static int object_sync_add_queue( struct object *obj, struct wait_queue_entry *entry )
++{
++    struct object *sync = get_obj_sync( obj );
++    int ret = sync->ops->add_queue( sync, entry );
++    release_object( sync );
++    return ret;
++}
++
++static int object_sync_signaled( struct object *obj, struct wait_queue_entry *entry )
++{
++    struct object *sync = get_obj_sync( obj );
++    int ret = sync->ops->signaled( sync, entry );
++    release_object( sync );
++    return ret;
++}
++
+ /* finish waiting */
+ static unsigned int end_wait( struct thread *thread, unsigned int status )
+ {
+@@ -965,19 +998,19 @@ static unsigned int end_wait( struct thread *thread, unsigned int status )
+         if (wait->select == SELECT_WAIT_ALL)
+         {
+             for (i = 0, entry = wait->queues; i < wait->count; i++, entry++)
+-                entry->obj->ops->satisfied( entry->obj, entry );
++                object_sync_satisfied( entry->obj, entry );
+         }
+         else
+         {
+             entry = wait->queues + status;
+-            entry->obj->ops->satisfied( entry->obj, entry );
++            object_sync_satisfied( entry->obj, entry );
+         }
+         status = wait->status;
+         if (wait->abandoned) status += STATUS_ABANDONED_WAIT_0;
+     }
+     for (i = 0, entry = wait->queues; i < wait->count; i++, entry++)
+     {
+-        entry->obj->ops->remove_queue( entry->obj, entry );
++        object_sync_remove_queue( entry->obj, entry );
+         release_object( entry->obj );
+         entry->obj = NULL;
+     }
+@@ -1010,7 +1043,7 @@ static int wait_on( const union select_op *select_op, unsigned int count, struct
+     {
+         struct object *obj = objects[i];
+         entry->wait = wait;
+-        if (!obj->ops->add_queue( obj, entry ))
++        if (!object_sync_add_queue( obj, entry ))
+         {
+             wait->count = i;
+             end_wait( current, get_error() );
+@@ -1065,13 +1098,13 @@ static int check_wait( struct thread *thread )
+         /* Note: we must check them all anyway, as some objects may
+          * want to do something when signaled, even if others are not */
+         for (i = 0, entry = wait->queues; i < wait->count; i++, entry++)
+-            not_ok |= !entry->obj->ops->signaled( entry->obj, entry );
++            not_ok |= !object_sync_signaled( entry->obj, entry );
+         if (!not_ok) return STATUS_WAIT_0;
+     }
+     else
+     {
+         for (i = 0, entry = wait->queues; i < wait->count; i++, entry++)
+-            if (entry->obj->ops->signaled( entry->obj, entry )) return i;
++            if (object_sync_signaled( entry->obj, entry )) return i;
+     }
+ 
+     if ((wait->flags & SELECT_ALERTABLE) && !list_empty(&thread->user_apc)) return STATUS_USER_APC;
+diff --git a/server/timer.c b/server/timer.c
+index b0b6ec81535..4ad4ca19072 100644
+--- a/server/timer.c
++++ b/server/timer.c
+@@ -79,6 +79,7 @@ static const struct object_ops timer_ops =
+     timer_satisfied,           /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     default_set_sd,            /* set_sd */
+diff --git a/server/token.c b/server/token.c
+index 3cdb9e5be5f..5ce7298211e 100644
+--- a/server/token.c
++++ b/server/token.c
+@@ -148,6 +148,7 @@ static const struct object_ops token_ops =
+     NULL,                      /* satisfied */
+     no_signal,                 /* signal */
+     no_get_fd,                 /* get_fd */
++    default_get_sync,          /* get_sync */
+     default_map_access,        /* map_access */
+     default_get_sd,            /* get_sd */
+     token_set_sd,              /* set_sd */
+diff --git a/server/window.c b/server/window.c
+index e2e9d5cc485..6b45633f66d 100644
+--- a/server/window.c
++++ b/server/window.c
+@@ -111,6 +111,7 @@ static const struct object_ops window_ops =
+     NULL,                     /* satisfied */
+     no_signal,                /* signal */
+     no_get_fd,                /* get_fd */
++    default_get_sync,         /* get_sync */
+     default_map_access,       /* map_access */
+     default_get_sd,           /* get_sd */
+     default_set_sd,           /* set_sd */
+diff --git a/server/winstation.c b/server/winstation.c
+index b3746090ccf..bb5596f9a03 100644
+--- a/server/winstation.c
++++ b/server/winstation.c
+@@ -79,6 +79,7 @@ static const struct object_ops winstation_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+@@ -119,6 +120,7 @@ static const struct object_ops desktop_ops =
+     NULL,                         /* satisfied */
+     no_signal,                    /* signal */
+     no_get_fd,                    /* get_fd */
++    default_get_sync,             /* get_sync */
+     default_map_access,           /* map_access */
+     default_get_sd,               /* get_sd */
+     default_set_sd,               /* set_sd */
+-- 
+2.43.0
+

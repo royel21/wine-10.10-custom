@@ -1,0 +1,44 @@
+From 87a7a5b272ead98580a59c015f1edc8a83b073e6 Mon Sep 17 00:00:00 2001
+From: Piotr Caban <piotr@codeweavers.com>
+Date: Tue, 24 Jun 2025 12:00:55 +0200
+Subject: [PATCH 219/293] ucrtbase/tests: Cleanup temporary files in _sopen_s
+ tests.
+
+---
+ dlls/ucrtbase/tests/misc.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/dlls/ucrtbase/tests/misc.c b/dlls/ucrtbase/tests/misc.c
+index 7387355f3d6..e39291c2be8 100644
+--- a/dlls/ucrtbase/tests/misc.c
++++ b/dlls/ucrtbase/tests/misc.c
+@@ -499,17 +499,21 @@ static void test__sopen_s(void)
+     tempf = _tempnam(".", "wne");
+ 
+     fd = 0;
+-    ret = _sopen_s(&fd, tempf, _O_CREAT, _SH_DENYWR, 0);
++    ret = _sopen_s(&fd, tempf, _O_CREAT, _SH_DENYWR, _S_IWRITE);
+     ok(!ret, "got %d\n", ret);
+     ok(fd > 0, "got fd %d\n", fd);
+-    _close(fd);
+-    unlink(tempf);
++    ret = _close(fd);
++    ok(!ret, "_close() returned %d\n", ret);
++    ret = unlink(tempf);
++    ok(!ret, "unlink() returned %d\n", ret);
+ 
+     /* _open() does not validate pmode */
+     fd = _open(tempf, _O_CREAT, 0xff);
+     ok(fd > 0, "got fd %d\n", fd);
+-    _close(fd);
+-    unlink(tempf);
++    ret = _close(fd);
++    ok(!ret, "_close() returned %d\n", ret);
++    ret = unlink(tempf);
++    ok(!ret, "unlink() returned %d\n", ret);
+ 
+     /* _sopen_s() invokes invalid parameter handler on invalid pmode */
+     SET_EXPECT(global_invalid_parameter_handler);
+-- 
+2.43.0
+

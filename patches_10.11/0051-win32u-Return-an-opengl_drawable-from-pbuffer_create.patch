@@ -1,0 +1,463 @@
+From a576be90ad42ea301662d0d3c6cc53946f85e488 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Mon, 2 Jun 2025 12:48:21 +0200
+Subject: [PATCH 051/293] win32u: Return an opengl_drawable from
+ pbuffer_create.
+
+---
+ dlls/win32u/opengl.c          | 30 +++++++++---------
+ dlls/winemac.drv/opengl.c     | 59 ++++++++++++++++++++++++-----------
+ dlls/winewayland.drv/opengl.c | 23 ++++++++------
+ dlls/winex11.drv/opengl.c     | 57 +++++++++++++++++----------------
+ include/wine/opengl_driver.h  |  9 +++---
+ 5 files changed, 104 insertions(+), 74 deletions(-)
+
+diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+index 50a81a22a52..404eec56d1a 100644
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -50,7 +50,7 @@ struct wgl_context
+ 
+ struct wgl_pbuffer
+ {
+-    void *driver_private;
++    struct opengl_drawable *drawable;
+ 
+     HDC hdc;
+     GLsizei width;
+@@ -377,25 +377,25 @@ static BOOL egldrv_swap_buffers( void *private, HWND hwnd, HDC hdc, int interval
+ }
+ 
+ static BOOL egldrv_pbuffer_create( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
+-                                   GLint max_level, GLsizei *width, GLsizei *height, void **private )
++                                   GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable )
+ {
+     FIXME( "stub!\n" );
+     return FALSE;
+ }
+ 
+-static BOOL egldrv_pbuffer_destroy( HDC hdc, void *private )
++static BOOL egldrv_pbuffer_destroy( HDC hdc, struct opengl_drawable *drawable )
+ {
+     FIXME( "stub!\n" );
+     return FALSE;
+ }
+ 
+-static BOOL egldrv_pbuffer_updated( HDC hdc, void *private, GLenum cube_face, GLint mipmap_level )
++static BOOL egldrv_pbuffer_updated( HDC hdc, struct opengl_drawable *drawable, GLenum cube_face, GLint mipmap_level )
+ {
+     FIXME( "stub!\n" );
+     return GL_TRUE;
+ }
+ 
+-static UINT egldrv_pbuffer_bind( HDC hdc, void *private, GLenum buffer )
++static UINT egldrv_pbuffer_bind( HDC hdc, struct opengl_drawable *drawable, GLenum buffer )
+ {
+     FIXME( "stub!\n" );
+     return -1; /* use default implementation */
+@@ -591,22 +591,22 @@ static BOOL nulldrv_swap_buffers( void *private, HWND hwnd, HDC hdc, int interva
+ }
+ 
+ static BOOL nulldrv_pbuffer_create( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
+-                                    GLint max_level, GLsizei *width, GLsizei *height, void **private )
++                                    GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable )
+ {
+     return FALSE;
+ }
+ 
+-static BOOL nulldrv_pbuffer_destroy( HDC hdc, void *private )
++static BOOL nulldrv_pbuffer_destroy( HDC hdc, struct opengl_drawable *drawable )
+ {
+     return FALSE;
+ }
+ 
+-static BOOL nulldrv_pbuffer_updated( HDC hdc, void *private, GLenum cube_face, GLint mipmap_level )
++static BOOL nulldrv_pbuffer_updated( HDC hdc, struct opengl_drawable *drawable, GLenum cube_face, GLint mipmap_level )
+ {
+     return GL_TRUE;
+ }
+ 
+-static UINT nulldrv_pbuffer_bind( HDC hdc, void *private, GLenum buffer )
++static UINT nulldrv_pbuffer_bind( HDC hdc, struct opengl_drawable *drawable, GLenum buffer )
+ {
+     return -1; /* use default implementation */
+ }
+@@ -1052,7 +1052,7 @@ static struct wgl_pbuffer *win32u_wglCreatePbufferARB( HDC hdc, int format, int
+ 
+     if (driver_funcs->p_pbuffer_create( pbuffer->hdc, format, largest, pbuffer->texture_format,
+                                         pbuffer->texture_target, max_level, &pbuffer->width,
+-                                        &pbuffer->height, &pbuffer->driver_private ))
++                                        &pbuffer->height, &pbuffer->drawable ))
+         return pbuffer;
+ 
+ failed:
+@@ -1068,7 +1068,7 @@ static BOOL win32u_wglDestroyPbufferARB( struct wgl_pbuffer *pbuffer )
+ 
+     TRACE( "pbuffer %p\n", pbuffer );
+ 
+-    driver_funcs->p_pbuffer_destroy( pbuffer->hdc, pbuffer->driver_private );
++    driver_funcs->p_pbuffer_destroy( pbuffer->hdc, pbuffer->drawable );
+     if (pbuffer->tmp_context) funcs->p_wglDeleteContext( pbuffer->tmp_context );
+     NtGdiDeleteObjectApp( pbuffer->hdc );
+     free( pbuffer );
+@@ -1250,7 +1250,7 @@ static BOOL win32u_wglBindTexImageARB( struct wgl_pbuffer *pbuffer, int buffer )
+         return GL_FALSE;
+     }
+ 
+-    if ((ret = driver_funcs->p_pbuffer_bind( pbuffer->hdc, pbuffer->driver_private, source )) != -1)
++    if ((ret = driver_funcs->p_pbuffer_bind( pbuffer->hdc, pbuffer->drawable, source )) != -1)
+         return ret;
+ 
+     if (!pbuffer->tmp_context || pbuffer->prev_context != prev_context)
+@@ -1286,7 +1286,7 @@ static BOOL win32u_wglReleaseTexImageARB( struct wgl_pbuffer *pbuffer, int buffe
+         return GL_FALSE;
+     }
+ 
+-    return !!driver_funcs->p_pbuffer_bind( pbuffer->hdc, pbuffer->driver_private, GL_NONE );
++    return !!driver_funcs->p_pbuffer_bind( pbuffer->hdc, pbuffer->drawable, GL_NONE );
+ }
+ 
+ static BOOL win32u_wglSetPbufferAttribARB( struct wgl_pbuffer *pbuffer, const int *attribs )
+@@ -1344,8 +1344,8 @@ static BOOL win32u_wglSetPbufferAttribARB( struct wgl_pbuffer *pbuffer, const in
+         }
+     }
+ 
+-    return driver_funcs->p_pbuffer_updated( pbuffer->hdc, pbuffer->driver_private,
+-                                            pbuffer->cube_face, max( pbuffer->mipmap_level, 0 ) );
++    return driver_funcs->p_pbuffer_updated( pbuffer->hdc, pbuffer->drawable, pbuffer->cube_face,
++                                            max( pbuffer->mipmap_level, 0 ) );
+ }
+ 
+ static int get_window_swap_interval( HWND hwnd )
+diff --git a/dlls/winemac.drv/opengl.c b/dlls/winemac.drv/opengl.c
+index 89e6adff3e4..00342e05382 100644
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -80,6 +80,17 @@ struct macdrv_context
+     UINT                    major;
+ };
+ 
++struct gl_drawable
++{
++    struct opengl_drawable  base;
++    CGLPBufferObj           pbuffer;
++};
++
++static struct gl_drawable *impl_from_opengl_drawable(struct opengl_drawable *base)
++{
++    return CONTAINING_RECORD(base, struct gl_drawable, base);
++}
++
+ static struct list context_list = LIST_INIT(context_list);
+ static pthread_mutex_t context_mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
+@@ -2163,13 +2174,14 @@ static void macdrv_glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+  *
+  * WGL_ARB_render_texture: wglBindTexImageARB
+  */
+-static UINT macdrv_pbuffer_bind(HDC hdc, void *private, GLenum source)
++static UINT macdrv_pbuffer_bind(HDC hdc, struct opengl_drawable *base, GLenum source)
+ {
+     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+-    CGLPBufferObj pbuffer = private;
++    struct gl_drawable *gl = impl_from_opengl_drawable(base);
++    CGLPBufferObj pbuffer = gl->pbuffer;
+     CGLError err;
+ 
+-    TRACE("hdc %p pbuffer %p source 0x%x\n", hdc, pbuffer, source);
++    TRACE("hdc %p drawable %s source 0x%x\n", hdc, debugstr_opengl_drawable(base), source);
+ 
+     if (!context->draw_view && context->draw_pbuffer == pbuffer && source != GL_NONE)
+         funcs->p_glFlush();
+@@ -2355,12 +2367,13 @@ static BOOL macdrv_context_create(int format, void *shared, const int *attrib_li
+ }
+ 
+ static BOOL macdrv_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
+-                                  GLint max_level, GLsizei *width, GLsizei *height, void **private)
++                                  GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable)
+ {
++    struct gl_drawable *gl;
+     CGLError err;
+ 
+-    TRACE("hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, private %p\n",
+-          hdc, format, largest, texture_format, texture_target, max_level, *width, *height, private);
++    TRACE("hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, drawable %p\n",
++          hdc, format, largest, texture_format, texture_target, max_level, *width, *height, drawable);
+ 
+     if (!texture_target || !texture_format)
+     {
+@@ -2369,31 +2382,41 @@ static BOOL macdrv_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum text
+         texture_format = GL_RGB;
+     }
+ 
+-    err = CGLCreatePBuffer(*width, *height, texture_target, texture_format, max_level, (CGLPBufferObj *)private);
++    if (!(gl = calloc(1, sizeof(*gl)))) return FALSE;
++    gl->base.hwnd = 0;
++    gl->base.hdc = hdc;
++    gl->base.format = format;
++
++    err = CGLCreatePBuffer(*width, *height, texture_target, texture_format, max_level, &gl->pbuffer);
+     if (err != kCGLNoError)
+     {
+         WARN("CGLCreatePBuffer failed; err %d %s\n", err, CGLErrorString(err));
++        free(gl);
+         return FALSE;
+     }
+ 
+     pthread_mutex_lock(&dc_pbuffers_mutex);
+-    CFDictionarySetValue(dc_pbuffers, hdc, private);
++    CFDictionarySetValue(dc_pbuffers, hdc, gl->pbuffer);
+     pthread_mutex_unlock(&dc_pbuffers_mutex);
+ 
+-    TRACE(" -> %p\n", *private);
++    *drawable = &gl->base;
++    TRACE(" -> %p\n", gl);
+     return TRUE;
+ }
+ 
+-static BOOL macdrv_pbuffer_destroy(HDC hdc, void *private)
++static BOOL macdrv_pbuffer_destroy(HDC hdc, struct opengl_drawable *base)
+ {
+-    TRACE("private %p\n", private);
++    struct gl_drawable *gl = impl_from_opengl_drawable(base);
++
++    TRACE("hdc %p, drawable %s\n", hdc, debugstr_opengl_drawable(base));
+ 
+     pthread_mutex_lock(&dc_pbuffers_mutex);
+-    CFDictionaryRemoveValue(dc_pbuffers, hdc);
++    CFDictionaryRemoveValue(dc_pbuffers, gl->pbuffer);
+     pthread_mutex_unlock(&dc_pbuffers_mutex);
+ 
+-    CGLReleasePBuffer(private);
+-    return GL_TRUE;
++    CGLReleasePBuffer(gl->pbuffer);
++    free(gl);
++    return TRUE;
+ }
+ 
+ 
+@@ -2695,13 +2718,13 @@ done:
+     return ret;
+ }
+ 
+-
+-static BOOL macdrv_pbuffer_updated(HDC hdc, void *private, GLenum cube_face, GLint mipmap_level)
++static BOOL macdrv_pbuffer_updated(HDC hdc, struct opengl_drawable *base, GLenum cube_face, GLint mipmap_level)
+ {
+     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+-    CGLPBufferObj pbuffer = private;
++    struct gl_drawable *gl = impl_from_opengl_drawable(base);
++    CGLPBufferObj pbuffer = gl->pbuffer;
+ 
+-    TRACE("hdc %p pbuffer %p cube_face %#x mipmap_level %d\n", hdc, pbuffer, cube_face, mipmap_level);
++    TRACE("hdc %p drawable %s cube_face %#x mipmap_level %d\n", hdc, debugstr_opengl_drawable(base), cube_face, mipmap_level);
+ 
+     if (context && context->draw_pbuffer == pbuffer)
+     {
+diff --git a/dlls/winewayland.drv/opengl.c b/dlls/winewayland.drv/opengl.c
+index ea4c542d770..cd66cde5485 100644
+--- a/dlls/winewayland.drv/opengl.c
++++ b/dlls/winewayland.drv/opengl.c
+@@ -66,6 +66,11 @@ struct wayland_gl_drawable
+     BOOL double_buffered;
+ };
+ 
++static struct wayland_gl_drawable *impl_from_opengl_drawable(struct opengl_drawable *base)
++{
++    return CONTAINING_RECORD(base, struct wayland_gl_drawable, base);
++}
++
+ struct wayland_context
+ {
+     struct list entry;
+@@ -511,12 +516,12 @@ static BOOL wayland_swap_buffers(void *private, HWND hwnd, HDC hdc, int interval
+ }
+ 
+ static BOOL wayland_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
+-                                   GLint max_level, GLsizei *width, GLsizei *height, void **private)
++                                   GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **surface)
+ {
+     struct wayland_gl_drawable *drawable;
+ 
+     TRACE("hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, private %p\n",
+-          hdc, format, largest, texture_format, texture_target, max_level, *width, *height, private);
++          hdc, format, largest, texture_format, texture_target, max_level, *width, *height, surface);
+ 
+     /* Use an unmapped wayland surface as our offscreen "pbuffer" surface. */
+     if (!(drawable = wayland_gl_drawable_create(0, hdc, format, *width, *height))) return FALSE;
+@@ -525,15 +530,15 @@ static BOOL wayland_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum tex
+     list_add_head(&gl_drawables, &drawable->entry);
+     pthread_mutex_unlock(&gl_object_mutex);
+ 
+-    *private = drawable;
++    *surface = &drawable->base;
+     return TRUE;
+ }
+ 
+-static BOOL wayland_pbuffer_destroy(HDC hdc, void *private)
++static BOOL wayland_pbuffer_destroy(HDC hdc, struct opengl_drawable *base)
+ {
+-    struct wayland_gl_drawable *drawable = private;
++    struct wayland_gl_drawable *drawable = impl_from_opengl_drawable(base);
+ 
+-    TRACE("hdc %p, private %p\n", hdc, private);
++    TRACE("hdc %p, drawable %s\n", hdc, debugstr_opengl_drawable(base));
+ 
+     pthread_mutex_lock(&gl_object_mutex);
+     list_remove(&drawable->entry);
+@@ -544,15 +549,13 @@ static BOOL wayland_pbuffer_destroy(HDC hdc, void *private)
+     return GL_TRUE;
+ }
+ 
+-static BOOL wayland_pbuffer_updated(HDC hdc, void *private, GLenum cube_face, GLint mipmap_level)
++static BOOL wayland_pbuffer_updated(HDC hdc, struct opengl_drawable *base, GLenum cube_face, GLint mipmap_level)
+ {
+-    TRACE("hdc %p, private %p, cube_face %#x, mipmap_level %d\n", hdc, private, cube_face, mipmap_level);
+     return GL_TRUE;
+ }
+ 
+-static UINT wayland_pbuffer_bind(HDC hdc, void *private, GLenum buffer)
++static UINT wayland_pbuffer_bind(HDC hdc, struct opengl_drawable *base, GLenum buffer)
+ {
+-    TRACE("hdc %p, private %p, buffer %#x\n", hdc, private, buffer);
+     return -1; /* use default implementation */
+ }
+ 
+diff --git a/dlls/winex11.drv/opengl.c b/dlls/winex11.drv/opengl.c
+index 35c750c91f7..0c34d858b0a 100644
+--- a/dlls/winex11.drv/opengl.c
++++ b/dlls/winex11.drv/opengl.c
+@@ -225,6 +225,11 @@ struct gl_drawable
+     HDC                            hdc_dst;
+ };
+ 
++static struct gl_drawable *impl_from_opengl_drawable( struct opengl_drawable *base )
++{
++    return CONTAINING_RECORD( base, struct gl_drawable, base );
++}
++
+ enum glx_swap_control_method
+ {
+     GLX_SWAP_CONTROL_NONE,
+@@ -1505,15 +1510,15 @@ static BOOL x11drv_context_create( int format, void *share_private, const int *a
+ }
+ 
+ static BOOL x11drv_pbuffer_create( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
+-                                   GLint max_level, GLsizei *width, GLsizei *height, void **private )
++                                   GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable )
+ {
+     const struct glx_pixel_format *fmt = glx_pixel_format_from_format( format );
+     int glx_attribs[7], count = 0;
+-    struct gl_drawable *surface;
++    struct gl_drawable *gl;
+     RECT rect;
+ 
+-    TRACE( "hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, private %p\n",
+-           hdc, format, largest, texture_format, texture_target, max_level, *width, *height, private );
++    TRACE( "hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, drawable %p\n",
++           hdc, format, largest, texture_format, texture_target, max_level, *width, *height, drawable );
+ 
+     glx_attribs[count++] = GLX_PBUFFER_WIDTH;
+     glx_attribs[count++] = *width;
+@@ -1526,57 +1531,55 @@ static BOOL x11drv_pbuffer_create( HDC hdc, int format, BOOL largest, GLenum tex
+     }
+     glx_attribs[count++] = 0;
+ 
+-    if (!(surface = calloc( 1, sizeof(*surface) ))) return FALSE;
+-    surface->base.hwnd = 0;
+-    surface->base.hdc = hdc;
+-    surface->base.format = format;
++    if (!(gl = calloc( 1, sizeof(*gl) ))) return FALSE;
++    gl->base.hwnd = 0;
++    gl->base.hdc = hdc;
++    gl->base.format = format;
+ 
+-    surface->type = DC_GL_PBUFFER;
+-    surface->ref = 1;
++    gl->type = DC_GL_PBUFFER;
++    gl->ref = 1;
+ 
+-    surface->drawable = pglXCreatePbuffer( gdi_display, fmt->fbconfig, glx_attribs );
+-    TRACE( "new Pbuffer drawable as %p (%lx)\n", surface, surface->drawable );
+-    if (!surface->drawable)
++    gl->drawable = pglXCreatePbuffer( gdi_display, fmt->fbconfig, glx_attribs );
++    TRACE( "new Pbuffer drawable as %p (%lx)\n", gl, gl->drawable );
++    if (!gl->drawable)
+     {
+-        free( surface );
++        free( gl );
+         return FALSE;
+     }
+-    pglXQueryDrawable( gdi_display, surface->drawable, GLX_WIDTH, (unsigned int *)width );
+-    pglXQueryDrawable( gdi_display, surface->drawable, GLX_HEIGHT, (unsigned int *)height );
++    pglXQueryDrawable( gdi_display, gl->drawable, GLX_WIDTH, (unsigned int *)width );
++    pglXQueryDrawable( gdi_display, gl->drawable, GLX_HEIGHT, (unsigned int *)height );
+     SetRect( &rect, 0, 0, *width, *height );
+-    set_dc_drawable( hdc, surface->drawable, &rect, IncludeInferiors );
++    set_dc_drawable( hdc, gl->drawable, &rect, IncludeInferiors );
+ 
+     pthread_mutex_lock( &context_mutex );
+-    XSaveContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char *)surface );
++    XSaveContext( gdi_display, (XID)hdc, gl_pbuffer_context, (char *)gl );
+     pthread_mutex_unlock( &context_mutex );
+ 
+-    *private = surface;
++    *drawable = &gl->base;
+     return TRUE;
+ }
+ 
+-static BOOL x11drv_pbuffer_destroy( HDC hdc, void *private )
++static BOOL x11drv_pbuffer_destroy( HDC hdc, struct opengl_drawable *base )
+ {
+-    struct gl_drawable *surface = private;
++    struct gl_drawable *gl = impl_from_opengl_drawable( base );
+ 
+-    TRACE( "hdc %p, private %p\n", hdc, surface );
++    TRACE( "hdc %p, drawable %s\n", hdc, debugstr_opengl_drawable( base ) );
+ 
+     pthread_mutex_lock( &context_mutex );
+     XDeleteContext( gdi_display, (XID)hdc, gl_pbuffer_context );
+     pthread_mutex_unlock( &context_mutex );
+-    release_gl_drawable( surface );
++    release_gl_drawable( gl );
+ 
+     return GL_TRUE;
+ }
+ 
+-static BOOL x11drv_pbuffer_updated( HDC hdc, void *private, GLenum cube_face, GLint mipmap_level )
++static BOOL x11drv_pbuffer_updated( HDC hdc, struct opengl_drawable *base, GLenum cube_face, GLint mipmap_level )
+ {
+-    TRACE( "hdc %p, private %p, cube_face %#x, mipmap_level %d\n", hdc, private, cube_face, mipmap_level );
+     return GL_TRUE;
+ }
+ 
+-static UINT x11drv_pbuffer_bind( HDC hdc, void *private, GLenum buffer )
++static UINT x11drv_pbuffer_bind( HDC hdc, struct opengl_drawable *base, GLenum buffer )
+ {
+-    TRACE( "hdc %p, private %p, buffer %#x\n", hdc, private, buffer );
+     return -1; /* use default implementation */
+ }
+ 
+diff --git a/include/wine/opengl_driver.h b/include/wine/opengl_driver.h
+index cab2b8cc422..4e2cb84c829 100644
+--- a/include/wine/opengl_driver.h
++++ b/include/wine/opengl_driver.h
+@@ -152,10 +152,11 @@ struct opengl_driver_funcs
+     BOOL (*p_context_destroy)(void*);
+     BOOL (*p_context_flush)(void*,HWND,HDC,int,void(*)(void));
+     BOOL (*p_context_make_current)(HDC,HDC,void*);
+-    BOOL (*p_pbuffer_create)(HDC,int,BOOL,GLenum,GLenum,GLint,GLsizei*,GLsizei*,void **);
+-    BOOL (*p_pbuffer_destroy)(HDC,void*);
+-    BOOL (*p_pbuffer_updated)(HDC,void*,GLenum,GLint);
+-    UINT (*p_pbuffer_bind)(HDC,void*,GLenum);
++    BOOL (*p_pbuffer_create)( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
++                              GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable );
++    BOOL (*p_pbuffer_destroy)( HDC hdc, struct opengl_drawable *drawable );
++    BOOL (*p_pbuffer_updated)( HDC hdc, struct opengl_drawable *drawable, GLenum cube_face, GLint mipmap_level );
++    UINT (*p_pbuffer_bind)( HDC hdc, struct opengl_drawable *drawable, GLenum buffer );
+ };
+ 
+ #endif /* WINE_UNIX_LIB */
+-- 
+2.43.0
+

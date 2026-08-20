@@ -1,0 +1,30 @@
+From ff5754df6707a7ee2b0797a4576476098c330ade Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Thu, 26 Jun 2025 17:28:24 +0200
+Subject: [PATCH 254/293] ntdll: Correctly report execute faults on ARM64.
+
+---
+ dlls/ntdll/unix/signal_arm64.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/ntdll/unix/signal_arm64.c b/dlls/ntdll/unix/signal_arm64.c
+index 8225a5d8a74..9964d0a9224 100644
+--- a/dlls/ntdll/unix/signal_arm64.c
++++ b/dlls/ntdll/unix/signal_arm64.c
+@@ -1069,9 +1069,12 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+ {
+     EXCEPTION_RECORD rec = { 0 };
+     ucontext_t *context = sigcontext;
++    DWORD64 esr = get_fault_esr( context );
+ 
+     rec.NumberParameters = 2;
+-    rec.ExceptionInformation[0] = (get_fault_esr( context ) & 0x40) != 0;
++    if ((esr & 0xf0000000) == 0x80000000) rec.ExceptionInformation[0] = EXCEPTION_EXECUTE_FAULT;
++    else if (esr & 0x40) rec.ExceptionInformation[0] = EXCEPTION_WRITE_FAULT;
++    else rec.ExceptionInformation[0] = EXCEPTION_READ_FAULT;
+     rec.ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
+     if (!virtual_handle_fault( &rec, (void *)SP_sig(context) )) return;
+     if (handle_syscall_fault( context, &rec )) return;
+-- 
+2.43.0
+

@@ -1,0 +1,25 @@
+From bcc33bf62a607b3f9515e11149264a9469506500 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 17 Jun 2025 17:35:59 +0100
+Subject: [PATCH 055/293] wintrust: Fix data length mix-up in asn decoder.
+
+---
+ dlls/wintrust/asn.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/wintrust/asn.c b/dlls/wintrust/asn.c
+index f6c4086b508..152ff5a2fbf 100644
+--- a/dlls/wintrust/asn.c
++++ b/dlls/wintrust/asn.c
+@@ -1347,7 +1347,7 @@ static BOOL CRYPT_AsnDecodeSPCLinkInternal(DWORD dwCertEncodingType,
+                     const BYTE *ptr = pbEncoded + 2 + lenBytes + realLenBytes;
+ 
+                     link->dwLinkChoice = SPC_FILE_LINK_CHOICE;
+-                    for (i = 0; i < dataLen / sizeof(WCHAR); i++)
++                    for (i = 0; i < realDataLen / sizeof(WCHAR); i++)
+                         link->pwszFile[i] =
+                          hton16(*(const WORD *)(ptr + i * sizeof(WCHAR)));
+                     link->pwszFile[realDataLen / sizeof(WCHAR)] = '\0';
+-- 
+2.43.0
+

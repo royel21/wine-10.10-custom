@@ -1,0 +1,26 @@
+From 7e2e8566c3b73387dc5e3dacaed34875c2a2c15c Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 17 Jun 2025 16:21:01 +0100
+Subject: [PATCH 088/293] usp10/tests: Avoid out-of-bound use of glyphItems
+ when nGlyphs mismatches.
+
+---
+ dlls/usp10/tests/usp10.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/usp10/tests/usp10.c b/dlls/usp10/tests/usp10.c
+index 92b26e56392..5395768c0f8 100644
+--- a/dlls/usp10/tests/usp10.c
++++ b/dlls/usp10/tests/usp10.c
+@@ -1030,7 +1030,7 @@ static inline void _test_shape_ok(int valid, HDC hdc, LPCWSTR string,
+         winetest_ok(nGlyphs == outnGlyphs, "got incorrect number of glyphs (%i)\n",outnGlyphs);
+     else if (nGlyphs != outnGlyphs)
+         winetest_trace("got incorrect number of glyphs (%i)\n",outnGlyphs);
+-    for (x = 0; x < outnGlyphs; x++)
++    for (x = 0; x < min(nGlyphs, outnGlyphs); x++)
+     {
+         if (glyphItems[x].Glyph)
+         {
+-- 
+2.43.0
+

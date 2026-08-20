@@ -1,0 +1,613 @@
+From 864de4eb97edc9601a10504a3b010016180b2211 Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Thu, 19 Jun 2025 11:36:43 +0200
+Subject: [PATCH 107/293] winecrt0: Add a default implementation for
+ DllGetVersion().
+
+---
+ dlls/browseui/browseui_main.c           | 30 ----------
+ dlls/cabinet/cabinet_main.c             | 32 ----------
+ dlls/comctl32/comctl32.h                |  2 -
+ dlls/comctl32/comctl32.rc               |  2 +-
+ dlls/comctl32/commctrl.c                | 36 ------------
+ dlls/explorerframe/explorerframe_main.c | 31 ----------
+ dlls/msftedit/msftedit_main.c           | 20 -------
+ dlls/riched32/richedit.c                | 21 -------
+ dlls/shdocvw/shdocvw_main.c             | 17 ------
+ dlls/shell32/shell32_main.c             | 49 ----------------
+ dlls/shell32/version.h                  | 25 --------
+ dlls/shlwapi/shlwapi_main.c             | 44 --------------
+ dlls/winecrt0/Makefile.in               |  1 +
+ dlls/winecrt0/dll_version.c             | 77 +++++++++++++++++++++++++
+ 14 files changed, 79 insertions(+), 308 deletions(-)
+ delete mode 100644 dlls/shell32/version.h
+ create mode 100644 dlls/winecrt0/dll_version.c
+
+diff --git a/dlls/browseui/browseui_main.c b/dlls/browseui/browseui_main.c
+index 6d089725d3c..e97c4fadb7b 100644
+--- a/dlls/browseui/browseui_main.c
++++ b/dlls/browseui/browseui_main.c
+@@ -28,7 +28,6 @@
+ #include "windef.h"
+ #include "winbase.h"
+ #include "winreg.h"
+-#include "shlwapi.h"
+ #include "shlguid.h"
+ #include "rpcproxy.h"
+ 
+@@ -180,35 +179,6 @@ HRESULT WINAPI DllCanUnloadNow(void)
+     return BROWSEUI_refCount ? S_FALSE : S_OK;
+ }
+ 
+-/***********************************************************************
+- *              DllGetVersion (BROWSEUI.@)
+- */
+-HRESULT WINAPI DllGetVersion(DLLVERSIONINFO *info)
+-{
+-    if(info->cbSize == sizeof(DLLVERSIONINFO) ||
+-       info->cbSize == sizeof(DLLVERSIONINFO2))
+-    {
+-        /* this is what IE6 on Windows 98 reports */
+-        info->dwMajorVersion = 6;
+-        info->dwMinorVersion = 0;
+-        info->dwBuildNumber = 2600;
+-        info->dwPlatformID = DLLVER_PLATFORM_WINDOWS;
+-        if(info->cbSize == sizeof(DLLVERSIONINFO2))
+-        {
+-            DLLVERSIONINFO2 *info2 = (DLLVERSIONINFO2*) info;
+-            info2->dwFlags = 0;
+-            info2->ullVersion = MAKEDLLVERULL(info->dwMajorVersion,
+-                                              info->dwMinorVersion,
+-                                              info->dwBuildNumber,
+-                                              0); /* FIXME: correct hotfix number */
+-        }
+-        return S_OK;
+-    }
+-
+-    WARN("wrong DLLVERSIONINFO size from app.\n");
+-    return E_INVALIDARG;
+-}
+-
+ /***********************************************************************
+  *              DllGetClassObject (BROWSEUI.@)
+  */
+diff --git a/dlls/cabinet/cabinet_main.c b/dlls/cabinet/cabinet_main.c
+index f95eca93c52..8f6961b2b6e 100644
+--- a/dlls/cabinet/cabinet_main.c
++++ b/dlls/cabinet/cabinet_main.c
+@@ -26,9 +26,6 @@
+ #include "windef.h"
+ #include "winbase.h"
+ #include "winerror.h"
+-#define NO_SHLWAPI_REG
+-#include "shlwapi.h"
+-#undef NO_SHLWAPI_REG
+ 
+ #include "cabinet.h"
+ 
+@@ -37,35 +34,6 @@
+ WINE_DEFAULT_DEBUG_CHANNEL(cabinet);
+ 
+ 
+-/***********************************************************************
+- * DllGetVersion (CABINET.2)
+- *
+- * Retrieves version information of the 'CABINET.DLL'
+- *
+- * PARAMS
+- *     pdvi [O] pointer to version information structure.
+- *
+- * RETURNS
+- *     Success: S_OK
+- *     Failure: E_INVALIDARG
+- *
+- * NOTES
+- *     Supposedly returns version from IE6SP1RP1
+- */
+-HRESULT WINAPI DllGetVersion (DLLVERSIONINFO *pdvi)
+-{
+-  WARN("hmmm... not right version number \"5.1.1106.1\"?\n");
+-
+-  if (pdvi->cbSize != sizeof(DLLVERSIONINFO)) return E_INVALIDARG;
+-
+-  pdvi->dwMajorVersion = 5;
+-  pdvi->dwMinorVersion = 1;
+-  pdvi->dwBuildNumber = 1106;
+-  pdvi->dwPlatformID = 1;
+-
+-  return S_OK;
+-}
+-
+ /* FDI callback functions */
+ 
+ static void * CDECL mem_alloc(ULONG cb)
+diff --git a/dlls/comctl32/comctl32.h b/dlls/comctl32/comctl32.h
+index 85190bd275f..a9a0b44fcd1 100644
+--- a/dlls/comctl32/comctl32.h
++++ b/dlls/comctl32/comctl32.h
+@@ -197,8 +197,6 @@ BOOL Str_SetPtrAtoW(LPWSTR *lppDest, LPCSTR lpSrc);
+ BOOL Str_SetPtrWtoA(LPSTR *lppDest, LPCWSTR lpSrc);
+ BOOL imagelist_has_alpha(HIMAGELIST, UINT);
+ 
+-#define COMCTL32_VERSION_MINOR 81
+-
+ /* Our internal stack structure of the window procedures to subclass */
+ typedef struct _SUBCLASSPROCS {
+     SUBCLASSPROC subproc;
+diff --git a/dlls/comctl32/comctl32.rc b/dlls/comctl32/comctl32.rc
+index e89ab0ee4d1..64fbe5bf531 100644
+--- a/dlls/comctl32/comctl32.rc
++++ b/dlls/comctl32/comctl32.rc
+@@ -113,7 +113,7 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+ 
+ #define WINE_FILEDESCRIPTION_STR "Wine Common Controls"
+ #define WINE_FILENAME_STR "comctl32.dll"
+-#define WINE_FILEVERSION COMCTL32_VERSION, COMCTL32_VERSION_MINOR, 4704, 1100
++#define WINE_FILEVERSION COMCTL32_VERSION,81,4704,1100
+ #define WINE_FILEVERSION_STR "5.81"
+ #define WINE_PRODUCTVERSION WINE_FILEVERSION
+ #define WINE_PRODUCTVERSION_STR WINE_FILEVERSION_STR
+diff --git a/dlls/comctl32/commctrl.c b/dlls/comctl32/commctrl.c
+index 2fbcdeb78c1..6097b1a9735 100644
+--- a/dlls/comctl32/commctrl.c
++++ b/dlls/comctl32/commctrl.c
+@@ -67,8 +67,6 @@
+ #include "commctrl.h"
+ #include "winerror.h"
+ #include "winreg.h"
+-#define NO_SHLWAPI_STREAM
+-#include "shlwapi.h"
+ #include "comctl32.h"
+ #include "uxtheme.h"
+ #include "wine/debug.h"
+@@ -945,40 +943,6 @@ CreateToolbar (HWND hwnd, DWORD style, UINT wID, INT nBitmaps,
+ }
+ 
+ 
+-/***********************************************************************
+- * DllGetVersion [COMCTL32.@]
+- *
+- * Retrieves version information of the 'COMCTL32.DLL'
+- *
+- * PARAMS
+- *     pdvi [O] pointer to version information structure.
+- *
+- * RETURNS
+- *     Success: S_OK
+- *     Failure: E_INVALIDARG
+- *
+- * NOTES
+- *     Returns version of a comctl32.dll from IE4.01 SP1.
+- */
+-
+-HRESULT WINAPI DllGetVersion (DLLVERSIONINFO *pdvi)
+-{
+-    if (pdvi->cbSize != sizeof(DLLVERSIONINFO)) {
+-        WARN("wrong DLLVERSIONINFO size from app\n");
+-	return E_INVALIDARG;
+-    }
+-
+-    pdvi->dwMajorVersion = COMCTL32_VERSION;
+-    pdvi->dwMinorVersion = COMCTL32_VERSION_MINOR;
+-    pdvi->dwBuildNumber = 2919;
+-    pdvi->dwPlatformID = 6304;
+-
+-    TRACE("%lu.%lu.%lu.%lu\n", pdvi->dwMajorVersion, pdvi->dwMinorVersion,
+-            pdvi->dwBuildNumber, pdvi->dwPlatformID);
+-
+-    return S_OK;
+-}
+-
+ /***********************************************************************
+  *		DllInstall (COMCTL32.@)
+  *
+diff --git a/dlls/explorerframe/explorerframe_main.c b/dlls/explorerframe/explorerframe_main.c
+index efaaae0ae39..0ba7e8a0c73 100644
+--- a/dlls/explorerframe/explorerframe_main.c
++++ b/dlls/explorerframe/explorerframe_main.c
+@@ -27,7 +27,6 @@
+ #include "winbase.h"
+ #include "winuser.h"
+ #include "winreg.h"
+-#include "shlwapi.h"
+ #include "shobjidl.h"
+ #include "rpcproxy.h"
+ 
+@@ -65,36 +64,6 @@ HRESULT WINAPI DllCanUnloadNow(void)
+     return EFRAME_refCount ? S_FALSE : S_OK;
+ }
+ 
+-/*************************************************************************
+- *              DllGetVersion (ExplorerFrame.@)
+- */
+-HRESULT WINAPI DllGetVersion(DLLVERSIONINFO *info)
+-{
+-    TRACE("%p\n", info);
+-    if(info->cbSize == sizeof(DLLVERSIONINFO) ||
+-       info->cbSize == sizeof(DLLVERSIONINFO2))
+-    {
+-        /* Windows 7 */
+-        info->dwMajorVersion = 6;
+-        info->dwMinorVersion = 1;
+-        info->dwBuildNumber = 7600;
+-        info->dwPlatformID = DLLVER_PLATFORM_WINDOWS;
+-        if(info->cbSize == sizeof(DLLVERSIONINFO2))
+-        {
+-            DLLVERSIONINFO2 *info2 = (DLLVERSIONINFO2*)info;
+-            info2->dwFlags = 0;
+-            info2->ullVersion = MAKEDLLVERULL(info->dwMajorVersion,
+-                                              info->dwMinorVersion,
+-                                              info->dwBuildNumber,
+-                                              16385); /* "hotfix number" */
+-        }
+-        return S_OK;
+-    }
+-
+-    WARN("wrong DLLVERSIONINFO size from app.\n");
+-    return E_INVALIDARG;
+-}
+-
+ /*************************************************************************
+  * Implement the ExplorerFrame class factory
+  */
+diff --git a/dlls/msftedit/msftedit_main.c b/dlls/msftedit/msftedit_main.c
+index 5c7d9268e8c..35fd76be06b 100644
+--- a/dlls/msftedit/msftedit_main.c
++++ b/dlls/msftedit/msftedit_main.c
+@@ -28,15 +28,10 @@
+ #include "winuser.h"
+ #include "richedit.h"
+ #include "imm.h"
+-#include "shlwapi.h"
+ #include "oleidl.h"
+ #include "initguid.h"
+ #include "textserv.h"
+ 
+-#include "wine/debug.h"
+-
+-WINE_DEFAULT_DEBUG_CHANNEL(msftedit);
+-
+ /***********************************************************************
+  * DllMain.
+  */
+@@ -57,18 +52,3 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
+     }
+     return TRUE;
+ }
+-
+-/***********************************************************************
+- *              DllGetVersion (msftedit.@)
+- */
+-HRESULT WINAPI DllGetVersion(DLLVERSIONINFO *info)
+-{
+-    if (info->cbSize != sizeof(DLLVERSIONINFO)) FIXME("support DLLVERSIONINFO2\n");
+-
+-    /* this is what WINXP SP2 reports */
+-    info->dwMajorVersion = 41;
+-    info->dwMinorVersion = 15;
+-    info->dwBuildNumber = 1507;
+-    info->dwPlatformID = 1;
+-    return NOERROR;
+-}
+diff --git a/dlls/riched32/richedit.c b/dlls/riched32/richedit.c
+index 44ce8434e38..4d55459fcce 100644
+--- a/dlls/riched32/richedit.c
++++ b/dlls/riched32/richedit.c
+@@ -30,7 +30,6 @@
+ #include "winerror.h"
+ #include "winuser.h"
+ #include "richedit.h"
+-#include "shlwapi.h"
+ 
+ #include "wine/debug.h"
+ 
+@@ -76,23 +75,3 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+     }
+     return TRUE;
+ }
+-
+-/***********************************************************************
+- * DllGetVersion [RICHED32.2]
+- *
+- * Retrieves version information
+- */
+-HRESULT WINAPI DllGetVersion (DLLVERSIONINFO *pdvi)
+-{
+-    TRACE("\n");
+-
+-    if (pdvi->cbSize != sizeof(DLLVERSIONINFO))
+-	return E_INVALIDARG;
+-
+-    pdvi->dwMajorVersion = 4;
+-    pdvi->dwMinorVersion = 0;
+-    pdvi->dwBuildNumber = 0;
+-    pdvi->dwPlatformID = 0;
+-
+-    return S_OK;
+-}
+diff --git a/dlls/shdocvw/shdocvw_main.c b/dlls/shdocvw/shdocvw_main.c
+index e0219d78b21..9ddbfdd0840 100644
+--- a/dlls/shdocvw/shdocvw_main.c
++++ b/dlls/shdocvw/shdocvw_main.c
+@@ -28,7 +28,6 @@
+ #include "shdocvw.h"
+ 
+ #include "winreg.h"
+-#include "shlwapi.h"
+ #include "wininet.h"
+ #include "isguids.h"
+ 
+@@ -143,22 +142,6 @@ HRESULT WINAPI DllCanUnloadNow(void)
+     return SHDOCVW_refCount ? S_FALSE : S_OK;
+ }
+ 
+-/***********************************************************************
+- *              DllGetVersion (SHDOCVW.@)
+- */
+-HRESULT WINAPI DllGetVersion(DLLVERSIONINFO *info)
+-{
+-    if (info->cbSize != sizeof(DLLVERSIONINFO)) FIXME("support DLLVERSIONINFO2\n");
+-
+-    /* this is what IE6 on Windows 98 reports */
+-    info->dwMajorVersion = 6;
+-    info->dwMinorVersion = 0;
+-    info->dwBuildNumber = 2600;
+-    info->dwPlatformID = DLLVER_PLATFORM_WINDOWS;
+-
+-    return NOERROR;
+-}
+-
+ /*************************************************************************
+  *              DllInstall (SHDOCVW.@)
+  */
+diff --git a/dlls/shell32/shell32_main.c b/dlls/shell32/shell32_main.c
+index d0ac857befa..6bd46eb4f80 100644
+--- a/dlls/shell32/shell32_main.c
++++ b/dlls/shell32/shell32_main.c
+@@ -42,7 +42,6 @@
+ 
+ #include "pidl.h"
+ #include "shell32_main.h"
+-#include "version.h"
+ #include "shresdef.h"
+ #include "initguid.h"
+ #include "shfldr.h"
+@@ -1047,54 +1046,6 @@ HRESULT WINAPI SHLoadNonloadedIconOverlayIdentifiers( VOID )
+     return S_OK;
+ }
+ 
+-/***********************************************************************
+- * DllGetVersion [SHELL32.@]
+- *
+- * Retrieves version information of the 'SHELL32.DLL'
+- *
+- * PARAMS
+- *     pdvi [O] pointer to version information structure.
+- *
+- * RETURNS
+- *     Success: S_OK
+- *     Failure: E_INVALIDARG
+- *
+- * NOTES
+- *     Returns version of a shell32.dll from IE4.01 SP1.
+- */
+-
+-HRESULT WINAPI DllGetVersion (DLLVERSIONINFO *pdvi)
+-{
+-    /* FIXME: shouldn't these values come from the version resource? */
+-    if (pdvi->cbSize == sizeof(DLLVERSIONINFO) ||
+-        pdvi->cbSize == sizeof(DLLVERSIONINFO2))
+-    {
+-        pdvi->dwMajorVersion = WINE_FILEVERSION_MAJOR;
+-        pdvi->dwMinorVersion = WINE_FILEVERSION_MINOR;
+-        pdvi->dwBuildNumber = WINE_FILEVERSION_BUILD;
+-        pdvi->dwPlatformID = WINE_FILEVERSION_PLATFORMID;
+-        if (pdvi->cbSize == sizeof(DLLVERSIONINFO2))
+-        {
+-            DLLVERSIONINFO2 *pdvi2 = (DLLVERSIONINFO2 *)pdvi;
+-
+-            pdvi2->dwFlags = 0;
+-            pdvi2->ullVersion = MAKEDLLVERULL(WINE_FILEVERSION_MAJOR,
+-                                              WINE_FILEVERSION_MINOR,
+-                                              WINE_FILEVERSION_BUILD,
+-                                              WINE_FILEVERSION_PLATFORMID);
+-        }
+-        TRACE("%lu.%lu.%lu.%lu\n",
+-              pdvi->dwMajorVersion, pdvi->dwMinorVersion,
+-              pdvi->dwBuildNumber, pdvi->dwPlatformID);
+-        return S_OK;
+-    }
+-    else
+-    {
+-        WARN("wrong DLLVERSIONINFO size from app\n");
+-        return E_INVALIDARG;
+-    }
+-}
+-
+ /*************************************************************************
+  * global variables of the shell32.dll
+  * all are once per process
+diff --git a/dlls/shell32/version.h b/dlls/shell32/version.h
+deleted file mode 100644
+index 06f4871483d..00000000000
+--- a/dlls/shell32/version.h
++++ /dev/null
+@@ -1,25 +0,0 @@
+-/*
+- * Shared Resource/DllGetVersion version information
+- *
+- * Copyright (C) 2004 Robert Shearman
+- *
+- * This library is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * This library is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with this library; if not, write to the Free Software
+- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+- */
+-
+-/* please keep in sync with shell32.rc values */
+-#define WINE_FILEVERSION_MAJOR         6
+-#define WINE_FILEVERSION_MINOR         0
+-#define WINE_FILEVERSION_BUILD      2900
+-#define WINE_FILEVERSION_PLATFORMID 6242
+diff --git a/dlls/shlwapi/shlwapi_main.c b/dlls/shlwapi/shlwapi_main.c
+index ea45bdf32d5..5b7f86ae33d 100644
+--- a/dlls/shlwapi/shlwapi_main.c
++++ b/dlls/shlwapi/shlwapi_main.c
+@@ -171,50 +171,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID fImpLoad)
+     return TRUE;
+ }
+ 
+-/***********************************************************************
+- * DllGetVersion [SHLWAPI.@]
+- *
+- * Retrieve "shlwapi.dll" version information.
+- *
+- * PARAMS
+- *     pdvi [O] pointer to version information structure.
+- *
+- * RETURNS
+- *     Success: S_OK. pdvi is updated with the version information
+- *     Failure: E_INVALIDARG, if pdvi->cbSize is not set correctly.
+- *
+- * NOTES
+- *     You may pass either a DLLVERSIONINFO of DLLVERSIONINFO2 structure
+- *     as pdvi, provided that the size is set correctly.
+- *     Returns version as shlwapi.dll from IE5.01.
+- */
+-HRESULT WINAPI DllGetVersion (DLLVERSIONINFO *pdvi)
+-{
+-  DLLVERSIONINFO2 *pdvi2 = (DLLVERSIONINFO2*)pdvi;
+-
+-  TRACE("(%p)\n",pdvi);
+-
+-  if (!pdvi)
+-    return E_INVALIDARG;
+-
+-  switch (pdvi2->info1.cbSize)
+-  {
+-  case sizeof(DLLVERSIONINFO2):
+-    pdvi2->dwFlags = 0;
+-    pdvi2->ullVersion = MAKEDLLVERULL(6, 0, 2800, 1612);
+-    /* Fall through */
+-  case sizeof(DLLVERSIONINFO):
+-    pdvi2->info1.dwMajorVersion = 6;
+-    pdvi2->info1.dwMinorVersion = 0;
+-    pdvi2->info1.dwBuildNumber = 2800;
+-    pdvi2->info1.dwPlatformID = DLLVER_PLATFORM_WINDOWS;
+-    return S_OK;
+- }
+-
+- WARN("pdvi->cbSize = %ld, unhandled\n", pdvi2->info1.cbSize);
+- return E_INVALIDARG;
+-}
+-
+ /*************************************************************************
+  *      WhichPlatform()        [SHLWAPI.276]
+  */
+diff --git a/dlls/winecrt0/Makefile.in b/dlls/winecrt0/Makefile.in
+index 863e5ed4190..29cd88f8637 100644
+--- a/dlls/winecrt0/Makefile.in
++++ b/dlls/winecrt0/Makefile.in
+@@ -11,6 +11,7 @@ SOURCES = \
+ 	dll_main.c \
+ 	dll_register.c \
+ 	dll_soinit.c \
++	dll_version.c \
+ 	exception.c \
+ 	exe16_entry.c \
+ 	exe_entry.c \
+diff --git a/dlls/winecrt0/dll_version.c b/dlls/winecrt0/dll_version.c
+new file mode 100644
+index 00000000000..a96976e5417
+--- /dev/null
++++ b/dlls/winecrt0/dll_version.c
+@@ -0,0 +1,77 @@
++/*
++ * DllGetVersion default implementation
++ *
++ * Copyright 2025 Alexandre Julliard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#include <stdarg.h>
++#include "windef.h"
++#include "winbase.h"
++#include "shlwapi.h"
++
++static inline void *image_base(void)
++{
++#ifdef __WINE_PE_BUILD
++    extern IMAGE_DOS_HEADER __ImageBase;
++    return (void *)&__ImageBase;
++#else
++    extern IMAGE_NT_HEADERS __wine_spec_nt_header;
++    return (void *)((__wine_spec_nt_header.OptionalHeader.ImageBase + 0xffff) & ~0xffff);
++#endif
++}
++
++struct version_info
++{
++    WORD  len;
++    WORD  val_len;
++    WORD  type;
++    WCHAR key[];
++};
++
++#define GET_VERSION_VALUE(info) ((void *)((char *)info + ((offsetof(struct version_info, key[lstrlenW(info->key) + 1]) + 3) & ~3)))
++
++HRESULT WINAPI DllGetVersion( DLLVERSIONINFO *info )
++{
++    HRSRC rsrc;
++    HMODULE module = image_base();
++    struct version_info *data;
++    VS_FIXEDFILEINFO *fileinfo;
++    DLLVERSIONINFO2 *info2 = (DLLVERSIONINFO2 *)info;
++
++    if (!info) return E_INVALIDARG;
++    if (!(rsrc = FindResourceW( module, (LPWSTR)VS_VERSION_INFO, (LPWSTR)VS_FILE_INFO ))) return E_INVALIDARG;
++    if (!(data = LoadResource( module, rsrc ))) return E_INVALIDARG;
++    if (data->val_len < sizeof(*fileinfo)) return E_INVALIDARG;
++    fileinfo = GET_VERSION_VALUE( data );
++    if (fileinfo->dwSignature != VS_FFI_SIGNATURE) return E_INVALIDARG;
++
++    switch (info->cbSize)
++    {
++    case sizeof(DLLVERSIONINFO2):
++        info2->dwFlags    = 0;
++        info2->ullVersion = ((ULONGLONG)fileinfo->dwFileVersionMS << 32) | fileinfo->dwFileVersionLS;
++        /* fall through */
++    case sizeof(DLLVERSIONINFO):
++        info->dwMajorVersion = HIWORD( fileinfo->dwFileVersionMS );
++        info->dwMinorVersion = LOWORD( fileinfo->dwFileVersionMS );
++        info->dwBuildNumber  = HIWORD( fileinfo->dwFileVersionLS );
++        info->dwPlatformID   = DLLVER_PLATFORM_NT;
++        return S_OK;
++    default:
++        return E_INVALIDARG;
++    }
++}
+-- 
+2.43.0
+

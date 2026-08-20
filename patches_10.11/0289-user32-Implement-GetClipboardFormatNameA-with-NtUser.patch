@@ -1,0 +1,48 @@
+From 47b0574d1b636be040fe71ebb861daf467c48237 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Thu, 26 Jun 2025 23:34:58 +0200
+Subject: [PATCH 289/293] user32: Implement GetClipboardFormatNameA with
+ NtUserGetClipboardFormatName.
+
+---
+ dlls/user32/clipboard.c | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/user32/clipboard.c b/dlls/user32/clipboard.c
+index 6dd787920d7..f2b6ac92402 100644
+--- a/dlls/user32/clipboard.c
++++ b/dlls/user32/clipboard.c
+@@ -558,8 +558,29 @@ UINT WINAPI RegisterClipboardFormatA( LPCSTR name )
+  */
+ INT WINAPI GetClipboardFormatNameA( UINT format, LPSTR buffer, INT maxlen )
+ {
++    WCHAR tmpW[MAX_ATOM_LEN + 1];
++    UINT lenW, lenA = 0, len;
++
+     if (format < MAXINTATOM || format > 0xffff) return 0;
+-    return GlobalGetAtomNameA( format, buffer, maxlen );
++
++    if (maxlen <= 0) SetLastError( ERROR_MORE_DATA );
++    else if ((lenW = NtUserGetClipboardFormatName( format, tmpW, MAX_ATOM_LEN + 1 )))
++    {
++        char tmp[MAX_ATOM_LEN + 1];
++
++        lenA = WideCharToMultiByte( CP_ACP, 0, tmpW, lenW, tmp, MAX_ATOM_LEN + 1, NULL, NULL );
++        len = min( lenA, maxlen - 1 );
++        memcpy( buffer, tmp, len );
++        buffer[len] = '\0';
++
++        if (lenA >= maxlen)
++        {
++            lenA = 0;
++            SetLastError( ERROR_MORE_DATA );
++        }
++    }
++
++    return lenA;
+ }
+ 
+ 
+-- 
+2.43.0
+

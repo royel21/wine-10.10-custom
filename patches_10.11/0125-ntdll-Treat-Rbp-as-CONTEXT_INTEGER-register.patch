@@ -1,0 +1,272 @@
+From 91d858f18e432f3b5896902dec4379a1dac5aee4 Mon Sep 17 00:00:00 2001
+From: Charlotte Pabst <cpabst@codeweavers.com>
+Date: Wed, 18 Jun 2025 18:13:27 +0200
+Subject: [PATCH 125/293] ntdll: Treat Rbp as CONTEXT_INTEGER register.
+
+---
+ dlls/dbghelp/tests/dbghelp.c    |  2 +-
+ dlls/ntdll/unix/signal_x86_64.c |  4 ++--
+ dlls/ntdll/unix/thread.c        | 20 ++++++++++++++------
+ include/wine/server_protocol.h  |  6 +++---
+ server/protocol.def             |  4 ++--
+ server/request_handlers.h       |  2 +-
+ server/trace.c                  |  2 +-
+ tools/make_requests             |  2 +-
+ 8 files changed, 25 insertions(+), 17 deletions(-)
+
+diff --git a/dlls/dbghelp/tests/dbghelp.c b/dlls/dbghelp/tests/dbghelp.c
+index e9dcce300e9..9387804a1b2 100644
+--- a/dlls/dbghelp/tests/dbghelp.c
++++ b/dlls/dbghelp/tests/dbghelp.c
+@@ -100,7 +100,7 @@ static void test_stack_walk(void)
+     }
+     while (!count);
+ 
+-    ctx.ContextFlags = CONTEXT_CONTROL;
++    ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+     ret = GetThreadContext(thread, &ctx);
+     ok(ret, "got error %u\n", ret);
+ 
+diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
+index 058e3976ef1..6ec662b9850 100644
+--- a/dlls/ntdll/unix/signal_x86_64.c
++++ b/dlls/ntdll/unix/signal_x86_64.c
+@@ -1044,6 +1044,7 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
+         frame->rbx = context->Rbx;
+         frame->rcx = context->Rcx;
+         frame->rdx = context->Rdx;
++        frame->rbp = context->Rbp;
+         frame->rsi = context->Rsi;
+         frame->rdi = context->Rdi;
+         frame->r8  = context->R8;
+@@ -1058,7 +1059,6 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
+     if (flags & CONTEXT_CONTROL)
+     {
+         frame->rsp    = context->Rsp;
+-        frame->rbp    = context->Rbp;
+         frame->rip    = context->Rip;
+         frame->eflags = context->EFlags;
+     }
+@@ -1109,6 +1109,7 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
+         context->Rbx = frame->rbx;
+         context->Rcx = frame->rcx;
+         context->Rdx = frame->rdx;
++        context->Rbp = frame->rbp;
+         context->Rsi = frame->rsi;
+         context->Rdi = frame->rdi;
+         context->R8  = frame->r8;
+@@ -1124,7 +1125,6 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
+     if (needed_flags & CONTEXT_CONTROL)
+     {
+         context->Rsp    = frame->rsp;
+-        context->Rbp    = frame->rbp;
+         context->Rip    = frame->rip;
+         context->EFlags = frame->eflags;
+         context->SegCs  = cs64_sel;
+diff --git a/dlls/ntdll/unix/thread.c b/dlls/ntdll/unix/thread.c
+index 6a59fdb3cb3..ce6683e075f 100644
+--- a/dlls/ntdll/unix/thread.c
++++ b/dlls/ntdll/unix/thread.c
+@@ -351,12 +351,13 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
+         if (flags & CONTEXT_I386_CONTROL)
+         {
+             to->flags |= SERVER_CTX_CONTROL;
+-            to->ctl.x86_64_regs.rbp    = from->Ebp;
+             to->ctl.x86_64_regs.rsp    = from->Esp;
+             to->ctl.x86_64_regs.rip    = from->Eip;
+             to->ctl.x86_64_regs.cs     = from->SegCs;
+             to->ctl.x86_64_regs.ss     = from->SegSs;
+             to->ctl.x86_64_regs.flags  = from->EFlags;
++
++            to->integer.x86_64_regs.rbp = from->Ebp;
+         }
+         if (flags & CONTEXT_I386_INTEGER)
+         {
+@@ -410,7 +411,6 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
+         if (flags & CONTEXT_AMD64_CONTROL)
+         {
+             to->flags |= SERVER_CTX_CONTROL;
+-            to->ctl.x86_64_regs.rbp   = from->Rbp;
+             to->ctl.x86_64_regs.rip   = from->Rip;
+             to->ctl.x86_64_regs.rsp   = from->Rsp;
+             to->ctl.x86_64_regs.cs    = from->SegCs;
+@@ -424,6 +424,7 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
+             to->integer.x86_64_regs.rcx = from->Rcx;
+             to->integer.x86_64_regs.rdx = from->Rdx;
+             to->integer.x86_64_regs.rbx = from->Rbx;
++            to->integer.x86_64_regs.rbp = from->Rbp;
+             to->integer.x86_64_regs.rsi = from->Rsi;
+             to->integer.x86_64_regs.rdi = from->Rdi;
+             to->integer.x86_64_regs.r8  = from->R8;
+@@ -472,7 +473,6 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
+         if (flags & CONTEXT_AMD64_CONTROL)
+         {
+             to->flags |= SERVER_CTX_CONTROL;
+-            to->ctl.i386_regs.ebp    = from->Rbp;
+             to->ctl.i386_regs.eip    = from->Rip;
+             to->ctl.i386_regs.esp    = from->Rsp;
+             to->ctl.i386_regs.cs     = from->SegCs;
+@@ -488,6 +488,8 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
+             to->integer.i386_regs.ebx = from->Rbx;
+             to->integer.i386_regs.esi = from->Rsi;
+             to->integer.i386_regs.edi = from->Rdi;
++
++            to->ctl.i386_regs.ebp = from->Rbp;
+         }
+         if (flags & CONTEXT_AMD64_SEGMENTS)
+         {
+@@ -758,7 +760,6 @@ static NTSTATUS context_from_server( void *dst, const struct context_data *from,
+         if ((from->flags & SERVER_CTX_CONTROL) && (to_flags & CONTEXT_I386_CONTROL))
+         {
+             to->ContextFlags |= CONTEXT_I386_CONTROL;
+-            to->Ebp    = from->ctl.x86_64_regs.rbp;
+             to->Esp    = from->ctl.x86_64_regs.rsp;
+             to->Eip    = from->ctl.x86_64_regs.rip;
+             to->SegCs  = from->ctl.x86_64_regs.cs;
+@@ -775,6 +776,10 @@ static NTSTATUS context_from_server( void *dst, const struct context_data *from,
+             to->Esi = from->integer.x86_64_regs.rsi;
+             to->Edi = from->integer.x86_64_regs.rdi;
+         }
++        if ((from->flags & SERVER_CTX_INTEGER) && (to_flags & CONTEXT_I386_CONTROL))
++        {
++            to->Ebp = from->integer.x86_64_regs.rbp;
++        }
+         if ((from->flags & SERVER_CTX_SEGMENTS) && (to_flags & CONTEXT_I386_SEGMENTS))
+         {
+             to->ContextFlags |= CONTEXT_I386_SEGMENTS;
+@@ -820,7 +825,6 @@ static NTSTATUS context_from_server( void *dst, const struct context_data *from,
+         if ((from->flags & SERVER_CTX_CONTROL) && (to_flags & CONTEXT_AMD64_CONTROL))
+         {
+             to->ContextFlags |= CONTEXT_AMD64_CONTROL;
+-            to->Rbp    = from->ctl.x86_64_regs.rbp;
+             to->Rip    = from->ctl.x86_64_regs.rip;
+             to->Rsp    = from->ctl.x86_64_regs.rsp;
+             to->SegCs  = from->ctl.x86_64_regs.cs;
+@@ -834,6 +838,7 @@ static NTSTATUS context_from_server( void *dst, const struct context_data *from,
+             to->Rcx = from->integer.x86_64_regs.rcx;
+             to->Rdx = from->integer.x86_64_regs.rdx;
+             to->Rbx = from->integer.x86_64_regs.rbx;
++            to->Rbp = from->integer.x86_64_regs.rbp;
+             to->Rsi = from->integer.x86_64_regs.rsi;
+             to->Rdi = from->integer.x86_64_regs.rdi;
+             to->R8  = from->integer.x86_64_regs.r8;
+@@ -883,7 +888,6 @@ static NTSTATUS context_from_server( void *dst, const struct context_data *from,
+         if ((from->flags & SERVER_CTX_CONTROL) && (to_flags & CONTEXT_AMD64_CONTROL))
+         {
+             to->ContextFlags |= CONTEXT_AMD64_CONTROL;
+-            to->Rbp    = from->ctl.i386_regs.ebp;
+             to->Rip    = from->ctl.i386_regs.eip;
+             to->Rsp    = from->ctl.i386_regs.esp;
+             to->SegCs  = from->ctl.i386_regs.cs;
+@@ -900,6 +904,10 @@ static NTSTATUS context_from_server( void *dst, const struct context_data *from,
+             to->Rsi = from->integer.i386_regs.esi;
+             to->Rdi = from->integer.i386_regs.edi;
+         }
++        if ((from->flags & SERVER_CTX_CONTROL) && (to_flags & CONTEXT_AMD64_INTEGER))
++        {
++            to->Rbp = from->ctl.i386_regs.ebp;
++        }
+         if ((from->flags & SERVER_CTX_SEGMENTS) && (to_flags & CONTEXT_AMD64_SEGMENTS))
+         {
+             to->ContextFlags |= CONTEXT_AMD64_SEGMENTS;
+diff --git a/include/wine/server_protocol.h b/include/wine/server_protocol.h
+index 84a83612471..b4ea9dcbd63 100644
+--- a/include/wine/server_protocol.h
++++ b/include/wine/server_protocol.h
+@@ -127,7 +127,7 @@ struct context_data
+     union
+     {
+         struct { unsigned int eip, ebp, esp, eflags, cs, ss; } i386_regs;
+-        struct { unsigned __int64 rip, rbp, rsp;
++        struct { unsigned __int64 rip, rsp;
+                  unsigned int cs, ss, flags, __pad; } x86_64_regs;
+         struct { unsigned int sp, lr, pc, cpsr; } arm_regs;
+         struct { unsigned __int64 sp, pc, pstate; } arm64_regs;
+@@ -135,7 +135,7 @@ struct context_data
+     union
+     {
+         struct { unsigned int eax, ebx, ecx, edx, esi, edi; } i386_regs;
+-        struct { unsigned __int64 rax,rbx, rcx, rdx, rsi, rdi,
++        struct { unsigned __int64 rax, rbx, rcx, rdx, rbp, rsi, rdi,
+                                   r8, r9, r10, r11, r12, r13, r14, r15; } x86_64_regs;
+         struct { unsigned int r[13]; } arm_regs;
+         struct { unsigned __int64 x[31]; } arm64_regs;
+@@ -6810,6 +6810,6 @@ union generic_reply
+     struct set_keyboard_repeat_reply set_keyboard_repeat_reply;
+ };
+ 
+-#define SERVER_PROTOCOL_VERSION 877
++#define SERVER_PROTOCOL_VERSION 878
+ 
+ #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
+diff --git a/server/protocol.def b/server/protocol.def
+index dd9ace22b85..66d9f3e930b 100644
+--- a/server/protocol.def
++++ b/server/protocol.def
+@@ -143,7 +143,7 @@ struct context_data
+     union
+     {
+         struct { unsigned int eip, ebp, esp, eflags, cs, ss; } i386_regs;
+-        struct { unsigned __int64 rip, rbp, rsp;
++        struct { unsigned __int64 rip, rsp;
+                  unsigned int cs, ss, flags, __pad; } x86_64_regs;
+         struct { unsigned int sp, lr, pc, cpsr; } arm_regs;
+         struct { unsigned __int64 sp, pc, pstate; } arm64_regs;
+@@ -151,7 +151,7 @@ struct context_data
+     union
+     {
+         struct { unsigned int eax, ebx, ecx, edx, esi, edi; } i386_regs;
+-        struct { unsigned __int64 rax,rbx, rcx, rdx, rsi, rdi,
++        struct { unsigned __int64 rax, rbx, rcx, rdx, rbp, rsi, rdi,
+                                   r8, r9, r10, r11, r12, r13, r14, r15; } x86_64_regs;
+         struct { unsigned int r[13]; } arm_regs;
+         struct { unsigned __int64 x[31]; } arm64_regs;
+diff --git a/server/request_handlers.h b/server/request_handlers.h
+index abed86cfe6a..d7ca97ed3d1 100644
+--- a/server/request_handlers.h
++++ b/server/request_handlers.h
+@@ -619,7 +619,7 @@ C_ASSERT( sizeof(object_id_t) == 8 );
+ C_ASSERT( sizeof(process_id_t) == 4 );
+ C_ASSERT( sizeof(short int) == 2 );
+ C_ASSERT( sizeof(struct async_data) == 40 );
+-C_ASSERT( sizeof(struct context_data) == 1728 );
++C_ASSERT( sizeof(struct context_data) == 1720 );
+ C_ASSERT( sizeof(struct cursor_pos) == 24 );
+ C_ASSERT( sizeof(struct filesystem_event) == 12 );
+ C_ASSERT( sizeof(struct generic_map) == 16 );
+diff --git a/server/trace.c b/server/trace.c
+index 77a91435b55..8f0f622fb48 100644
+--- a/server/trace.c
++++ b/server/trace.c
+@@ -754,7 +754,6 @@ static void dump_varargs_context( const char *prefix, data_size_t size )
+         if (ctx.flags & SERVER_CTX_CONTROL)
+         {
+             dump_uint64( ",rip=", &ctx.ctl.x86_64_regs.rip );
+-            dump_uint64( ",rbp=", &ctx.ctl.x86_64_regs.rbp );
+             dump_uint64( ",rsp=", &ctx.ctl.x86_64_regs.rsp );
+             fprintf( stderr, ",cs=%04x,ss=%04x,flags=%08x",
+                      ctx.ctl.x86_64_regs.cs, ctx.ctl.x86_64_regs.ss, ctx.ctl.x86_64_regs.flags );
+@@ -765,6 +764,7 @@ static void dump_varargs_context( const char *prefix, data_size_t size )
+             dump_uint64( ",rbx=", &ctx.integer.x86_64_regs.rbx );
+             dump_uint64( ",rcx=", &ctx.integer.x86_64_regs.rcx );
+             dump_uint64( ",rdx=", &ctx.integer.x86_64_regs.rdx );
++            dump_uint64( ",rbp=", &ctx.integer.x86_64_regs.rbp );
+             dump_uint64( ",rsi=", &ctx.integer.x86_64_regs.rsi );
+             dump_uint64( ",rdi=", &ctx.integer.x86_64_regs.rdi );
+             dump_uint64( ",r8=",  &ctx.integer.x86_64_regs.r8 );
+diff --git a/tools/make_requests b/tools/make_requests
+index d78595c1e78..f87664c9690 100755
+--- a/tools/make_requests
++++ b/tools/make_requests
+@@ -42,7 +42,7 @@ my %formats =
+     "union apc_call"           => [ 64, 8 ],
+     "union apc_result"         => [ 40, 8 ],
+     "struct async_data"        => [ 40, 8 ],
+-    "struct context_data"      => [ 1728, 8 ],
++    "struct context_data"      => [ 1720, 8 ],
+     "struct cursor_pos"        => [ 24, 8 ],
+     "union debug_event_data"   => [ 160, 8 ],
+     "struct filesystem_event"  => [ 12, 4 ],
+-- 
+2.43.0
+

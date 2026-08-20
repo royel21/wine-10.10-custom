@@ -1,0 +1,26 @@
+From 04507f219d064a5962c5e6e2abf36d40f194f34f Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Thu, 26 Jun 2025 15:12:17 +0200
+Subject: [PATCH 253/293] ntdll: Only reset the reported write watch range in
+ NtGetWriteWatch.
+
+Fixes 306e24508d75651e7895a64aa0d956d0546ec0ac.
+---
+ dlls/ntdll/unix/virtual.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/dlls/ntdll/unix/virtual.c b/dlls/ntdll/unix/virtual.c
+index e1ce9f463d8..e733e3ffdd6 100644
+--- a/dlls/ntdll/unix/virtual.c
++++ b/dlls/ntdll/unix/virtual.c
+@@ -6442,6 +6442,7 @@ NTSTATUS WINAPI NtGetWriteWatch( HANDLE process, ULONG flags, PVOID base, SIZE_T
+                 if (!(get_page_vprot( addr ) & VPROT_WRITEWATCH)) addresses[pos++] = addr;
+                 addr += page_size;
+             }
++            size = addr - (char *)base;
+             *count = pos;
+         }
+         if (flags & WRITE_WATCH_FLAG_RESET && (enable_write_exceptions || !use_kernel_writewatch))
+-- 
+2.43.0
+

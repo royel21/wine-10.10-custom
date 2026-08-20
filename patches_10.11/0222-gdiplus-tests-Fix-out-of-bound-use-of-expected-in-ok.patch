@@ -1,0 +1,30 @@
+From 1173c9d8c460a1e96a991a74fdcbfadf387d0f0c Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 24 Jun 2025 19:17:39 +0100
+Subject: [PATCH 222/293] gdiplus/tests: Fix out-of-bound use of expected in
+ ok_path_fudge.
+
+---
+ dlls/gdiplus/tests/graphicspath.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/gdiplus/tests/graphicspath.c b/dlls/gdiplus/tests/graphicspath.c
+index 48894e42dd5..aa81296ef4c 100644
+--- a/dlls/gdiplus/tests/graphicspath.c
++++ b/dlls/gdiplus/tests/graphicspath.c
+@@ -121,7 +121,11 @@ static void _ok_path_fudge(GpPath* path, const path_test_t *expected, INT expect
+         if (match || expected[eidx].todo != 2)
+             idx++;
+         if (match || !numskip--)
+-            numskip = expected[++eidx].wine_only_entries_preceding;
++        {
++            eidx++;
++            if (eidx < expected_size)
++                numskip = expected[eidx].wine_only_entries_preceding;
++        }
+     }
+ 
+ end:
+-- 
+2.43.0
+

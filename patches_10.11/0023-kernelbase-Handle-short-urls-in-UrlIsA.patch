@@ -1,0 +1,24 @@
+From f2d660bbdd89b716f394e92d5632adb51d3ec891 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Fri, 13 Jun 2025 19:05:29 +0100
+Subject: [PATCH 023/293] kernelbase: Handle short urls in UrlIsA.
+
+---
+ dlls/kernelbase/path.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/dlls/kernelbase/path.c b/dlls/kernelbase/path.c
+index a737294e655..eea31159daa 100644
+--- a/dlls/kernelbase/path.c
++++ b/dlls/kernelbase/path.c
+@@ -4733,6 +4733,7 @@ BOOL WINAPI UrlIsA(const char *url, URLIS Urlis)
+         return scheme_is_opaque( base.nScheme );
+ 
+     case URLIS_FILEURL:
++        if (strlen(url) < 5) return FALSE;
+         return (CompareStringA(LOCALE_INVARIANT, NORM_IGNORECASE, url, 5, "file:", 5) == CSTR_EQUAL);
+ 
+     case URLIS_DIRECTORY:
+-- 
+2.43.0
+

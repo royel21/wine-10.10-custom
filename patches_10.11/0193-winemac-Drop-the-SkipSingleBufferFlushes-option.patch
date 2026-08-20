@@ -1,0 +1,106 @@
+From b245ee24626c3012452e8f292195fda58b671b44 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Fri, 20 Jun 2025 08:18:23 +0200
+Subject: [PATCH 193/293] winemac: Drop the SkipSingleBufferFlushes option.
+
+It's undocumented and doubtfully useful, better remove it than break
+it silently when changing the way context is being flushed.
+---
+ dlls/winemac.drv/macdrv.h      |  1 -
+ dlls/winemac.drv/macdrv_main.c |  4 ----
+ dlls/winemac.drv/opengl.c      | 24 ------------------------
+ 3 files changed, 29 deletions(-)
+
+diff --git a/dlls/winemac.drv/macdrv.h b/dlls/winemac.drv/macdrv.h
+index 715997eb482..b658c8f7939 100644
+--- a/dlls/winemac.drv/macdrv.h
++++ b/dlls/winemac.drv/macdrv.h
+@@ -39,7 +39,6 @@
+ #include "unixlib.h"
+ 
+ 
+-extern BOOL skip_single_buffer_flushes;
+ extern BOOL allow_vsync;
+ extern BOOL allow_set_gamma;
+ extern BOOL allow_software_rendering;
+diff --git a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
+index 9a3a3143e3c..20295d1c6ee 100644
+--- a/dlls/winemac.drv/macdrv_main.c
++++ b/dlls/winemac.drv/macdrv_main.c
+@@ -44,7 +44,6 @@ C_ASSERT(NUM_EVENT_TYPES <= sizeof(macdrv_event_mask) * 8);
+ 
+ int topmost_float_inactive = TOPMOST_FLOAT_INACTIVE_NONFULLSCREEN;
+ int capture_displays_for_fullscreen = 0;
+-BOOL skip_single_buffer_flushes = FALSE;
+ BOOL allow_vsync = TRUE;
+ BOOL allow_set_gamma = TRUE;
+ int left_option_is_alt = 0;
+@@ -322,9 +321,6 @@ static void setup_options(void)
+     if (!get_config_key(hkey, appkey, "CaptureDisplaysForFullscreen", buffer, sizeof(buffer)))
+         capture_displays_for_fullscreen = IS_OPTION_TRUE(buffer[0]);
+ 
+-    if (!get_config_key(hkey, appkey, "SkipSingleBufferFlushes", buffer, sizeof(buffer)))
+-        skip_single_buffer_flushes = IS_OPTION_TRUE(buffer[0]);
+-
+     if (!get_config_key(hkey, appkey, "AllowVerticalSync", buffer, sizeof(buffer)))
+         allow_vsync = IS_OPTION_TRUE(buffer[0]);
+ 
+diff --git a/dlls/winemac.drv/opengl.c b/dlls/winemac.drv/opengl.c
+index 17eacc5eab2..8ef2059211e 100644
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -76,7 +76,6 @@ struct macdrv_context
+     CGLPBufferObj           read_pbuffer;
+     int                     swap_interval;
+     LONG                    view_moved;
+-    unsigned int            last_flush_time;
+     UINT                    major;
+ };
+ 
+@@ -106,7 +105,6 @@ static const struct opengl_drawable_funcs macdrv_pbuffer_funcs;
+ static void (*pglCopyColorTable)(GLenum target, GLenum internalformat, GLint x, GLint y,
+                                  GLsizei width);
+ static void (*pglCopyPixels)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type);
+-static void (*pglFlushRenderAPPLE)(void);
+ static const GLubyte *(*pglGetString)(GLenum name);
+ static PFN_glGetIntegerv pglGetIntegerv;
+ static void (*pglReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height,
+@@ -2083,26 +2081,6 @@ static BOOL macdrv_context_flush( void *private, HWND hwnd, HDC hdc, int interva
+ 
+     set_swap_interval(context, interval);
+ 
+-    if (skip_single_buffer_flushes)
+-    {
+-        const pixel_format *pf = &pixel_formats[context->format - 1];
+-        unsigned int now = NtGetTickCount();
+-
+-        TRACE("double buffer %d last flush time %d now %d\n", pf->double_buffer,
+-              context->last_flush_time, now);
+-        if (pglFlushRenderAPPLE && !pf->double_buffer && (now - context->last_flush_time) < 17)
+-        {
+-            TRACE("calling glFlushRenderAPPLE()\n");
+-            pglFlushRenderAPPLE();
+-            return TRUE;
+-        }
+-        else
+-        {
+-            TRACE("calling glFlush()\n");
+-            context->last_flush_time = now;
+-        }
+-    }
+-
+     return FALSE;
+ }
+ 
+@@ -2812,8 +2790,6 @@ UINT macdrv_OpenGLInit(UINT version, const struct opengl_funcs *opengl_funcs, co
+     if (!init_gl_info())
+         goto failed;
+ 
+-    if (gluCheckExtension((GLubyte*)"GL_APPLE_flush_render", (GLubyte*)gl_info.glExtensions))
+-        LOAD_FUNCPTR(glFlushRenderAPPLE);
+ #undef LOAD_FUNCPTR
+ 
+     *driver_funcs = &macdrv_driver_funcs;
+-- 
+2.43.0
+

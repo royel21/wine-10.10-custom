@@ -1,0 +1,128 @@
+From 42aeacaf997394023b5b180607150863f585f981 Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Fri, 27 Jun 2025 12:27:47 +0200
+Subject: [PATCH 276/293] makefiles: Support specifying the PE architecture as
+ "none".
+
+To allow building for multiple host architectures without building the
+PE side multiple times.
+---
+ aclocal.m4      | 2 +-
+ configure       | 8 +++++++-
+ configure.ac    | 3 +++
+ tools/makedep.c | 8 +++++---
+ 4 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/aclocal.m4 b/aclocal.m4
+index 598a82d1e6b..0597c37ece2 100644
+--- a/aclocal.m4
++++ b/aclocal.m4
+@@ -291,7 +291,7 @@ wine_fn_config_makefile ()
+       no) AS_VAR_APPEND([DISABLED_SUBDIRS],[" $[1]"]) ;;
+       yes) ;;
+       *aarch64*|*arm*|*i386*|*x86_64*)
+-        if test -n "$PE_ARCHS"
++        if test -n "$PE_ARCHS" -a "$PE_ARCHS" != none
+         then
+             for i in $PE_ARCHS
+             do
+diff --git a/configure b/configure
+index 23fc01d0aad..2a04a6e622f 100755
+--- a/configure
++++ b/configure
+@@ -7383,6 +7383,7 @@ then :
+      do
+          case $arch in
+            i386|x86_64|arm|aarch64|arm64ec) cross_archs="$cross_archs $arch" ;;
++           no|none) PE_ARCHS=none ;;
+            *) as_fn_error $? "Unknown cross-compilation architecture '$arch'" "$LINENO" 5 ;;
+          esac
+      done
+@@ -7394,6 +7395,11 @@ else case e in #(
+ esac
+ fi
+ 
++if test "x$PE_ARCHS" = xnone
++then :
++  cross_archs=
++fi
++
+ saved_CC=$CC
+ saved_CFLAGS=$CFLAGS
+ saved_CPPFLAGS=$CPPFLAGS
+@@ -11324,7 +11330,7 @@ wine_fn_config_makefile ()
+       no) as_fn_append DISABLED_SUBDIRS " $1" ;;
+       yes) ;;
+       *aarch64*|*arm*|*i386*|*x86_64*)
+-        if test -n "$PE_ARCHS"
++        if test -n "$PE_ARCHS" -a "$PE_ARCHS" != none
+         then
+             for i in $PE_ARCHS
+             do
+diff --git a/configure.ac b/configure.ac
+index 6d093b52526..c408e3788d6 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -373,6 +373,7 @@ AS_VAR_SET_IF([enable_archs],
+      do
+          case $arch in
+            i386|x86_64|arm|aarch64|arm64ec) cross_archs="$cross_archs $arch" ;;
++           no|none) PE_ARCHS=none ;;
+            *) AC_MSG_ERROR([Unknown cross-compilation architecture '$arch']) ;;
+          esac
+      done],
+@@ -381,6 +382,8 @@ AS_VAR_SET_IF([enable_archs],
+          test $HOST_ARCH = unknown || cross_archs=$HOST_ARCH
+      fi])
+ 
++AS_VAR_IF([PE_ARCHS],[none],[cross_archs=])
++
+ saved_CC=$CC
+ saved_CFLAGS=$CFLAGS
+ saved_CPPFLAGS=$CPPFLAGS
+diff --git a/tools/makedep.c b/tools/makedep.c
+index f6b376383be..3fc127b5dda 100644
+--- a/tools/makedep.c
++++ b/tools/makedep.c
+@@ -646,11 +646,11 @@ static int get_link_arch( const struct makefile *make, unsigned int arch, unsign
+  *         is_multiarch
+  *
+  * Check if arch is one of the PE architectures in multiarch.
+- * Also return TRUE for native arch iff there's no PE support.
++ * Also return TRUE for native arch iff there's no PE architecture, not even "none".
+  */
+ static int is_multiarch( unsigned int arch )
+ {
+-    return archs.count == 1 || arch;
++    return archs.count == 1 || (arch && strcmp( archs.str[arch], "none" ));
+ }
+ 
+ 
+@@ -3239,6 +3239,7 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
+     if (arch)
+     {
+         if (source->file->flags & FLAG_C_UNIX) return;
++        if (!is_multiarch( arch )) return;
+         if (!is_using_msvcrt( make ) && !make->staticlib && !(source->file->flags & FLAG_C_IMPLIB)) return;
+     }
+     else if (source->file->flags & FLAG_C_UNIX)
+@@ -3634,6 +3635,7 @@ static void output_static_lib( struct makefile *make, unsigned int arch )
+ 
+     if (make->disabled[arch]) return;
+     if (native_archs[arch]) return;
++    if (arch && !is_multiarch( arch )) return;
+ 
+     strarray_add( &make->clean_files, name );
+     output( "%s: %s", obj_dir_path( make, name ), tools_path( make, "winebuild" ));
+@@ -3992,7 +3994,7 @@ static void output_sources( struct makefile *make )
+         for (arch = 0; arch < archs.count; arch++)
+         {
+             if (is_multiarch( arch )) output_module( make, arch );
+-            if (make->importlib && (is_multiarch( arch ) || !is_native_arch_disabled( make )))
++            if (make->importlib && (is_multiarch( arch ) || (!arch && !is_native_arch_disabled( make ))))
+                 output_import_lib( make, arch );
+         }
+         if (make->unixlib) output_unix_lib( make );
+-- 
+2.43.0
+

@@ -1,0 +1,72 @@
+From 7499d158b962ec4ad59d37e7015b47fdb71f4b36 Mon Sep 17 00:00:00 2001
+From: Zhiyi Zhang <zzhang@codeweavers.com>
+Date: Wed, 18 Jun 2025 11:09:37 +0800
+Subject: [PATCH 279/293] comctl32/listview: Set the initial background mix
+ mode to TRANSPARENT.
+
+---
+ dlls/comctl32/listview.c       | 9 ++-------
+ dlls/comctl32/tests/listview.c | 6 +++---
+ 2 files changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/dlls/comctl32/listview.c b/dlls/comctl32/listview.c
+index d82a2bba15e..a87a9ae37b2 100644
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -1120,13 +1120,7 @@ static void prepaint_setup (const LISTVIEW_INFO *infoPtr, HDC hdc, const NMLVCUS
+         textcolor = comctl32_color.clrWindowText;
+ 
+     /* Set the text attributes */
+-    if (backcolor != CLR_NONE)
+-    {
+-	SetBkMode(hdc, OPAQUE);
+-	SetBkColor(hdc, backcolor);
+-    }
+-    else
+-	SetBkMode(hdc, TRANSPARENT);
++    SetBkColor(hdc, backcolor);
+     SetTextColor(hdc, textcolor);
+ }
+ 
+@@ -5269,6 +5263,7 @@ static void LISTVIEW_Refresh(LISTVIEW_INFO *infoPtr, HDC hdc, const RECT *prcEra
+                hdcOrig, infoPtr->rcList.left, infoPtr->rcList.top, SRCCOPY);
+     }
+ 
++    SetBkMode(hdc, TRANSPARENT);
+     GetClientRect(infoPtr->hwndSelf, &rcClient);
+     customdraw_fill(&nmlvcd, infoPtr, hdc, &rcClient, 0);
+     cdmode = notify_customdraw(infoPtr, CDDS_PREPAINT, &nmlvcd);
+diff --git a/dlls/comctl32/tests/listview.c b/dlls/comctl32/tests/listview.c
+index 72da60799eb..9b738b0976b 100644
+--- a/dlls/comctl32/tests/listview.c
++++ b/dlls/comctl32/tests/listview.c
+@@ -2344,7 +2344,7 @@ static void test_customdraw_background(BOOL v6)
+             flush_sequences(sequences, NUM_MSG_SEQUENCES);
+             InvalidateRect(hwnd, NULL, TRUE);
+             UpdateWindow(hwnd);
+-            ok_sequence(sequences, PARENT_CD_SEQ_INDEX, expected_msgs, "Normal", TRUE);
++            ok_sequence(sequences, PARENT_CD_SEQ_INDEX, expected_msgs, "Normal", FALSE);
+ 
+             /* LVIS_SELECTED */
+             item.mask = LVIF_STATE;
+@@ -2355,7 +2355,7 @@ static void test_customdraw_background(BOOL v6)
+             flush_sequences(sequences, NUM_MSG_SEQUENCES);
+             InvalidateRect(hwnd, NULL, TRUE);
+             UpdateWindow(hwnd);
+-            ok_sequence(sequences, PARENT_CD_SEQ_INDEX, expected_msgs, "LVIS_SELECTED", TRUE);
++            ok_sequence(sequences, PARENT_CD_SEQ_INDEX, expected_msgs, "LVIS_SELECTED", FALSE);
+ 
+             /* LVS_SHOWSELALWAYS */
+             SetWindowLongW(hwnd, GWL_STYLE, GetWindowLongW(hwnd, GWL_STYLE) | LVS_SHOWSELALWAYS);
+@@ -2363,7 +2363,7 @@ static void test_customdraw_background(BOOL v6)
+             flush_sequences(sequences, NUM_MSG_SEQUENCES);
+             InvalidateRect(hwnd, NULL, TRUE);
+             UpdateWindow(hwnd);
+-            ok_sequence(sequences, PARENT_CD_SEQ_INDEX, expected_msgs, "LVS_SHOWSELALWAYS", TRUE);
++            ok_sequence(sequences, PARENT_CD_SEQ_INDEX, expected_msgs, "LVS_SHOWSELALWAYS", FALSE);
+ 
+             SetWindowLongPtrA(hwndparent, GWLP_WNDPROC, (LONG_PTR)oldwndproc);
+             flush_sequences(sequences, NUM_MSG_SEQUENCES);
+-- 
+2.43.0
+

@@ -1,0 +1,161 @@
+From d5dc6a234650a3baa349ce83679ab8a3625a3f4c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Tue, 17 Jun 2025 10:51:27 +0200
+Subject: [PATCH 292/293] server: Initialize global and user tables with some
+ atoms.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=49195
+---
+ dlls/win32u/tests/win32u.c | 14 +++------
+ server/atom.c              | 61 ++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 65 insertions(+), 10 deletions(-)
+
+diff --git a/dlls/win32u/tests/win32u.c b/dlls/win32u/tests/win32u.c
+index 6f69878c512..621aef45e5a 100644
+--- a/dlls/win32u/tests/win32u.c
++++ b/dlls/win32u/tests/win32u.c
+@@ -413,9 +413,7 @@ static void test_class(void)
+         winetest_push_context( "%#x: %s", global_atoms[i].atom, debugstr_w(global_atoms[i].name) );
+ 
+         status = NtQueryInformationAtom( global_atoms[i].atom, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
+-        todo_wine_if( i == 0x14 || i == 0x15 || i == 0x16 )
+         ok( !status, "NtQueryInformationAtom returned %#lx\n", status );
+-        todo_wine_if( i != 0x16 )
+         ok( !wcscmp( abi->Name, global_atoms[i].name ), "buf = %s\n", debugstr_w(abi->Name) );
+ 
+         memset( buf, 0xcc, sizeof(buf) );
+@@ -423,7 +421,6 @@ static void test_class(void)
+         name.Length = 0xdead;
+         name.MaximumLength = sizeof(buf);
+         ret = NtUserGetAtomName( global_atoms[i].atom, &name );
+-        todo_wine_if( i == 0 || i == 8 || i == 15 )
+         ok( ret != wcslen( global_atoms[i].name ), "NtUserGetAtomName returned %lu\n", ret );
+         ok( name.Length == 0xdead, "Length = %u\n", name.Length );
+         ok( name.MaximumLength == sizeof(buf), "MaximumLength = %u\n", name.MaximumLength );
+@@ -437,7 +434,6 @@ static void test_class(void)
+         winetest_push_context( "%#x: %s", user_atoms[i].atom, debugstr_w(user_atoms[i].name) );
+ 
+         status = NtQueryInformationAtom( user_atoms[i].atom, AtomBasicInformation, abi, sizeof(abi_buf), NULL );
+-        todo_wine_if( i >= 0x14 && i <= 0x1b ) ok( !status, "NtQueryInformationAtom returned %#lx\n", status );
+         ok( wcscmp( abi->Name, user_atoms[i].name ), "buf = %s\n", debugstr_w(abi->Name) );
+ 
+         memset( buf, 0xcc, sizeof(buf) );
+@@ -451,25 +447,23 @@ static void test_class(void)
+             win_skip( "Skipping user atoms check on W11\n" );
+             break;
+         }
+-        todo_wine_if( i != 6 && i != 0x13 )
+         ok( ret == wcslen( user_atoms[i].name ), "NtUserGetAtomName returned %lu\n", ret );
+         ok( name.Length == 0xdead, "Length = %u\n", name.Length );
+         ok( name.MaximumLength == sizeof(buf), "MaximumLength = %u\n", name.MaximumLength );
+-        todo_wine ok( !wcscmp( buf, user_atoms[i].name ), "buf = %s\n", debugstr_w(buf) );
++        ok( !wcscmp( buf, user_atoms[i].name ), "buf = %s\n", debugstr_w(buf) );
+ 
+         SetLastError( 0xdeadbeef );
+         hwnd = CreateWindowW( MAKEINTRESOURCEW(user_atoms[i].atom), NULL, WS_OVERLAPPEDWINDOW | WS_HSCROLL | WS_VSCROLL,
+                               CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, 0, NULL, 0 );
+         if (!user_atoms[i].class)
+         {
+-            todo_wine_if( i < 10 ) ok( !hwnd, "CreateWindowW succeeded\n" );
++            ok( !hwnd, "CreateWindowW succeeded\n" );
+             todo_wine ok( GetLastError() == ERROR_CANNOT_FIND_WND_CLASS, "got error %lu\n", GetLastError() );
+-            if (hwnd) DestroyWindow( hwnd );
+         }
+         else
+         {
+-            todo_wine ok( !!hwnd, "CreateWindowW failed: %lu\n", GetLastError() );
+-            if (hwnd) DestroyWindow( hwnd );
++            ok( !!hwnd, "CreateWindowW failed: %lu\n", GetLastError() );
++            DestroyWindow( hwnd );
+         }
+ 
+         winetest_pop_context();
+diff --git a/server/atom.c b/server/atom.c
+index 3f64bb48e02..f3b0d1abffb 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -98,6 +98,14 @@ static const struct object_ops atom_table_ops =
+ static struct atom_table *global_table;
+ static struct atom_table *user_table;
+ 
++static void add_atom_asciiz( struct atom_table *table, const char *name )
++{
++    WCHAR buffer[MAX_ATOM_LEN + 1];
++    struct unicode_str str = { buffer, strlen( name ) * sizeof(WCHAR) };
++    for (int i = 0; i < str.len / sizeof(WCHAR); i++) buffer[i] = name[i];
++    add_atom( table, &str );
++}
++
+ struct object *create_atom_table(void)
+ {
+     struct atom_table *table;
+@@ -116,6 +124,30 @@ void set_global_atom_table( struct object *obj )
+     global_table = (struct atom_table *)obj;
+     make_object_permanent( obj );
+     grab_object( obj );
++
++    add_atom_asciiz( global_table, "StdExit" );
++    add_atom_asciiz( global_table, "StdNewDocument" );
++    add_atom_asciiz( global_table, "StdOpenDocument" );
++    add_atom_asciiz( global_table, "StdEditDocument" );
++    add_atom_asciiz( global_table, "StdNewfromTemplate" );
++    add_atom_asciiz( global_table, "StdCloseDocument" );
++    add_atom_asciiz( global_table, "StdShowItem" );
++    add_atom_asciiz( global_table, "StdDoVerbItem" );
++    add_atom_asciiz( global_table, "System" );
++    add_atom_asciiz( global_table, "OLEsystem" );
++    add_atom_asciiz( global_table, "StdDocumentName" );
++    add_atom_asciiz( global_table, "Protocols" );
++    add_atom_asciiz( global_table, "Topics" );
++    add_atom_asciiz( global_table, "Formats" );
++    add_atom_asciiz( global_table, "Status" );
++    add_atom_asciiz( global_table, "EditEnvItems" );
++    add_atom_asciiz( global_table, "True" );
++    add_atom_asciiz( global_table, "False" );
++    add_atom_asciiz( global_table, "Change" );
++    add_atom_asciiz( global_table, "Save" );
++    add_atom_asciiz( global_table, "Close" );
++    add_atom_asciiz( global_table, "MSDraw" );
++    add_atom_asciiz( global_table, "CC32SubclassInfo" );
+ }
+ 
+ struct atom_table *get_global_atom_table(void)
+@@ -129,6 +161,35 @@ void set_user_atom_table( struct object *obj )
+     user_table = (struct atom_table *)obj;
+     make_object_permanent( obj );
+     grab_object( obj );
++
++    add_atom_asciiz( user_table, "USER32" );
++    add_atom_asciiz( user_table, "ObjectLink" );
++    add_atom_asciiz( user_table, "OwnerLink" );
++    add_atom_asciiz( user_table, "Native" );
++    add_atom_asciiz( user_table, "Binary" );
++    add_atom_asciiz( user_table, "FileName" );
++    add_atom_asciiz( user_table, "FileNameW" );
++    add_atom_asciiz( user_table, "NetworkName" );
++    add_atom_asciiz( user_table, "DataObject" );
++    add_atom_asciiz( user_table, "Embedded Object" );
++    add_atom_asciiz( user_table, "Embed Source" );
++    add_atom_asciiz( user_table, "Custom Link Source" );
++    add_atom_asciiz( user_table, "Link Source" );
++    add_atom_asciiz( user_table, "Object Descriptor" );
++    add_atom_asciiz( user_table, "Link Source Descriptor" );
++    add_atom_asciiz( user_table, "OleDraw" );
++    add_atom_asciiz( user_table, "PBrush" );
++    add_atom_asciiz( user_table, "MSDraw" );
++    add_atom_asciiz( user_table, "Ole Private Data" );
++    add_atom_asciiz( user_table, "Screen Picture" );
++    add_atom_asciiz( user_table, "OleClipboardPersistOnFlush" );
++    add_atom_asciiz( user_table, "MoreOlePrivateData" );
++    add_atom_asciiz( user_table, "Button" );
++    add_atom_asciiz( user_table, "Edit" );
++    add_atom_asciiz( user_table, "Static" );
++    add_atom_asciiz( user_table, "ListBox" );
++    add_atom_asciiz( user_table, "ScrollBar" );
++    add_atom_asciiz( user_table, "ComboBox" );
+ }
+ 
+ struct atom_table *get_user_atom_table(void)
+-- 
+2.43.0
+

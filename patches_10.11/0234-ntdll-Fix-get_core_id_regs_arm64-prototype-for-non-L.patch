@@ -1,0 +1,26 @@
+From 112bd1cbfa13fafbb523f971dea69c73a561df7f Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Wed, 25 Jun 2025 12:47:43 +0200
+Subject: [PATCH 234/293] ntdll: Fix get_core_id_regs_arm64() prototype for
+ non-Linux platforms.
+
+---
+ dlls/ntdll/unix/system.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/ntdll/unix/system.c b/dlls/ntdll/unix/system.c
+index d1e96be3a19..950a9655dc7 100644
+--- a/dlls/ntdll/unix/system.c
++++ b/dlls/ntdll/unix/system.c
+@@ -1786,7 +1786,7 @@ static DWORD get_core_id_regs_arm64( struct smbios_wine_id_reg_value_arm64 *regs
+ 
+ #else
+ 
+-static DWORD get_core_id_regs_arm64( struct smbios_wine_core_id_regs_arm64 *core_id_regs,
++static DWORD get_core_id_regs_arm64( struct smbios_wine_id_reg_value_arm64 *regs,
+                                      WORD logical_thread_id )
+ {
+     FIXME("stub\n");
+-- 
+2.43.0
+

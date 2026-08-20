@@ -1,0 +1,102 @@
+From fa1e0df1c079c73d9bdb77c9138fa407af640aee Mon Sep 17 00:00:00 2001
+From: Esme Povirk <esme@codeweavers.com>
+Date: Tue, 17 Jun 2025 20:55:13 +0000
+Subject: [PATCH 076/293] gdiplus: Use graphics transform in
+ GdipIsVisibleRegionPoint.
+
+---
+ dlls/gdiplus/region.c       | 47 +++++++++++++++++++++++++++++++++++++
+ dlls/gdiplus/tests/region.c |  1 -
+ 2 files changed, 47 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/gdiplus/region.c b/dlls/gdiplus/region.c
+index f2f33b5e7a5..879f51fa0af 100644
+--- a/dlls/gdiplus/region.c
++++ b/dlls/gdiplus/region.c
+@@ -1736,12 +1736,53 @@ GpStatus WINGDIPAPI GdipIsVisibleRegionPoint(GpRegion* region, REAL x, REAL y, G
+     GpStatus stat;
+     REAL min_x, min_y, max_x, max_y;
+     BOOL empty, infinite;
++    GpMatrix transform;
++    BOOL identity;
++    GpRegion* tmp_region = NULL;
+ 
+     TRACE("(%p, %.2f, %.2f, %p, %p)\n", region, x, y, graphics, res);
+ 
+     if(!region || !res)
+         return InvalidParameter;
+ 
++    if (graphics)
++    {
++        stat = get_graphics_transform(graphics, WineCoordinateSpaceGdiDevice, CoordinateSpaceWorld, &transform);
++        if (stat != Ok)
++            return stat;
++
++        stat = GdipIsMatrixIdentity(&transform, &identity);
++        if (stat != Ok)
++            return stat;
++    }
++    else
++        identity = TRUE;
++
++    if (!identity)
++    {
++        GpPointF pt = {x, y};
++
++        stat = GdipTransformMatrixPoints(&transform, &pt, 1);
++        if (stat != Ok)
++            return stat;
++
++        x = pt.X;
++        y = pt.Y;
++
++        stat = GdipCloneRegion(region, &tmp_region);
++        if (stat != Ok)
++            return stat;
++
++        stat = GdipTransformRegion(tmp_region, &transform);
++        if (stat != Ok)
++        {
++            GdipDeleteRegion(tmp_region);
++            return stat;
++        }
++
++        region = tmp_region;
++    }
++
+     x = gdip_round(x);
+     y = gdip_round(y);
+ 
+@@ -1750,11 +1791,17 @@ GpStatus WINGDIPAPI GdipIsVisibleRegionPoint(GpRegion* region, REAL x, REAL y, G
+     if (empty || x < min_x || y < min_y || x > max_x || y > max_y)
+     {
+         *res = infinite;
++        GdipDeleteRegion(tmp_region);
+         return Ok;
+     }
+ 
+     if((stat = GdipGetRegionHRgn(region, NULL, &hrgn)) != Ok)
++    {
++        GdipDeleteRegion(tmp_region);
+         return stat;
++    }
++
++    GdipDeleteRegion(tmp_region);
+ 
+     /* infinite */
+     if(!hrgn){
+diff --git a/dlls/gdiplus/tests/region.c b/dlls/gdiplus/tests/region.c
+index 574cf87c656..00837096092 100644
+--- a/dlls/gdiplus/tests/region.c
++++ b/dlls/gdiplus/tests/region.c
+@@ -2039,7 +2039,6 @@ static void test_isvisiblepoint(void)
+ 
+     status = GdipIsVisibleRegionPoint(region, x, y, graphics, &res);
+     expect(Ok, status);
+-todo_wine
+     ok(res == TRUE, "Expected (%.2f, %.2f) to be visible\n", x, y);
+ 
+     status = GdipResetWorldTransform(graphics);
+-- 
+2.43.0
+

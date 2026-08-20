@@ -1,0 +1,92 @@
+From 5d091af63a231cbeb348148408bc7a203e34c0ea Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Thu, 5 Jun 2025 16:42:30 -0500
+Subject: [PATCH 043/293] qasf/dmowrapper: Handle dynamic format change.
+
+---
+ dlls/qasf/dmowrapper.c       | 25 +++++++++++++++++++++++--
+ dlls/qasf/tests/dmowrapper.c |  4 ++--
+ 2 files changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/qasf/dmowrapper.c b/dlls/qasf/dmowrapper.c
+index 4d52df48512..f6e586d0235 100644
+--- a/dlls/qasf/dmowrapper.c
++++ b/dlls/qasf/dmowrapper.c
+@@ -220,7 +220,7 @@ static void release_output_samples(struct dmo_wrapper *filter)
+     }
+ }
+ 
+-static HRESULT get_output_samples(struct dmo_wrapper *filter)
++static HRESULT get_output_samples(struct dmo_wrapper *filter, IMediaObject *dmo)
+ {
+     HRESULT hr;
+     DWORD i;
+@@ -229,6 +229,8 @@ static HRESULT get_output_samples(struct dmo_wrapper *filter)
+     {
+         if (filter->sources[i].pin.pin.peer)
+         {
++            AM_MEDIA_TYPE *mt;
++
+             if (FAILED(hr = IMemAllocator_GetBuffer(filter->sources[i].pin.pAllocator,
+                     &filter->sources[i].buffer.sample, NULL, NULL, 0)))
+             {
+@@ -238,6 +240,25 @@ static HRESULT get_output_samples(struct dmo_wrapper *filter)
+             }
+             filter->buffers[i].pBuffer = &filter->sources[i].buffer.IMediaBuffer_iface;
+             filter->sources[i].buffer.len = 0;
++
++            /* Handle dynamic format change. */
++            if ((hr = IMediaSample_GetMediaType(filter->sources[i].buffer.sample, &mt)) == S_OK)
++            {
++                if ((hr = IMediaObject_SetOutputType(dmo, i, (const DMO_MEDIA_TYPE *)mt, 0)) != S_OK)
++                {
++                    /* This isn't supposed to happen; the downstream filter
++                     * should call QueryAccept() first. */
++                    ERR("Failed to set output type, hr %#lx.\n", hr);
++                    release_output_samples(filter);
++                    DeleteMediaType(mt);
++                    return hr;
++                }
++                DeleteMediaType(mt);
++            }
++            else if (hr != S_FALSE)
++            {
++                ERR("Failed to get media type, hr %#lx.\n", hr);
++            }
+         }
+         else
+             filter->buffers[i].pBuffer = NULL;
+@@ -258,7 +279,7 @@ static HRESULT process_output(struct dmo_wrapper *filter, IMediaObject *dmo)
+         HRESULT process_hr;
+         more_data = FALSE;
+ 
+-        if (FAILED(hr = get_output_samples(filter)))
++        if (FAILED(hr = get_output_samples(filter, dmo)))
+             return hr;
+ 
+         process_hr = IMediaObject_ProcessOutput(dmo, DMO_PROCESS_OUTPUT_DISCARD_WHEN_NO_BUFFER,
+diff --git a/dlls/qasf/tests/dmowrapper.c b/dlls/qasf/tests/dmowrapper.c
+index 53d470c941a..7c3a069bfd1 100644
+--- a/dlls/qasf/tests/dmowrapper.c
++++ b/dlls/qasf/tests/dmowrapper.c
+@@ -1283,7 +1283,7 @@ static HRESULT WINAPI testsink_Receive(struct strmbase_sink *iface, IMediaSample
+     if (testmode == 100)
+     {
+         ok(hr == S_OK, "Got hr %#lx.\n", hr);
+-        todo_wine ok(compare_media_types(mt, &testdmo_output_mt), "Media types didn't match.\n");
++        ok(compare_media_types(mt, &testdmo_output_mt), "Media types didn't match.\n");
+     }
+     else
+     {
+@@ -1813,7 +1813,7 @@ static void test_source_allocator(IFilterGraph2 *graph, IMediaControl *control,
+     ok(got_Receive == 1, "Got %u calls to Receive().\n", got_Receive);
+     got_Receive = 0;
+ 
+-    todo_wine ok(compare_media_types(&testdmo_output_mt, &mt1), "Media types didn't match.\n");
++    ok(compare_media_types(&testdmo_output_mt, &mt1), "Media types didn't match.\n");
+ 
+     hr = IMediaControl_Stop(control);
+     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+-- 
+2.43.0
+

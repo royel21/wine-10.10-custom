@@ -1,0 +1,120 @@
+From 351a65e7730316082487cebd72e604e8ca372782 Mon Sep 17 00:00:00 2001
+From: Zhiyi Zhang <zzhang@codeweavers.com>
+Date: Tue, 17 Jun 2025 10:37:34 +0800
+Subject: [PATCH 140/293] kernel32/tests: Add tests for normal activation
+ context stack frame flags.
+
+Test that the flags for normal activation context stack frames has 0x8, which is probably to note
+that a frame is allocated from the heap according to later tests.
+---
+ dlls/kernel32/tests/actctx.c | 67 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+
+diff --git a/dlls/kernel32/tests/actctx.c b/dlls/kernel32/tests/actctx.c
+index ca24ed10549..71b1b5721fb 100644
+--- a/dlls/kernel32/tests/actctx.c
++++ b/dlls/kernel32/tests/actctx.c
+@@ -31,11 +31,15 @@
+ 
+ static BOOL   (WINAPI *pQueryActCtxSettingsW)(DWORD,HANDLE,LPCWSTR,LPCWSTR,LPWSTR,SIZE_T,SIZE_T*);
+ 
++static NTSTATUS (NTAPI *pRtlActivateActivationContext)(ULONG,struct _ACTIVATION_CONTEXT *,ULONG_PTR *);
++static NTSTATUS (NTAPI *pRtlActivateActivationContextEx)(ULONG,TEB *,struct _ACTIVATION_CONTEXT *,ULONG_PTR *);
+ static NTSTATUS(NTAPI *pRtlFindActivationContextSectionString)(DWORD,const GUID *,ULONG,PUNICODE_STRING,PACTCTX_SECTION_KEYED_DATA);
+ static BOOLEAN (NTAPI *pRtlCreateUnicodeStringFromAsciiz)(PUNICODE_STRING, PCSZ);
+ static VOID    (NTAPI *pRtlFreeUnicodeString)(PUNICODE_STRING);
+ static NTSTATUS(NTAPI *pRtlQueryInformationActiveActivationContext)(ULONG,PVOID,SIZE_T,SIZE_T *);
+ 
++#define NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED 0x8 /* RTL_ACTIVATION_CONTEXT_STACK_FRAME.Flags */
++
+ #ifdef __i386__
+ #define ARCH "x86"
+ #elif defined __aarch64__ || defined__arm64ec__
+@@ -2197,7 +2201,9 @@ static void test_allowDelayedBinding(void)
+ 
+ static void test_actctx(void)
+ {
++    RTL_ACTIVATION_CONTEXT_STACK_FRAME *frame;
+     ULONG_PTR cookie;
++    NTSTATUS status;
+     HANDLE handle;
+     BOOL b;
+ 
+@@ -2213,6 +2219,65 @@ static void test_actctx(void)
+         ReleaseActCtx(handle);
+     }
+ 
++    /* Test flags for normal frames */
++    if (!create_manifest_file("test1.manifest", manifest1, -1, NULL, NULL))
++    {
++        skip("Could not create manifest file\n");
++        return;
++    }
++    handle = test_create("test1.manifest");
++    ok(handle != INVALID_HANDLE_VALUE, "handle == INVALID_HANDLE_VALUE, error %lu\n", GetLastError());
++    DeleteFileA("test1.manifest");
++    if (handle != INVALID_HANDLE_VALUE)
++    {
++        b = ActivateActCtx(handle, &cookie);
++        ok(b, "ActivateActCtx failed: %lu\n", GetLastError());
++
++        frame = NtCurrentTeb()->ActivationContextStackPointer->ActiveFrame;
++        ok(!frame->Previous, "Got unexpected Previous.\n");
++        ok(frame->ActivationContext == handle, "Got unexpected ActivationContext.\n");
++        todo_wine
++        ok(frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED, "Got unexpected Flags %#lx.\n", frame->Flags);
++
++        b = DeactivateActCtx(0, cookie);
++        ok(b, "DeactivateActCtx failed: %lu\n", GetLastError());
++        b = GetCurrentActCtx(&handle);
++        ok(handle == NULL, "handle = %p, expected NULL\n", handle);
++        ok(b, "GetCurrentActCtx failed: %lu\n", GetLastError());
++
++        status = pRtlActivateActivationContext(0, handle, &cookie);
++        ok(status == STATUS_SUCCESS,  "Got unexpected status %#lx.\n", status);
++
++        frame = NtCurrentTeb()->ActivationContextStackPointer->ActiveFrame;
++        ok(!frame->Previous, "Got unexpected Previous.\n");
++        ok(frame->ActivationContext == handle, "Got unexpected ActivationContext.\n");
++        todo_wine
++        ok(frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED, "Got unexpected Flags %#lx.\n", frame->Flags);
++
++        b = DeactivateActCtx(0, cookie);
++        ok(b, "DeactivateActCtx failed: %lu\n", GetLastError());
++        b = GetCurrentActCtx(&handle);
++        ok(handle == NULL, "handle = %p, expected NULL\n", handle);
++        ok(b, "GetCurrentActCtx failed: %lu\n", GetLastError());
++
++        status = pRtlActivateActivationContextEx(0, NtCurrentTeb(), handle, &cookie);
++        ok(status == STATUS_SUCCESS,  "Got unexpected status %#lx.\n", status);
++
++        frame = NtCurrentTeb()->ActivationContextStackPointer->ActiveFrame;
++        ok(!frame->Previous, "Got unexpected Previous.\n");
++        ok(frame->ActivationContext == handle, "Got unexpected ActivationContext.\n");
++        todo_wine
++        ok(frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED, "Got unexpected Flags %#lx.\n", frame->Flags);
++
++        b = DeactivateActCtx(0, cookie);
++        ok(b, "DeactivateActCtx failed: %lu\n", GetLastError());
++        b = GetCurrentActCtx(&handle);
++        ok(handle == NULL, "handle = %p, expected NULL\n", handle);
++        ok(b, "GetCurrentActCtx failed: %lu\n", GetLastError());
++
++        ReleaseActCtx(handle);
++    }
++
+     /* test for whitespace handling in Eq ::= S? '=' S? */
+     create_manifest_file("test1_1.manifest", manifest1_1, -1, NULL, NULL);
+     handle = test_create("test1_1.manifest");
+@@ -3096,6 +3161,8 @@ static BOOL init_funcs(void)
+     pQueryActCtxSettingsW = (void *)GetProcAddress( hLibrary, "QueryActCtxSettingsW" );
+ 
+     hLibrary = GetModuleHandleA("ntdll.dll");
++    X(RtlActivateActivationContext);
++    X(RtlActivateActivationContextEx);
+     X(RtlFindActivationContextSectionString);
+     X(RtlCreateUnicodeStringFromAsciiz);
+     X(RtlFreeUnicodeString);
+-- 
+2.43.0
+

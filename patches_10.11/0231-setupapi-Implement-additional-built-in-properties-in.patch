@@ -1,0 +1,82 @@
+From c0470799c777bc9beb0f9cb13a68c61170fbc488 Mon Sep 17 00:00:00 2001
+From: Vibhav Pant <vibhavp@gmail.com>
+Date: Sun, 22 Jun 2025 13:11:36 +0530
+Subject: [PATCH 231/293] setupapi: Implement additional built-in properties in
+ SetupDiGetDeviceInterfacePropertyW.
+
+---
+ dlls/setupapi/devinst.c       | 24 +++++++++++++++++++++++-
+ dlls/setupapi/tests/devinst.c |  7 +++----
+ 2 files changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/dlls/setupapi/devinst.c b/dlls/setupapi/devinst.c
+index cc287d4f8e4..7083688e5db 100644
+--- a/dlls/setupapi/devinst.c
++++ b/dlls/setupapi/devinst.c
+@@ -3301,10 +3301,10 @@ BOOL WINAPI SetupDiGetDeviceInterfacePropertyW( HDEVINFO devinfo, SP_DEVICE_INTE
+         return FALSE;
+     }
+ 
++    ret = ERROR_SUCCESS;
+     if (IsEqualDevPropKey( *key, DEVPKEY_DeviceInterface_Enabled ))
+     {
+         *type = DEVPROP_TYPE_BOOLEAN;
+-        ret = ERROR_SUCCESS;
+         if (buf_size >= sizeof( DEVPROP_BOOLEAN ))
+             *buf = (iface->flags & SPINT_ACTIVE) ? DEVPROP_TRUE : DEVPROP_FALSE;
+         else
+@@ -3312,6 +3312,28 @@ BOOL WINAPI SetupDiGetDeviceInterfacePropertyW( HDEVINFO devinfo, SP_DEVICE_INTE
+         if (req_size)
+             *req_size = sizeof( DEVPROP_BOOLEAN );
+     }
++    else if (IsEqualDevPropKey( *key, DEVPKEY_DeviceInterface_ClassGuid ))
++    {
++        *type = DEVPROP_TYPE_GUID;
++        if (buf_size >= sizeof( iface->class ))
++            memcpy( buf, &iface->class, sizeof( iface->class ) );
++        else
++            ret = ERROR_INSUFFICIENT_BUFFER;
++        if (req_size)
++            *req_size = sizeof( GUID );
++    }
++    else if (IsEqualDevPropKey( *key, DEVPKEY_Device_InstanceId ))
++    {
++        DWORD size = (wcslen( iface->device->instanceId ) + 1) * sizeof( WCHAR );
++
++        *type = DEVPROP_TYPE_STRING;
++        if (buf_size >= size)
++            wcscpy( (WCHAR *)buf, iface->device->instanceId );
++        else
++            ret = ERROR_INSUFFICIENT_BUFFER;
++        if (req_size)
++            *req_size = size;
++    }
+     else
+         ret = get_device_reg_property( iface->refstr_key, key, type, buf, buf_size, req_size, flags );
+ 
+diff --git a/dlls/setupapi/tests/devinst.c b/dlls/setupapi/tests/devinst.c
+index 62624fd592a..199cef2b209 100644
+--- a/dlls/setupapi/tests/devinst.c
++++ b/dlls/setupapi/tests/devinst.c
+@@ -2935,15 +2935,14 @@ static void test_device_interface_properties(void)
+                 type = DEVPROP_TYPE_EMPTY;
+                 ret = SetupDiGetDeviceInterfacePropertyW(set, &iface, &key, &type, NULL, 0, &req, 0);
+                 err = GetLastError();
+-                todo_wine_if(!ret && err == ERROR_NOT_FOUND)
+-                    ok(!ret && err == ERROR_INSUFFICIENT_BUFFER, "%lu != %d\n", err, ERROR_INSUFFICIENT_BUFFER);
+-                todo_wine_if(!ret && err == ERROR_NOT_FOUND) ok(type == exp_type, "%#lx != %#lx\n", type, exp_type);
++                ok(!ret && err == ERROR_INSUFFICIENT_BUFFER, "%lu != %d\n", err, ERROR_INSUFFICIENT_BUFFER);
++                ok(type == exp_type, "%#lx != %#lx\n", type, exp_type);
+ 
+                 size = req;
+                 buf = calloc( 1, size );
+                 ret = SetupDiGetDeviceInterfacePropertyW(set, &iface, &key, &type, buf, size, &req, 0);
+                 err = GetLastError();
+-                todo_wine_if(!ret && err == ERROR_NOT_FOUND) ok(ret, "SetupDiGetDeviceInterfacePropertyW failed: %lu\n", err);
++                ok(ret, "SetupDiGetDeviceInterfacePropertyW failed: %lu\n", err);
+                 free(buf);
+ 
+                 winetest_pop_context();
+-- 
+2.43.0
+

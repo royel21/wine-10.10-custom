@@ -1,0 +1,25 @@
+From dea0a2ac62c2942ba4b4d8030143b42477ee0912 Mon Sep 17 00:00:00 2001
+From: Hans Leidekker <hans@codeweavers.com>
+Date: Thu, 26 Jun 2025 17:31:35 +0200
+Subject: [PATCH 281/293] widl: Don't sort the property and event tables.
+
+---
+ tools/widl/metadata.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/widl/metadata.c b/tools/widl/metadata.c
+index 3f65888770a..cf56fd905f6 100644
+--- a/tools/widl/metadata.c
++++ b/tools/widl/metadata.c
+@@ -458,7 +458,7 @@ static UINT add_row( enum table table, const BYTE *row, UINT row_size )
+ {
+     const struct index *idx;
+     UINT insert_idx, offset = tables[table].offset;
+-    BOOL sort = (table != TABLE_PARAM && table != TABLE_FIELD);
++    BOOL sort = (table != TABLE_PARAM && table != TABLE_FIELD && table != TABLE_PROPERTY && table != TABLE_EVENT);
+ 
+     if (sort && (idx = find_index( &tables_idx[table], &tables[table], row, row_size, FALSE, &insert_idx )))
+         return idx->offset / row_size + 1;
+-- 
+2.43.0
+

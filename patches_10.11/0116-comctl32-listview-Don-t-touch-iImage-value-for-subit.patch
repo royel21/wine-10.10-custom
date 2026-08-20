@@ -1,0 +1,41 @@
+From 9793e889becc99946dec865a2119a4b0d5189ffd Mon Sep 17 00:00:00 2001
+From: Connor McAdams <cmcadams@codeweavers.com>
+Date: Mon, 16 Jun 2025 10:52:49 -0400
+Subject: [PATCH 116/293] comctl32/listview: Don't touch iImage value for
+ subitems if LVS_EX_SUBITEMIMAGES is not set.
+
+Signed-off-by: Connor McAdams <cmcadams@codeweavers.com>
+---
+ dlls/comctl32/listview.c       | 2 --
+ dlls/comctl32/tests/listview.c | 2 +-
+ 2 files changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/dlls/comctl32/listview.c b/dlls/comctl32/listview.c
+index 31f8a933e56..57ad887364f 100644
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -6867,8 +6867,6 @@ static BOOL LISTVIEW_GetItemT(const LISTVIEW_INFO *infoPtr, LPLVITEMW lpLVItem,
+     {
+         if (!lpLVItem->iSubItem || (infoPtr->dwLvExStyle & LVS_EX_SUBITEMIMAGES))
+             lpLVItem->iImage = pItemHdr->iImage;
+-        else
+-            lpLVItem->iImage = 0;
+     }
+ 
+     /* The pszText field */
+diff --git a/dlls/comctl32/tests/listview.c b/dlls/comctl32/tests/listview.c
+index 73eb127fc35..54ac79b5f86 100644
+--- a/dlls/comctl32/tests/listview.c
++++ b/dlls/comctl32/tests/listview.c
+@@ -1171,7 +1171,7 @@ static void test_images(void)
+     item.iImage = 500;
+     r = SendMessageA(hwnd, LVM_GETITEMA, 0, (LPARAM)&item);
+     ok(r, "Failed to get item.\n");
+-    todo_wine ok(item.iImage == 500, "Unexpected iImage value %d.\n", item.iImage);
++    ok(item.iImage == 500, "Unexpected iImage value %d.\n", item.iImage);
+ 
+     ok_sequence(sequences, PARENT_SEQ_INDEX, empty_seq, "get image dispinfo 2", FALSE);
+ 
+-- 
+2.43.0
+

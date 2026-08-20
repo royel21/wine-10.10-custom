@@ -1,0 +1,82 @@
+From 7b29dc9053de12c942c94d96724f00b27ddb01de Mon Sep 17 00:00:00 2001
+From: Zhiyi Zhang <zzhang@codeweavers.com>
+Date: Tue, 17 Jun 2025 10:47:28 +0800
+Subject: [PATCH 141/293] ntdll: Set and check 0x8 flag for activation context
+ stack frames.
+
+Prepare for RtlActivateActivationContextUnsafeFast(), which adds frames with flags 0x20. Normal
+frame flags are 0x28. So 0x8 is most likely to note that it's callee-allocated and needs to be freed
+in RtlFreeActivationContextStack(). Whereas missing 0x8 probably means a frame is caller-allocated.
+---
+ dlls/kernel32/tests/actctx.c | 3 ---
+ dlls/ntdll/actctx.c          | 5 +++--
+ dlls/ntdll/ntdll_misc.h      | 2 ++
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/dlls/kernel32/tests/actctx.c b/dlls/kernel32/tests/actctx.c
+index 71b1b5721fb..050b39516d9 100644
+--- a/dlls/kernel32/tests/actctx.c
++++ b/dlls/kernel32/tests/actctx.c
+@@ -2236,7 +2236,6 @@ static void test_actctx(void)
+         frame = NtCurrentTeb()->ActivationContextStackPointer->ActiveFrame;
+         ok(!frame->Previous, "Got unexpected Previous.\n");
+         ok(frame->ActivationContext == handle, "Got unexpected ActivationContext.\n");
+-        todo_wine
+         ok(frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED, "Got unexpected Flags %#lx.\n", frame->Flags);
+ 
+         b = DeactivateActCtx(0, cookie);
+@@ -2251,7 +2250,6 @@ static void test_actctx(void)
+         frame = NtCurrentTeb()->ActivationContextStackPointer->ActiveFrame;
+         ok(!frame->Previous, "Got unexpected Previous.\n");
+         ok(frame->ActivationContext == handle, "Got unexpected ActivationContext.\n");
+-        todo_wine
+         ok(frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED, "Got unexpected Flags %#lx.\n", frame->Flags);
+ 
+         b = DeactivateActCtx(0, cookie);
+@@ -2266,7 +2264,6 @@ static void test_actctx(void)
+         frame = NtCurrentTeb()->ActivationContextStackPointer->ActiveFrame;
+         ok(!frame->Previous, "Got unexpected Previous.\n");
+         ok(frame->ActivationContext == handle, "Got unexpected ActivationContext.\n");
+-        todo_wine
+         ok(frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED, "Got unexpected Flags %#lx.\n", frame->Flags);
+ 
+         b = DeactivateActCtx(0, cookie);
+diff --git a/dlls/ntdll/actctx.c b/dlls/ntdll/actctx.c
+index 7c8a4e0e1a9..d4dba2369e3 100644
+--- a/dlls/ntdll/actctx.c
++++ b/dlls/ntdll/actctx.c
+@@ -5443,7 +5443,7 @@ NTSTATUS WINAPI RtlActivateActivationContextEx( ULONG flags, TEB *teb, ACTIVATIO
+     frame = RtlAllocateHeap( GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, sizeof(*frame) );
+     frame->Previous = actctx_stack->ActiveFrame;
+     frame->ActivationContext = actctx;
+-    frame->Flags = 0;
++    frame->Flags = NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED;
+     actctx_stack->ActiveFrame = frame;
+     RtlAddRefActivationContext( actctx );
+ 
+@@ -5508,7 +5508,8 @@ void WINAPI RtlFreeActivationContextStack( ACTIVATION_CONTEXT_STACK *actctx_stac
+     {
+         RTL_ACTIVATION_CONTEXT_STACK_FRAME *prev = frame->Previous;
+         RtlReleaseActivationContext( frame->ActivationContext );
+-        RtlFreeHeap( GetProcessHeap(), 0, frame );
++        if (frame->Flags & NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED)
++            RtlFreeHeap( GetProcessHeap(), 0, frame );
+         frame = prev;
+     }
+     actctx_stack->ActiveFrame = NULL;
+diff --git a/dlls/ntdll/ntdll_misc.h b/dlls/ntdll/ntdll_misc.h
+index f82edef6b65..99e0aceeef3 100644
+--- a/dlls/ntdll/ntdll_misc.h
++++ b/dlls/ntdll/ntdll_misc.h
+@@ -35,6 +35,8 @@
+ 
+ #define NTDLL_TLS_ERRNO 16  /* TLS slot for _errno() */
+ 
++#define NTDLL_ACTCTX_STACK_FRAME_HEAP_ALLOCATED 0x8 /* RTL_ACTIVATION_CONTEXT_STACK_FRAME.Flags */
++
+ #ifdef __i386__
+ static const USHORT current_machine = IMAGE_FILE_MACHINE_I386;
+ #elif defined(__x86_64__)
+-- 
+2.43.0
+

@@ -1,0 +1,28 @@
+From 4a0bea468fc0592be0b76722e6a6d438918395fb Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 24 Jun 2025 19:29:31 +0100
+Subject: [PATCH 223/293] hid/tests: Fix out-of-bound use of nodes in
+ test_device_info.
+
+HidP_GetLinkCollectionNodes can returns a larger nodes_count than the capacity
+of nodes.
+---
+ dlls/hid/tests/device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/hid/tests/device.c b/dlls/hid/tests/device.c
+index 2c097a16367..8b5ff7a0fe7 100644
+--- a/dlls/hid/tests/device.c
++++ b/dlls/hid/tests/device.c
+@@ -61,7 +61,7 @@ static void test_device_info(HANDLE device)
+     status = HidP_GetLinkCollectionNodes(nodes, &nodes_count, ppd);
+     ok(status == HIDP_STATUS_SUCCESS, "HidP_GetLinkCollectionNodes failed:%lx\n", status);
+ 
+-    for (i = 0; i < nodes_count; ++i)
++    for (i = 0; i < min(nodes_count, ARRAY_SIZE(nodes)); ++i)
+     {
+         trace("  [%d] LinkUsage: %x LinkUsagePage: %x Parent: %x "
+               "NumberOfChildren: %x NextSibling: %x FirstChild: %x "
+-- 
+2.43.0
+

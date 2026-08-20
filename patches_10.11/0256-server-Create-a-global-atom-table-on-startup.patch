@@ -1,0 +1,92 @@
+From e25475a06b8bbb583e08be603c1021d93614f06e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Tue, 17 Jun 2025 09:50:10 +0200
+Subject: [PATCH 256/293] server: Create a global atom table on startup.
+
+---
+ server/atom.c      | 15 +++++++++++----
+ server/directory.c |  6 +++++-
+ server/object.h    |  3 +++
+ 3 files changed, 19 insertions(+), 5 deletions(-)
+
+diff --git a/server/atom.c b/server/atom.c
+index 15c55d49813..1ff178bc3f6 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -97,8 +97,7 @@ static const struct object_ops atom_table_ops =
+ 
+ static struct atom_table *global_table;
+ 
+-/* create an atom table */
+-static struct atom_table *create_table(void)
++struct object *create_atom_table(void)
+ {
+     struct atom_table *table;
+ 
+@@ -107,7 +106,15 @@ static struct atom_table *create_table(void)
+     memset( table->entries, 0, sizeof(*table->entries) * ARRAY_SIZE(table->entries) );
+     table->count = 1; /* atom 0xc000 is reserved */
+ 
+-    return table;
++    return &table->obj;
++}
++
++void set_global_atom_table( struct object *obj )
++{
++    assert( obj->ops == &atom_table_ops );
++    global_table = (struct atom_table *)obj;
++    make_object_permanent( obj );
++    grab_object( obj );
+ }
+ 
+ /* retrieve an entry pointer from its atom */
+@@ -269,7 +276,7 @@ static struct atom_table *get_global_table( struct winstation *winstation, int c
+     {
+         if (create)
+         {
+-            table = create_table();
++            table = (struct atom_table *)create_atom_table();
+             if (winstation) winstation->atom_table = table;
+             else
+             {
+diff --git a/server/directory.c b/server/directory.c
+index c8dc3d1901d..e2011a7e21e 100644
+--- a/server/directory.c
++++ b/server/directory.c
+@@ -449,7 +449,7 @@ void init_directories( struct fd *intl_fd )
+     static const struct unicode_str session_str = {sessionW, sizeof(sessionW)};
+ 
+     struct directory *dir_driver, *dir_device, *dir_global, *dir_kernel, *dir_nls;
+-    struct object *named_pipe_device, *mailslot_device, *null_device;
++    struct object *named_pipe_device, *mailslot_device, *null_device, *atom_table;
+     struct mapping *session_mapping;
+     unsigned int i;
+ 
+@@ -502,6 +502,10 @@ void init_directories( struct fd *intl_fd )
+     set_session_mapping( session_mapping );
+     release_object( session_mapping );
+ 
++    atom_table = create_atom_table();
++    set_global_atom_table( atom_table );
++    release_object( atom_table );
++
+     release_object( named_pipe_device );
+     release_object( mailslot_device );
+     release_object( null_device );
+diff --git a/server/object.h b/server/object.h
+index 07f6ff7b16f..7861b3e6c40 100644
+--- a/server/object.h
++++ b/server/object.h
+@@ -284,6 +284,9 @@ extern void init_signals(void);
+ 
+ /* atom functions */
+ 
++extern struct object *create_atom_table(void);
++extern void set_global_atom_table( struct object *obj );
++
+ extern atom_t add_global_atom( struct winstation *winstation, const struct unicode_str *str );
+ extern atom_t find_global_atom( struct winstation *winstation, const struct unicode_str *str );
+ extern int grab_global_atom( struct winstation *winstation, atom_t atom );
+-- 
+2.43.0
+

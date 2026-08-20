@@ -1,0 +1,52 @@
+From dc7eefbe905c6deb2248fc11df255e7393858df3 Mon Sep 17 00:00:00 2001
+From: Esme Povirk <esme@codeweavers.com>
+Date: Fri, 20 Jun 2025 20:25:23 +0000
+Subject: [PATCH 185/293] comctl32: Implement OBJID_QUERYCLASSNAMEIDX for list
+ boxes.
+
+---
+ dlls/comctl32/listbox.c       | 5 +++++
+ dlls/comctl32/tests/listbox.c | 4 ++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/dlls/comctl32/listbox.c b/dlls/comctl32/listbox.c
+index 0ae511f7d70..3d55fc2ad83 100644
+--- a/dlls/comctl32/listbox.c
++++ b/dlls/comctl32/listbox.c
+@@ -2991,6 +2991,11 @@ static LRESULT CALLBACK LISTBOX_WindowProc( HWND hwnd, UINT msg, WPARAM wParam,
+     case WM_NCPAINT:
+         return LISTBOX_NCPaint( descr, (HRGN)wParam );
+ 
++    case WM_GETOBJECT:
++        if ((LONG)lParam == OBJID_QUERYCLASSNAMEIDX)
++            return 0x10000;
++        break;
++
+     case WM_SIZE:
+         LISTBOX_UpdateSize( descr );
+         return 0;
+diff --git a/dlls/comctl32/tests/listbox.c b/dlls/comctl32/tests/listbox.c
+index 4012811473c..f507ba108f8 100644
+--- a/dlls/comctl32/tests/listbox.c
++++ b/dlls/comctl32/tests/listbox.c
+@@ -372,6 +372,7 @@ static void test_item_height(void)
+     HFONT font;
+     HWND hLB;
+     HDC hdc;
++    DWORD idx;
+ 
+     hLB = create_listbox (0, 0);
+     ok ((hdc = GetDCEx( hLB, 0, DCX_CACHE )) != 0, "Can't get hdc\n");
+@@ -379,6 +380,9 @@ static void test_item_height(void)
+     ok (GetTextMetricsA( hdc, &tm ), "Can't read font metrics\n");
+     ReleaseDC( hLB, hdc);
+ 
++    idx = SendMessageA(hLB, WM_GETOBJECT, 0, OBJID_QUERYCLASSNAMEIDX);
++    ok(idx == 0x10000, "Got index 0x%08lx\n", idx);
++
+     ok (SendMessageA(hLB, WM_SETFONT, (WPARAM)font, 0) == 0, "Can't set font\n");
+ 
+     itemHeight = SendMessageA(hLB, LB_GETITEMHEIGHT, 0, 0);
+-- 
+2.43.0
+

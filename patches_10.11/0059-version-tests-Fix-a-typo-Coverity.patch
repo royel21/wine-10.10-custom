@@ -1,0 +1,26 @@
+From b5bef0b477f0d89c1d8356873c1f35f72aa9e565 Mon Sep 17 00:00:00 2001
+From: Nikolay Sivov <nsivov@codeweavers.com>
+Date: Tue, 17 Jun 2025 21:45:28 +0200
+Subject: [PATCH 059/293] version/tests: Fix a typo (Coverity).
+
+It was added in e8334f6d4c81bc1ad57da071b2e366d62905248a.
+---
+ dlls/version/tests/info.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/version/tests/info.c b/dlls/version/tests/info.c
+index b498f5331c8..788f274c04b 100644
+--- a/dlls/version/tests/info.c
++++ b/dlls/version/tests/info.c
+@@ -960,7 +960,7 @@ static void test_wow64_redirection(void)
+ 
+ START_TEST(info)
+ {
+-    HMODULE kernel32 =kernel32 = GetModuleHandleA("kernel32.dll");
++    HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
+     BOOL (WINAPI *pIsWow64Process)(HANDLE, BOOL *);
+     DWORD size;
+ 
+-- 
+2.43.0
+

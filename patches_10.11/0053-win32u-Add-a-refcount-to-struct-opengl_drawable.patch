@@ -1,0 +1,532 @@
+From 63ef8b13c24021ccbfc0579771c939cb4e2c1496 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Mon, 2 Jun 2025 13:02:39 +0200
+Subject: [PATCH 053/293] win32u: Add a refcount to struct opengl_drawable.
+
+---
+ dlls/win32u/opengl.c          | 17 +++++++++++++
+ dlls/wineandroid.drv/opengl.c | 24 +++++++++++++-----
+ dlls/winemac.drv/opengl.c     |  3 +++
+ dlls/winewayland.drv/opengl.c | 38 +++++++++++++++------------
+ dlls/winex11.drv/opengl.c     | 48 ++++++++++++++++++++---------------
+ include/wine/opengl_driver.h  | 14 ++++++++++
+ 6 files changed, 101 insertions(+), 43 deletions(-)
+
+diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+index 404eec56d1a..921f79a33a5 100644
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -163,6 +163,23 @@ static void register_extension( char *list, size_t size, const char *name )
+     }
+ }
+ 
++void opengl_drawable_add_ref( struct opengl_drawable *drawable )
++{
++    ULONG ref = InterlockedIncrement( &drawable->ref );
++    TRACE( "%s increasing refcount to %u\n", debugstr_opengl_drawable( drawable ), ref );
++}
++
++void opengl_drawable_release( struct opengl_drawable *drawable )
++{
++    ULONG ref = InterlockedDecrement( &drawable->ref );
++    TRACE( "%s decreasing refcount to %u\n", debugstr_opengl_drawable( drawable ), ref );
++
++    if (!ref)
++    {
++        drawable->funcs->destroy( drawable );
++    }
++}
++
+ #ifdef SONAME_LIBEGL
+ 
+ static void *egldrv_get_proc_address( const char *name )
+diff --git a/dlls/wineandroid.drv/opengl.c b/dlls/wineandroid.drv/opengl.c
+index 13b798c35ec..f0b3f76e64e 100644
+--- a/dlls/wineandroid.drv/opengl.c
++++ b/dlls/wineandroid.drv/opengl.c
+@@ -48,6 +48,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(android);
+ 
+ static const struct egl_platform *egl;
+ static const struct opengl_funcs *funcs;
++static const struct opengl_drawable_funcs android_drawable_funcs;
+ static const int egl_client_version = 2;
+ 
+ struct egl_pixel_format
+@@ -68,7 +69,6 @@ struct android_context
+ struct gl_drawable
+ {
+     struct opengl_drawable base;
+-    LONG            ref;
+     struct list     entry;
+     ANativeWindow  *window;
+     EGLSurface      surface;
+@@ -76,6 +76,11 @@ struct gl_drawable
+     int             swap_interval;
+ };
+ 
++static struct gl_drawable *impl_from_opengl_drawable( struct opengl_drawable *base )
++{
++    return CONTAINING_RECORD( base, struct gl_drawable, base );
++}
++
+ static void *opengl_handle;
+ static struct list gl_contexts = LIST_INIT( gl_contexts );
+ static struct list gl_drawables = LIST_INIT( gl_drawables );
+@@ -91,7 +96,7 @@ static inline EGLConfig egl_config_for_format(int format)
+ 
+ static struct gl_drawable *gl_drawable_grab( struct gl_drawable *gl )
+ {
+-    InterlockedIncrement( &gl->ref );
++    opengl_drawable_add_ref( &gl->base );
+     return gl;
+ }
+ 
+@@ -101,17 +106,18 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, HDC hdc, int format )
+     struct gl_drawable *gl;
+ 
+     if (!(gl = calloc( 1, sizeof(*gl) ))) return NULL;
++    gl->base.funcs  = &android_drawable_funcs;
++    gl->base.ref    = 1;
+     gl->base.hwnd   = hwnd;
+     gl->base.hdc    = hdc;
+     gl->base.format = format;
+ 
+-    gl->ref = 1;
+     gl->window = create_ioctl_window( hwnd, TRUE, 1.0f );
+     gl->surface = 0;
+     gl->pbuffer = funcs->p_eglCreatePbufferSurface( egl->display, egl_config_for_format(gl->base.format), attribs );
+     pthread_mutex_lock( &drawable_mutex );
+     list_add_head( &gl_drawables, &gl->entry );
+-    gl_drawable_grab( gl );
++    opengl_drawable_add_ref( &gl->base );
+ 
+     TRACE( "Created drawable %s with client window %p\n", debugstr_opengl_drawable( &gl->base ), gl->window );
+     return gl;
+@@ -131,8 +137,9 @@ static struct gl_drawable *get_gl_drawable( HWND hwnd, HDC hdc )
+     return NULL;
+ }
+ 
+-static void gl_drawable_destroy( struct gl_drawable *gl )
++static void android_drawable_destroy( struct opengl_drawable *base )
+ {
++    struct gl_drawable *gl = impl_from_opengl_drawable( base );
+     if (gl->surface) funcs->p_eglDestroySurface( egl->display, gl->surface );
+     if (gl->pbuffer) funcs->p_eglDestroySurface( egl->display, gl->pbuffer );
+     release_ioctl_window( gl->window );
+@@ -141,7 +148,7 @@ static void gl_drawable_destroy( struct gl_drawable *gl )
+ 
+ static void release_gl_drawable( struct gl_drawable *gl )
+ {
+-    if (!InterlockedDecrement( &gl->ref )) gl_drawable_destroy( gl );
++    opengl_drawable_release( &gl->base );
+     pthread_mutex_unlock( &drawable_mutex );
+ }
+ 
+@@ -405,6 +412,11 @@ static struct opengl_driver_funcs android_driver_funcs =
+     .p_context_make_current = android_context_make_current,
+ };
+ 
++static const struct opengl_drawable_funcs android_drawable_funcs =
++{
++    .destroy = android_drawable_destroy,
++};
++
+ /**********************************************************************
+  *           ANDROID_OpenGLInit
+  */
+diff --git a/dlls/winemac.drv/opengl.c b/dlls/winemac.drv/opengl.c
+index 00342e05382..8fd32474c7c 100644
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -100,6 +100,7 @@ static pthread_mutex_t dc_pbuffers_mutex = PTHREAD_MUTEX_INITIALIZER;
+ static void *opengl_handle;
+ static const struct opengl_funcs *funcs;
+ static const struct opengl_driver_funcs macdrv_driver_funcs;
++static const struct opengl_drawable_funcs macdrv_drawable_funcs;
+ 
+ static void (*pglCopyColorTable)(GLenum target, GLenum internalformat, GLint x, GLint y,
+                                  GLsizei width);
+@@ -2383,6 +2384,8 @@ static BOOL macdrv_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum text
+     }
+ 
+     if (!(gl = calloc(1, sizeof(*gl)))) return FALSE;
++    gl->base.funcs = &macdrv_drawable_funcs;
++    gl->base.ref = 1;
+     gl->base.hwnd = 0;
+     gl->base.hdc = hdc;
+     gl->base.format = format;
+diff --git a/dlls/winewayland.drv/opengl.c b/dlls/winewayland.drv/opengl.c
+index cd66cde5485..9163f18058b 100644
+--- a/dlls/winewayland.drv/opengl.c
++++ b/dlls/winewayland.drv/opengl.c
+@@ -44,6 +44,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(waylanddrv);
+ 
+ static const struct egl_platform *egl;
+ static const struct opengl_funcs *funcs;
++static const struct opengl_drawable_funcs wayland_drawable_funcs;
+ 
+ #define DECL_FUNCPTR(f) static PFN_##f p_##f
+ DECL_FUNCPTR(glClear);
+@@ -57,7 +58,6 @@ struct wayland_gl_drawable
+ {
+     struct opengl_drawable base;
+     struct list entry;
+-    LONG ref;
+     struct wayland_client_surface *client;
+     struct wl_egl_window *wl_egl_window;
+     EGLSurface surface;
+@@ -109,7 +109,7 @@ static struct wayland_gl_drawable *find_drawable(HWND hwnd, HDC hdc)
+ 
+ static struct wayland_gl_drawable *wayland_gl_drawable_acquire(struct wayland_gl_drawable *gl)
+ {
+-    InterlockedIncrement(&gl->ref);
++    opengl_drawable_add_ref(&gl->base);
+     return gl;
+ }
+ 
+@@ -125,9 +125,9 @@ static struct wayland_gl_drawable *wayland_gl_drawable_get(HWND hwnd, HDC hdc)
+     return ret;
+ }
+ 
+-static void wayland_gl_drawable_release(struct wayland_gl_drawable *gl)
++static void wayland_drawable_destroy(struct opengl_drawable *base)
+ {
+-    if (InterlockedDecrement(&gl->ref)) return;
++    struct wayland_gl_drawable *gl = impl_from_opengl_drawable(base);
+     if (gl->surface) funcs->p_eglDestroySurface(egl->display, gl->surface);
+     if (gl->wl_egl_window) wl_egl_window_destroy(gl->wl_egl_window);
+     if (gl->client)
+@@ -173,11 +173,12 @@ static struct wayland_gl_drawable *wayland_gl_drawable_create(HWND hwnd, HDC hdc
+     *attrib++ = EGL_NONE;
+ 
+     if (!(gl = calloc(1, sizeof(*gl)))) return NULL;
++    gl->base.funcs = &wayland_drawable_funcs;
++    gl->base.ref = 1;
+     gl->base.hwnd = hwnd;
+     gl->base.hdc = hdc;
+     gl->base.format = format;
+ 
+-    gl->ref = 1;
+     gl->swap_interval = 1;
+ 
+     /* Get the client surface for the HWND. If don't have a wayland surface
+@@ -207,7 +208,7 @@ static struct wayland_gl_drawable *wayland_gl_drawable_create(HWND hwnd, HDC hdc
+     return gl;
+ 
+ err:
+-    wayland_gl_drawable_release(gl);
++    opengl_drawable_release(&gl->base);
+     return NULL;
+ }
+ 
+@@ -235,7 +236,7 @@ static void wayland_update_gl_drawable(HWND hwnd, struct wayland_gl_drawable *ne
+ 
+     pthread_mutex_unlock(&gl_object_mutex);
+ 
+-    if (old) wayland_gl_drawable_release(old);
++    if (old) opengl_drawable_release(&old->base);
+ }
+ 
+ static void wayland_gl_drawable_sync_size(struct wayland_gl_drawable *gl)
+@@ -305,8 +306,8 @@ static BOOL wayland_context_make_current(HDC draw_hdc, HDC read_hdc, void *priva
+ 
+     pthread_mutex_unlock(&gl_object_mutex);
+ 
+-    if (old_draw) wayland_gl_drawable_release(old_draw);
+-    if (old_read) wayland_gl_drawable_release(old_read);
++    if (old_draw) opengl_drawable_release(&old_draw->base);
++    if (old_read) opengl_drawable_release(&old_read->base);
+ 
+     return ret;
+ }
+@@ -336,8 +337,8 @@ static void wayland_context_refresh(struct wayland_context *ctx)
+ 
+     pthread_mutex_unlock(&gl_object_mutex);
+ 
+-    if (old_draw) wayland_gl_drawable_release(old_draw);
+-    if (old_read) wayland_gl_drawable_release(old_read);
++    if (old_draw) opengl_drawable_release(&old_draw->base);
++    if (old_read) opengl_drawable_release(&old_read->base);
+ }
+ 
+ static BOOL wayland_set_pixel_format(HWND hwnd, int old_format, int new_format, BOOL internal)
+@@ -463,8 +464,8 @@ static BOOL wayland_context_destroy(void *private)
+     list_remove(&ctx->entry);
+     pthread_mutex_unlock(&gl_object_mutex);
+     funcs->p_eglDestroyContext(egl->display, ctx->context);
+-    if (ctx->draw) wayland_gl_drawable_release(ctx->draw);
+-    if (ctx->read) wayland_gl_drawable_release(ctx->read);
++    if (ctx->draw) opengl_drawable_release(&ctx->draw->base);
++    if (ctx->read) opengl_drawable_release(&ctx->read->base);
+     free(ctx);
+     return TRUE;
+ }
+@@ -510,7 +511,7 @@ static BOOL wayland_swap_buffers(void *private, HWND hwnd, HDC hdc, int interval
+     if (gl->double_buffered) funcs->p_eglSwapBuffers(egl->display, gl->surface);
+     wayland_gl_drawable_sync_size(gl);
+ 
+-    wayland_gl_drawable_release(gl);
++    opengl_drawable_release(&gl->base);
+ 
+     return TRUE;
+ }
+@@ -544,7 +545,7 @@ static BOOL wayland_pbuffer_destroy(HDC hdc, struct opengl_drawable *base)
+     list_remove(&drawable->entry);
+     pthread_mutex_unlock(&gl_object_mutex);
+ 
+-    wayland_gl_drawable_release(drawable);
++    opengl_drawable_release(&drawable->base);
+ 
+     return GL_TRUE;
+ }
+@@ -581,6 +582,11 @@ static struct opengl_driver_funcs wayland_driver_funcs =
+     .p_pbuffer_bind = wayland_pbuffer_bind,
+ };
+ 
++static const struct opengl_drawable_funcs wayland_drawable_funcs =
++{
++    .destroy = wayland_drawable_destroy,
++};
++
+ /**********************************************************************
+  *           WAYLAND_OpenGLInit
+  */
+@@ -628,7 +634,7 @@ void wayland_resize_gl_drawable(HWND hwnd)
+     /* wl_egl_window_resize is not thread safe, so we just mark the
+      * drawable as resized and perform the resize in the proper thread. */
+     InterlockedExchange(&gl->resized, TRUE);
+-    wayland_gl_drawable_release(gl);
++    opengl_drawable_release(&gl->base);
+ }
+ 
+ #else /* No GL */
+diff --git a/dlls/winex11.drv/opengl.c b/dlls/winex11.drv/opengl.c
+index 0c34d858b0a..f7d2b484445 100644
+--- a/dlls/winex11.drv/opengl.c
++++ b/dlls/winex11.drv/opengl.c
+@@ -212,7 +212,6 @@ enum dc_gl_type
+ struct gl_drawable
+ {
+     struct opengl_drawable         base;
+-    LONG                           ref;          /* reference count */
+     enum dc_gl_type                type;         /* type of GL surface */
+     RECT                           rect;         /* current size of the GL drawable */
+     GLXDrawable                    drawable;     /* drawable for rendering with GL */
+@@ -351,6 +350,7 @@ static const GLubyte *(*pglGetString)(GLenum name);
+ static void *opengl_handle;
+ static const struct opengl_funcs *funcs;
+ static const struct opengl_driver_funcs x11drv_driver_funcs;
++static const struct opengl_drawable_funcs x11drv_drawable_funcs;
+ 
+ /* check if the extension is present in the list */
+ static BOOL has_extension( const char *list, const char *ext )
+@@ -831,13 +831,13 @@ static struct glx_pixel_format *glx_pixel_format_from_format( int format )
+ 
+ static struct gl_drawable *grab_gl_drawable( struct gl_drawable *gl )
+ {
+-    InterlockedIncrement( &gl->ref );
++    opengl_drawable_add_ref( &gl->base );
+     return gl;
+ }
+ 
+-static void release_gl_drawable( struct gl_drawable *gl )
++static void x11drv_drawable_destroy( struct opengl_drawable *base )
+ {
+-    if (InterlockedDecrement( &gl->ref )) return;
++    struct gl_drawable *gl = impl_from_opengl_drawable(base);
+     switch (gl->type)
+     {
+     case DC_GL_WINDOW:
+@@ -937,13 +937,14 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, int format )
+     NtUserGetClientRect( hwnd, &rect, NtUserGetDpiForWindow( hwnd ) );
+ 
+     if (!(gl = calloc( 1, sizeof(*gl) ))) return NULL;
++    gl->base.funcs = &x11drv_drawable_funcs;
++    gl->base.ref = 1;
+     gl->base.hwnd = hwnd;
+     gl->base.hdc = 0;
+     gl->base.format = format;
+ 
+     /* Default GLX and WGL swap interval is 1, but in case of glXSwapIntervalSGI there is no way to query it. */
+     gl->swap_interval = INT_MIN;
+-    gl->ref = 1;
+     gl->rect = rect;
+ 
+     gl->type = DC_GL_WINDOW;
+@@ -963,7 +964,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, int format )
+ 
+     pthread_mutex_lock( &context_mutex );
+     if (!XFindContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char **)&prev ))
+-        release_gl_drawable( prev );
++        opengl_drawable_release( &prev->base );
+     XSaveContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char *)grab_gl_drawable(gl) );
+     pthread_mutex_unlock( &context_mutex );
+     return gl;
+@@ -982,7 +983,7 @@ static BOOL x11drv_set_pixel_format( HWND hwnd, int old_format, int new_format,
+     if (!(gl = create_gl_drawable( hwnd, new_format ))) return FALSE;
+     TRACE( "created GL drawable %lx for win %p\n", gl->drawable, hwnd);
+     XFlush( gdi_display );
+-    release_gl_drawable( gl );
++    opengl_drawable_release( &gl->base );
+ 
+     return TRUE;
+ }
+@@ -1092,7 +1093,7 @@ void destroy_gl_drawable( HWND hwnd )
+     if (!XFindContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char **)&gl ))
+     {
+         XDeleteContext( gdi_display, (XID)hwnd, gl_hwnd_context );
+-        release_gl_drawable( gl );
++        opengl_drawable_release( &gl->base );
+     }
+     pthread_mutex_unlock( &context_mutex );
+ }
+@@ -1299,8 +1300,8 @@ static BOOL x11drv_context_destroy(void *private)
+     pthread_mutex_unlock( &context_mutex );
+ 
+     if (ctx->ctx) pglXDestroyContext( gdi_display, ctx->ctx );
+-    if (ctx->draw) release_gl_drawable( ctx->draw );
+-    if (ctx->read) release_gl_drawable( ctx->read );
++    if (ctx->draw) opengl_drawable_release( &ctx->draw->base );
++    if (ctx->read) opengl_drawable_release( &ctx->read->base );
+     free( ctx );
+     return TRUE;
+ }
+@@ -1321,8 +1322,8 @@ static void set_context_drawables( struct x11drv_context *ctx, struct gl_drawabl
+     old_read = ctx->read;
+     ctx->draw = grab_gl_drawable( draw );
+     ctx->read = read ? grab_gl_drawable( read ) : NULL;
+-    if (old_draw) release_gl_drawable( old_draw );
+-    if (old_read) release_gl_drawable( old_read );
++    if (old_draw) opengl_drawable_release( &old_draw->base );
++    if (old_read) opengl_drawable_release( &old_read->base );
+ }
+ 
+ static BOOL x11drv_context_make_current( HDC draw_hdc, HDC read_hdc, void *private )
+@@ -1358,8 +1359,8 @@ static BOOL x11drv_context_make_current( HDC draw_hdc, HDC read_hdc, void *priva
+     }
+     RtlSetLastWin32Error( ERROR_INVALID_HANDLE );
+ done:
+-    if (read_gl) release_gl_drawable( read_gl );
+-    if (draw_gl) release_gl_drawable( draw_gl );
++    if (read_gl) opengl_drawable_release( &read_gl->base );
++    if (draw_gl) opengl_drawable_release( &draw_gl->base );
+     TRACE( "%p,%p,%p returning %d\n", draw_hdc, read_hdc, ctx, ret );
+     return ret;
+ }
+@@ -1407,7 +1408,7 @@ static BOOL x11drv_context_flush( void *private, HWND hwnd, HDC hdc, int interva
+     if (!(gl = get_gl_drawable( hwnd, 0 ))) return FALSE;
+     if (gl->type != DC_GL_WINDOW)
+     {
+-        release_gl_drawable( gl );
++        opengl_drawable_release( &gl->base );
+         return FALSE;
+     }
+ 
+@@ -1423,7 +1424,7 @@ static BOOL x11drv_context_flush( void *private, HWND hwnd, HDC hdc, int interva
+     pthread_mutex_unlock( &context_mutex );
+ 
+     present_gl_drawable( hwnd, hdc, gl, TRUE, flush != funcs->p_glFinish );
+-    release_gl_drawable( gl );
++    opengl_drawable_release( &gl->base );
+     return TRUE;
+ }
+ 
+@@ -1532,13 +1533,13 @@ static BOOL x11drv_pbuffer_create( HDC hdc, int format, BOOL largest, GLenum tex
+     glx_attribs[count++] = 0;
+ 
+     if (!(gl = calloc( 1, sizeof(*gl) ))) return FALSE;
++    gl->base.funcs = &x11drv_drawable_funcs;
++    gl->base.ref = 1;
+     gl->base.hwnd = 0;
+     gl->base.hdc = hdc;
+     gl->base.format = format;
+ 
+     gl->type = DC_GL_PBUFFER;
+-    gl->ref = 1;
+-
+     gl->drawable = pglXCreatePbuffer( gdi_display, fmt->fbconfig, glx_attribs );
+     TRACE( "new Pbuffer drawable as %p (%lx)\n", gl, gl->drawable );
+     if (!gl->drawable)
+@@ -1568,7 +1569,7 @@ static BOOL x11drv_pbuffer_destroy( HDC hdc, struct opengl_drawable *base )
+     pthread_mutex_lock( &context_mutex );
+     XDeleteContext( gdi_display, (XID)hdc, gl_pbuffer_context );
+     pthread_mutex_unlock( &context_mutex );
+-    release_gl_drawable( gl );
++    opengl_drawable_release( &gl->base );
+ 
+     return GL_TRUE;
+ }
+@@ -1716,7 +1717,7 @@ static BOOL x11drv_swap_buffers( void *private, HWND hwnd, HDC hdc, int interval
+     }
+     if (gl->type != DC_GL_WINDOW)
+     {
+-        release_gl_drawable( gl );
++        opengl_drawable_release( &gl->base );
+         return FALSE;
+     }
+ 
+@@ -1738,7 +1739,7 @@ static BOOL x11drv_swap_buffers( void *private, HWND hwnd, HDC hdc, int interval
+     pthread_mutex_unlock( &context_mutex );
+ 
+     present_gl_drawable( hwnd, hdc, gl, !pglXWaitForSbcOML, FALSE );
+-    release_gl_drawable( gl );
++    opengl_drawable_release( &gl->base );
+     return TRUE;
+ }
+ 
+@@ -1760,6 +1761,11 @@ static const struct opengl_driver_funcs x11drv_driver_funcs =
+     .p_pbuffer_bind = x11drv_pbuffer_bind,
+ };
+ 
++static const struct opengl_drawable_funcs x11drv_drawable_funcs =
++{
++    .destroy = x11drv_drawable_destroy,
++};
++
+ #else  /* no OpenGL includes */
+ 
+ /**********************************************************************
+diff --git a/include/wine/opengl_driver.h b/include/wine/opengl_driver.h
+index 4e2cb84c829..5101525f744 100644
+--- a/include/wine/opengl_driver.h
++++ b/include/wine/opengl_driver.h
+@@ -61,6 +61,8 @@ struct wgl_pixel_format
+ 
+ #ifdef WINE_UNIX_LIB
+ 
++#include "wine/gdi_driver.h"
++
+ /* Wine internal opengl driver version, needs to be bumped upon opengl_funcs changes. */
+ #define WINE_OPENGL_DRIVER_VERSION 36
+ 
+@@ -125,8 +127,17 @@ struct egl_platform
+ };
+ 
+ /* a driver opengl drawable, either a client surface of a pbuffer */
++struct opengl_drawable;
++struct opengl_drawable_funcs
++{
++    void (*destroy)( struct opengl_drawable *iface );
++};
++
+ struct opengl_drawable
+ {
++    const struct opengl_drawable_funcs *funcs;
++    LONG ref;
++
+     int format;  /* pixel format of the drawable */
+     HWND hwnd;   /* window the drawable was created for */
+     HDC hdc;     /* DC the drawable was created for */
+@@ -138,6 +149,9 @@ static inline const char *debugstr_opengl_drawable( struct opengl_drawable *draw
+     return wine_dbg_sprintf( "%p (format %u, hwnd %p, hdc %p)", drawable, drawable->format, drawable->hwnd, drawable->hdc );
+ }
+ 
++W32KAPI void opengl_drawable_add_ref( struct opengl_drawable *drawable );
++W32KAPI void opengl_drawable_release( struct opengl_drawable *drawable );
++
+ /* interface between win32u and the user drivers */
+ struct opengl_driver_funcs
+ {
+-- 
+2.43.0
+

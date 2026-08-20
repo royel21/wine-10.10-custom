@@ -1,0 +1,78 @@
+From 0f014efc9a08b8d52da09d3fd595b32753f6c9ea Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Sun, 25 May 2025 17:10:43 -0500
+Subject: [PATCH 011/293] qasf/dmowrapper: Call AllocateStreamingResources()
+ and FreeStreamingResources().
+
+---
+ dlls/qasf/dmowrapper.c       | 13 +++++++++++++
+ dlls/qasf/tests/dmowrapper.c |  4 ++--
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/qasf/dmowrapper.c b/dlls/qasf/dmowrapper.c
+index ead4e50229c..0e6408c06d4 100644
+--- a/dlls/qasf/dmowrapper.c
++++ b/dlls/qasf/dmowrapper.c
+@@ -682,17 +682,29 @@ static HRESULT dmo_wrapper_query_interface(struct strmbase_filter *iface, REFIID
+ static HRESULT dmo_wrapper_init_stream(struct strmbase_filter *iface)
+ {
+     struct dmo_wrapper *filter = impl_from_strmbase_filter(iface);
++    IMediaObject *dmo;
++    HRESULT hr;
+     DWORD i;
+ 
+     if (!filter->dmo)
+         return E_FAIL;
+ 
++    IUnknown_QueryInterface(filter->dmo, &IID_IMediaObject, (void **)&dmo);
++
++    if (FAILED(hr = IMediaObject_AllocateStreamingResources(dmo)))
++    {
++        ERR("AllocateStreamingResources() failed, hr %#lx.\n", hr);
++        IMediaObject_Release(dmo);
++        return hr;
++    }
++
+     for (i = 0; i < filter->source_count; ++i)
+     {
+         if (filter->sources[i].pin.pin.peer)
+             IMemAllocator_Commit(filter->sources[i].pin.pAllocator);
+     }
+ 
++    IMediaObject_Release(dmo);
+     return S_OK;
+ }
+ 
+@@ -715,6 +727,7 @@ static HRESULT dmo_wrapper_cleanup_stream(struct strmbase_filter *iface)
+     }
+ 
+     IMediaObject_Flush(dmo);
++    IMediaObject_FreeStreamingResources(dmo);
+ 
+     IMediaObject_Release(dmo);
+     LeaveCriticalSection(&filter->filter.stream_cs);
+diff --git a/dlls/qasf/tests/dmowrapper.c b/dlls/qasf/tests/dmowrapper.c
+index f4fa3513139..941267761cd 100644
+--- a/dlls/qasf/tests/dmowrapper.c
++++ b/dlls/qasf/tests/dmowrapper.c
+@@ -1413,7 +1413,7 @@ static void test_source_allocator(IFilterGraph2 *graph, IMediaControl *control,
+             got_AllocateStreamingResources);
+     hr = IMediaControl_Pause(control);
+     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+-    todo_wine ok(got_AllocateStreamingResources == 1, "Got %u calls to AllocateStreamingResources().\n",
++    ok(got_AllocateStreamingResources == 1, "Got %u calls to AllocateStreamingResources().\n",
+             got_AllocateStreamingResources);
+ 
+     hr = IMemAllocator_GetBuffer(testsink->sink.pAllocator, &sample, NULL, NULL, 0);
+@@ -1424,7 +1424,7 @@ static void test_source_allocator(IFilterGraph2 *graph, IMediaControl *control,
+             got_FreeStreamingResources);
+     hr = IMediaControl_Stop(control);
+     ok(hr == S_OK, "Got hr %#lx.\n", hr);
+-    todo_wine ok(got_FreeStreamingResources == 1, "Got %u calls to FreeStreamingResources().\n",
++    ok(got_FreeStreamingResources == 1, "Got %u calls to FreeStreamingResources().\n",
+             got_FreeStreamingResources);
+ 
+     hr = IMemAllocator_GetBuffer(testsink->sink.pAllocator, &sample, NULL, NULL, 0);
+-- 
+2.43.0
+

@@ -1,0 +1,27 @@
+From 77d5ded5b0a8efdfab741856d4b51876c46ca1b8 Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Mon, 23 Jun 2025 12:29:23 +0200
+Subject: [PATCH 182/293] kernelbase: Convert slashes in Unix paths in
+ GetFinalPathNameByHandleW.
+
+---
+ dlls/kernelbase/file.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/dlls/kernelbase/file.c b/dlls/kernelbase/file.c
+index 7d8b6844456..b637e92bbce 100644
+--- a/dlls/kernelbase/file.c
++++ b/dlls/kernelbase/file.c
+@@ -1815,6 +1815,9 @@ DWORD WINAPI DECLSPEC_HOTPATCH GetFinalPathNameByHandleW( HANDLE file, LPWSTR pa
+     info->Name.Buffer[info->Name.Length / sizeof(WCHAR)] = 0;
+     info->Name.Length -= 4 * sizeof(WCHAR);
+     info->Name.Buffer += 4;
++    /* convert slashes in case of \??\unix path */
++    for (ULONG i = 0; i < info->Name.Length / sizeof(WCHAR); i++)
++        if (info->Name.Buffer[i] == '/') info->Name.Buffer[i] = '\\';
+ 
+     /* FILE_NAME_OPENED is not supported yet, and would require Wineserver changes */
+     if (flags & FILE_NAME_OPENED)
+-- 
+2.43.0
+

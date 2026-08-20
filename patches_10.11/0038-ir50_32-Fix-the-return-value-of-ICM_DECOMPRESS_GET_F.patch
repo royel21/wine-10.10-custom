@@ -1,0 +1,55 @@
+From b11fdcf17a61aedd84616bee1e3ab6ba23558371 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Tue, 10 Jun 2025 18:24:39 -0500
+Subject: [PATCH 038/293] ir50_32: Fix the return value of
+ ICM_DECOMPRESS_GET_FORMAT.
+
+---
+ dlls/ir50_32/ir50.c          | 5 +----
+ dlls/ir50_32/tests/ir50_32.c | 2 +-
+ 2 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/dlls/ir50_32/ir50.c b/dlls/ir50_32/ir50.c
+index 1e40435ab91..c7347815332 100644
+--- a/dlls/ir50_32/ir50.c
++++ b/dlls/ir50_32/ir50.c
+@@ -115,14 +115,11 @@ IV50_DecompressQuery( LPBITMAPINFO in, LPBITMAPINFO out )
+ static LRESULT
+ IV50_DecompressGetFormat( LPBITMAPINFO in, LPBITMAPINFO out )
+ {
+-    DWORD size;
+-
+     TRACE("ICM_DECOMPRESS_GETFORMAT %p %p\n", in, out);
+ 
+     if (compare_fourcc(in->bmiHeader.biCompression, IV50_MAGIC))
+         return ICERR_BADFORMAT;
+ 
+-    size = in->bmiHeader.biSize;
+     if ( out )
+     {
+         memset(&out->bmiHeader, 0, sizeof(out->bmiHeader));
+@@ -136,7 +133,7 @@ IV50_DecompressGetFormat( LPBITMAPINFO in, LPBITMAPINFO out )
+         return ICERR_OK;
+     }
+ 
+-    return size;
++    return offsetof(BITMAPINFO, bmiColors[256]);
+ }
+ 
+ static LRESULT IV50_DecompressBegin( IMFTransform *decoder, LPBITMAPINFO in, LPBITMAPINFO out )
+diff --git a/dlls/ir50_32/tests/ir50_32.c b/dlls/ir50_32/tests/ir50_32.c
+index a82c58ee759..0a52fa29cb5 100644
+--- a/dlls/ir50_32/tests/ir50_32.c
++++ b/dlls/ir50_32/tests/ir50_32.c
+@@ -49,7 +49,7 @@ static void test_formats(void)
+     ok(ret == ICERR_OK, "Got %Id.\n", ret);
+ 
+     ret = ICDecompressGetFormat(hic, &in, NULL);
+-    todo_wine ok(ret == offsetof(BITMAPINFO, bmiColors[256]), "Got %Id.\n", ret);
++    ok(ret == offsetof(BITMAPINFO, bmiColors[256]), "Got %Id.\n", ret);
+ 
+     in.biWidth = 320;
+     in.biHeight = 240;
+-- 
+2.43.0
+

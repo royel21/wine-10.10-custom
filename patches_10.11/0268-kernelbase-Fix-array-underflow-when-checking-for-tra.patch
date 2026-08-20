@@ -1,0 +1,26 @@
+From 613ddad0d019c1e52c8c0a80e97c317a418a02be Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Thu, 26 Jun 2025 17:24:17 +0100
+Subject: [PATCH 268/293] kernelbase: Fix array underflow when checking for
+ trailing spaces.
+
+---
+ dlls/kernelbase/loader.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/kernelbase/loader.c b/dlls/kernelbase/loader.c
+index 6d56f034fb7..f6347c1cc9c 100644
+--- a/dlls/kernelbase/loader.c
++++ b/dlls/kernelbase/loader.c
+@@ -560,7 +560,7 @@ HMODULE WINAPI DECLSPEC_HOTPATCH LoadLibraryExW( LPCWSTR name, HANDLE file, DWOR
+         return 0;
+     }
+     RtlInitUnicodeString( &str, name );
+-    if (str.Buffer[str.Length/sizeof(WCHAR) - 1] != ' ') return load_library( &str, flags );
++    if (str.Length && str.Buffer[str.Length/sizeof(WCHAR) - 1] != ' ') return load_library( &str, flags );
+ 
+     /* library name has trailing spaces */
+     RtlCreateUnicodeString( &str, name );
+-- 
+2.43.0
+

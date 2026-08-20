@@ -1,0 +1,41 @@
+From 00bb18a6126bbe59b582537f629b36727907cdb2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Mon, 23 Jun 2025 09:10:41 +0200
+Subject: [PATCH 159/293] win32u: Use the right pointer when destroying window.
+
+---
+ dlls/win32u/window.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/win32u/window.c b/dlls/win32u/window.c
+index 352dc938b66..a82462e44e4 100644
+--- a/dlls/win32u/window.c
++++ b/dlls/win32u/window.c
+@@ -5161,6 +5161,7 @@ void destroy_thread_windows(void)
+         HWND handle;
+         HMENU menu;
+         HMENU sys_menu;
++        struct opengl_drawable *opengl_drawable;
+         struct window_surface *surface;
+         struct destroy_entry *next;
+     } *entry, *free_list = NULL;
+@@ -5187,6 +5188,7 @@ void destroy_thread_windows(void)
+         list_move_tail( &vulkan_surfaces, &win->vulkan_surfaces );
+         if (!is_child) tmp.menu = (HMENU)win->wIDmenu;
+         tmp.sys_menu = win->hSysMenu;
++        tmp.opengl_drawable = win->opengl_drawable;
+         tmp.surface = win->surface;
+         *entry = tmp;
+ 
+@@ -5210,7 +5212,7 @@ void destroy_thread_windows(void)
+         TRACE( "destroying %p\n", entry );
+ 
+         user_driver->pDestroyWindow( entry->handle );
+-        if (win->opengl_drawable) opengl_drawable_release( win->opengl_drawable );
++        if (entry->opengl_drawable) opengl_drawable_release( entry->opengl_drawable );
+ 
+         NtUserDestroyMenu( entry->menu );
+         NtUserDestroyMenu( entry->sys_menu );
+-- 
+2.43.0
+

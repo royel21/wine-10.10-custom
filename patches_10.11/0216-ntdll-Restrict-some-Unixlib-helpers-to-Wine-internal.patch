@@ -1,0 +1,56 @@
+From 6c42268908d1350d3683052f903adcef48552e59 Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Tue, 24 Jun 2025 11:55:13 +0200
+Subject: [PATCH 216/293] ntdll: Restrict some Unixlib helpers to Wine internal
+ usage.
+
+---
+ include/wine/unixlib.h | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/include/wine/unixlib.h b/include/wine/unixlib.h
+index d5e26f461d5..e8b9d6d401e 100644
+--- a/include/wine/unixlib.h
++++ b/include/wine/unixlib.h
+@@ -32,13 +32,12 @@ typedef NTSTATUS (*unixlib_entry_t)( void *args );
+ extern DECLSPEC_EXPORT const unixlib_entry_t __wine_unix_call_funcs[];
+ extern DECLSPEC_EXPORT const unixlib_entry_t __wine_unix_call_wow64_funcs[];
+ 
+-/* some useful helpers from ntdll */
++/* some useful private helpers from ntdll */
++
++#ifdef __WINESRC__
++
+ NTSYSAPI const char *ntdll_get_build_dir(void);
+ NTSYSAPI const char *ntdll_get_data_dir(void);
+-NTSYSAPI DWORD ntdll_umbstowcs( const char *src, DWORD srclen, WCHAR *dst, DWORD dstlen );
+-NTSYSAPI int ntdll_wcstoumbs( const WCHAR *src, DWORD srclen, char *dst, DWORD dstlen, BOOL strict );
+-NTSYSAPI int ntdll_wcsicmp( const WCHAR *str1, const WCHAR *str2 );
+-NTSYSAPI int ntdll_wcsnicmp( const WCHAR *str1, const WCHAR *str2, int n );
+ 
+ /* exception handling */
+ 
+@@ -75,6 +74,8 @@ NTSYSAPI BOOLEAN KeAddSystemServiceTable( ULONG_PTR *funcs, ULONG_PTR *counters,
+ NTSYSAPI void ntdll_add_syscall_debug_info( UINT idx, const char **syscall_names,
+                                             const char **usercall_names );
+ 
++#endif  /* __WINESRC__ */
++
+ /* wide char string functions */
+ 
+ static inline int ntdll_iswspace( WCHAR wc )
+@@ -241,6 +242,11 @@ static inline ULONG ntdll_wcstoul( const WCHAR *s, WCHAR **end, int base )
+     return negative ? -ret : ret;
+ }
+ 
++NTSYSAPI DWORD ntdll_umbstowcs( const char *src, DWORD srclen, WCHAR *dst, DWORD dstlen );
++NTSYSAPI int ntdll_wcstoumbs( const WCHAR *src, DWORD srclen, char *dst, DWORD dstlen, BOOL strict );
++NTSYSAPI int ntdll_wcsicmp( const WCHAR *str1, const WCHAR *str2 );
++NTSYSAPI int ntdll_wcsnicmp( const WCHAR *str1, const WCHAR *str2, int n );
++
+ #define iswspace(ch)       ntdll_iswspace(ch)
+ #define wcslen(str)        ntdll_wcslen(str)
+ #define wcscpy(dst,src)    ntdll_wcscpy(dst,src)
+-- 
+2.43.0
+

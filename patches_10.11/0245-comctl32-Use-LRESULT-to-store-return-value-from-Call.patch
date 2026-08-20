@@ -1,0 +1,26 @@
+From 6ef9e35907fdc744d5b8ff1d494e6ce4b430e3fa Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bernhard=20=C3=9Cbelacker?= <bernhardu@mailbox.org>
+Date: Sun, 22 Jun 2025 22:44:09 +0200
+Subject: [PATCH 245/293] comctl32: Use LRESULT to store return value from
+ CallWindowProcW.
+
+---
+ dlls/comctl32/ipaddress.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/comctl32/ipaddress.c b/dlls/comctl32/ipaddress.c
+index be7e45def97..af1ae11300e 100644
+--- a/dlls/comctl32/ipaddress.c
++++ b/dlls/comctl32/ipaddress.c
+@@ -529,7 +529,7 @@ IPADDRESS_SubclassProc (HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+  	    if(isdigit(c)) {
+ 		if(len == 2 && startsel==endsel && endsel==len) {
+ 		    /* process the digit press before we check the field */
+-		    int return_val = CallWindowProcW (part->OrigProc, hwnd, uMsg, wParam, lParam);
++		    LRESULT return_val = CallWindowProcW (part->OrigProc, hwnd, uMsg, wParam, lParam);
+ 
+ 		    /* if the field value was changed stay at the current field */
+ 		    if(!IPADDRESS_ConstrainField(infoPtr, index))
+-- 
+2.43.0
+

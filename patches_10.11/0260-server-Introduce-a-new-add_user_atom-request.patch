@@ -1,0 +1,269 @@
+From fd81988d81bafd8ed5c3892282996a9ae2eec30b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+Date: Fri, 13 Jun 2025 11:17:30 +0200
+Subject: [PATCH 260/293] server: Introduce a new add_user_atom request.
+
+---
+ dlls/win32u/class.c            | 50 ++++++++++++++++++++++++++++++++--
+ include/wine/server_protocol.h | 20 +++++++++++++-
+ server/atom.c                  |  7 +++++
+ server/protocol.def            |  8 ++++++
+ server/request_handlers.h      |  5 ++++
+ server/request_trace.h         | 13 +++++++++
+ 6 files changed, 100 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/win32u/class.c b/dlls/win32u/class.c
+index abe94e6be62..2c960a4060a 100644
+--- a/dlls/win32u/class.c
++++ b/dlls/win32u/class.c
+@@ -38,6 +38,9 @@ WINE_DECLARE_DEBUG_CHANNEL(win);
+ 
+ SYSTEM_BASIC_INFORMATION system_info;
+ 
++#define MAX_ATOM_LEN  255
++#define IS_INTATOM(x) (((ULONG_PTR)(x) >> 16) == 0)
++
+ #define MAX_WINPROCS  4096
+ #define WINPROC_PROC16  ((void *)1)  /* placeholder for 16-bit window procs */
+ 
+@@ -302,6 +305,34 @@ ATOM get_int_atom_value( UNICODE_STRING *name )
+     return ret;
+ }
+ 
++static unsigned int is_integral_atom( const WCHAR *atomstr, ULONG len, RTL_ATOM *ret_atom )
++{
++    RTL_ATOM atom;
++
++    if ((ULONG_PTR)atomstr >> 16)
++    {
++        const WCHAR* ptr = atomstr;
++        if (!len) return STATUS_OBJECT_NAME_INVALID;
++
++        if (*ptr++ == '#')
++        {
++            atom = 0;
++            while (ptr < atomstr + len && *ptr >= '0' && *ptr <= '9')
++            {
++                atom = atom * 10 + *ptr++ - '0';
++            }
++            if (ptr > atomstr + 1 && ptr == atomstr + len) goto done;
++        }
++        if (len > MAX_ATOM_LEN) return STATUS_INVALID_PARAMETER;
++        return STATUS_MORE_ENTRIES;
++    }
++    else if ((atom = LOWORD( atomstr )) >= MAXINTATOM) return STATUS_INVALID_PARAMETER;
++done:
++    if (atom >= MAXINTATOM) atom = 0;
++    if (!(*ret_atom = atom)) return STATUS_INVALID_PARAMETER;
++    return STATUS_SUCCESS;
++}
++
+ static ULONG integral_atom_name( WCHAR *buffer, ULONG len, RTL_ATOM atom )
+ {
+     char tmp[16];
+@@ -636,7 +667,8 @@ ULONG WINAPI NtUserGetAtomName( ATOM atom, UNICODE_STRING *name )
+  */
+ ATOM WINAPI NtUserRegisterWindowMessage( UNICODE_STRING *name )
+ {
+-    RTL_ATOM atom;
++    unsigned int status;
++    RTL_ATOM atom = 0;
+ 
+     TRACE( "%s\n", debugstr_us(name) );
+ 
+@@ -645,7 +677,21 @@ ATOM WINAPI NtUserRegisterWindowMessage( UNICODE_STRING *name )
+         RtlSetLastWin32Error( ERROR_INVALID_PARAMETER );
+         return 0;
+     }
+-    if (!set_ntstatus( NtAddAtom( name->Buffer, name->Length, &atom ) )) return 0;
++
++    status = is_integral_atom( name->Buffer, name->Length / sizeof(WCHAR), &atom );
++    if (status == STATUS_MORE_ENTRIES)
++    {
++        SERVER_START_REQ( add_user_atom )
++        {
++            wine_server_add_data( req, name->Buffer, name->Length );
++            status = wine_server_call( req );
++            atom = reply->atom;
++        }
++        SERVER_END_REQ;
++    }
++
++    TRACE( "%s -> %x\n", debugstr_us(name), status == STATUS_SUCCESS ? atom : 0 );
++    set_ntstatus( status );
+     return atom;
+ }
+ 
+diff --git a/include/wine/server_protocol.h b/include/wine/server_protocol.h
+index e9d79d863dd..1f9348e9e86 100644
+--- a/include/wine/server_protocol.h
++++ b/include/wine/server_protocol.h
+@@ -2911,6 +2911,21 @@ struct get_atom_information_reply
+ 
+ 
+ 
++struct add_user_atom_request
++{
++    struct request_header __header;
++    /* VARARG(name,unicode_str); */
++    char __pad_12[4];
++};
++struct add_user_atom_reply
++{
++    struct reply_header __header;
++    atom_t        atom;
++    char __pad_12[4];
++};
++
++
++
+ struct get_user_atom_name_request
+ {
+     struct request_header __header;
+@@ -6041,6 +6056,7 @@ enum request
+     REQ_delete_atom,
+     REQ_find_atom,
+     REQ_get_atom_information,
++    REQ_add_user_atom,
+     REQ_get_user_atom_name,
+     REQ_get_msg_queue_handle,
+     REQ_get_msg_queue,
+@@ -6343,6 +6359,7 @@ union generic_request
+     struct delete_atom_request delete_atom_request;
+     struct find_atom_request find_atom_request;
+     struct get_atom_information_request get_atom_information_request;
++    struct add_user_atom_request add_user_atom_request;
+     struct get_user_atom_name_request get_user_atom_name_request;
+     struct get_msg_queue_handle_request get_msg_queue_handle_request;
+     struct get_msg_queue_request get_msg_queue_request;
+@@ -6643,6 +6660,7 @@ union generic_reply
+     struct delete_atom_reply delete_atom_reply;
+     struct find_atom_reply find_atom_reply;
+     struct get_atom_information_reply get_atom_information_reply;
++    struct add_user_atom_reply add_user_atom_reply;
+     struct get_user_atom_name_reply get_user_atom_name_reply;
+     struct get_msg_queue_handle_reply get_msg_queue_handle_reply;
+     struct get_msg_queue_reply get_msg_queue_reply;
+@@ -6828,6 +6846,6 @@ union generic_reply
+     struct set_keyboard_repeat_reply set_keyboard_repeat_reply;
+ };
+ 
+-#define SERVER_PROTOCOL_VERSION 879
++#define SERVER_PROTOCOL_VERSION 880
+ 
+ #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
+diff --git a/server/atom.c b/server/atom.c
+index 4fd9df14526..63e845d1bb1 100644
+--- a/server/atom.c
++++ b/server/atom.c
+@@ -327,6 +327,13 @@ DECL_HANDLER(get_atom_information)
+     else reply->count = -1;
+ }
+ 
++/* add a user atom */
++DECL_HANDLER(add_user_atom)
++{
++    struct unicode_str name = get_req_unicode_str();
++    reply->atom = add_atom( global_table, &name );
++}
++
+ /* get a user atom name */
+ DECL_HANDLER(get_user_atom_name)
+ {
+diff --git a/server/protocol.def b/server/protocol.def
+index cccb924e612..22470e33ae0 100644
+--- a/server/protocol.def
++++ b/server/protocol.def
+@@ -2233,6 +2233,14 @@ struct process_info
+ @END
+ 
+ 
++/* Add a user atom */
++@REQ(add_user_atom)
++    VARARG(name,unicode_str);  /* atom name */
++@REPLY
++    atom_t        atom;        /* resulting atom */
++@END
++
++
+ /* Get a user atom name */
+ @REQ(get_user_atom_name)
+     atom_t       atom;         /* atom handle */
+diff --git a/server/request_handlers.h b/server/request_handlers.h
+index 0b0e8a5e22b..f9e5423ff40 100644
+--- a/server/request_handlers.h
++++ b/server/request_handlers.h
+@@ -119,6 +119,7 @@ DECL_HANDLER(add_atom);
+ DECL_HANDLER(delete_atom);
+ DECL_HANDLER(find_atom);
+ DECL_HANDLER(get_atom_information);
++DECL_HANDLER(add_user_atom);
+ DECL_HANDLER(get_user_atom_name);
+ DECL_HANDLER(get_msg_queue_handle);
+ DECL_HANDLER(get_msg_queue);
+@@ -418,6 +419,7 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
+     (req_handler)req_delete_atom,
+     (req_handler)req_find_atom,
+     (req_handler)req_get_atom_information,
++    (req_handler)req_add_user_atom,
+     (req_handler)req_get_user_atom_name,
+     (req_handler)req_get_msg_queue_handle,
+     (req_handler)req_get_msg_queue,
+@@ -1282,6 +1284,9 @@ C_ASSERT( offsetof(struct get_atom_information_reply, count) == 8 );
+ C_ASSERT( offsetof(struct get_atom_information_reply, pinned) == 12 );
+ C_ASSERT( offsetof(struct get_atom_information_reply, total) == 16 );
+ C_ASSERT( sizeof(struct get_atom_information_reply) == 24 );
++C_ASSERT( sizeof(struct add_user_atom_request) == 16 );
++C_ASSERT( offsetof(struct add_user_atom_reply, atom) == 8 );
++C_ASSERT( sizeof(struct add_user_atom_reply) == 16 );
+ C_ASSERT( offsetof(struct get_user_atom_name_request, atom) == 12 );
+ C_ASSERT( sizeof(struct get_user_atom_name_request) == 16 );
+ C_ASSERT( offsetof(struct get_user_atom_name_reply, total) == 8 );
+diff --git a/server/request_trace.h b/server/request_trace.h
+index 396e79da9e0..8824eab2d09 100644
+--- a/server/request_trace.h
++++ b/server/request_trace.h
+@@ -1343,6 +1343,16 @@ static void dump_get_atom_information_reply( const struct get_atom_information_r
+     dump_varargs_unicode_str( ", name=", cur_size );
+ }
+ 
++static void dump_add_user_atom_request( const struct add_user_atom_request *req )
++{
++    dump_varargs_unicode_str( " name=", cur_size );
++}
++
++static void dump_add_user_atom_reply( const struct add_user_atom_reply *req )
++{
++    fprintf( stderr, " atom=%04x", req->atom );
++}
++
+ static void dump_get_user_atom_name_request( const struct get_user_atom_name_request *req )
+ {
+     fprintf( stderr, " atom=%04x", req->atom );
+@@ -3484,6 +3494,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
+     (dump_func)dump_delete_atom_request,
+     (dump_func)dump_find_atom_request,
+     (dump_func)dump_get_atom_information_request,
++    (dump_func)dump_add_user_atom_request,
+     (dump_func)dump_get_user_atom_name_request,
+     (dump_func)dump_get_msg_queue_handle_request,
+     (dump_func)dump_get_msg_queue_request,
+@@ -3783,6 +3794,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
+     NULL,
+     (dump_func)dump_find_atom_reply,
+     (dump_func)dump_get_atom_information_reply,
++    (dump_func)dump_add_user_atom_reply,
+     (dump_func)dump_get_user_atom_name_reply,
+     (dump_func)dump_get_msg_queue_handle_reply,
+     (dump_func)dump_get_msg_queue_reply,
+@@ -4082,6 +4094,7 @@ static const char * const req_names[REQ_NB_REQUESTS] =
+     "delete_atom",
+     "find_atom",
+     "get_atom_information",
++    "add_user_atom",
+     "get_user_atom_name",
+     "get_msg_queue_handle",
+     "get_msg_queue",
+-- 
+2.43.0
+

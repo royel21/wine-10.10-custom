@@ -1,0 +1,32 @@
+From c3da8416deffc0810d1764b385c619dbf1c9b55f Mon Sep 17 00:00:00 2001
+From: Nikolay Sivov <nsivov@codeweavers.com>
+Date: Thu, 19 Jun 2025 14:37:07 +0200
+Subject: [PATCH 121/293] mfmediaengine: Simplify state -> event mapping.
+
+Same as e.g. 869a2d7c0d4d202b319cf37c4905f2f8642eeccd.
+
+Signed-off-by: Nikolay Sivov <nsivov@codeweavers.com>
+---
+ dlls/mfmediaengine/video_frame_sink.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/mfmediaengine/video_frame_sink.c b/dlls/mfmediaengine/video_frame_sink.c
+index 23d8e19e71e..9fb81854130 100644
+--- a/dlls/mfmediaengine/video_frame_sink.c
++++ b/dlls/mfmediaengine/video_frame_sink.c
+@@ -990,9 +990,9 @@ static HRESULT video_frame_sink_set_state(struct video_frame_sink *sink, enum si
+ {
+     static const DWORD events[] =
+     {
+-        MEStreamSinkStopped, /* SINK_STATE_STOPPED */
+-        MEStreamSinkPaused,  /* SINK_STATE_PAUSED */
+-        MEStreamSinkStarted, /* SINK_STATE_RUNNING */
++        [SINK_STATE_STOPPED] = MEStreamSinkStopped,
++        [SINK_STATE_PAUSED] = MEStreamSinkPaused,
++        [SINK_STATE_RUNNING] = MEStreamSinkStarted,
+     };
+     HRESULT hr = S_OK;
+ 
+-- 
+2.43.0
+

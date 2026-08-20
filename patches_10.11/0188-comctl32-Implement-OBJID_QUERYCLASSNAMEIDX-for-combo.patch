@@ -1,0 +1,48 @@
+From 5c8e69f384d36a37cc9bab315994171fb24f790c Mon Sep 17 00:00:00 2001
+From: Esme Povirk <esme@codeweavers.com>
+Date: Fri, 20 Jun 2025 20:42:11 +0000
+Subject: [PATCH 188/293] comctl32: Implement OBJID_QUERYCLASSNAMEIDX for combo
+ boxes.
+
+---
+ dlls/comctl32/combo.c       | 5 +++++
+ dlls/comctl32/tests/combo.c | 4 ++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/dlls/comctl32/combo.c b/dlls/comctl32/combo.c
+index 09579952f22..1094132826b 100644
+--- a/dlls/comctl32/combo.c
++++ b/dlls/comctl32/combo.c
+@@ -1746,6 +1746,11 @@ static LRESULT CALLBACK COMBO_WindowProc( HWND hwnd, UINT message, WPARAM wParam
+         COMBO_Size( lphc );
+         return  TRUE;
+ 
++    case WM_GETOBJECT:
++        if ((LONG)lParam == OBJID_QUERYCLASSNAMEIDX)
++            return 0x10005;
++        break;
++
+     case WM_SETFONT:
+         COMBO_Font( lphc, (HFONT)wParam, (BOOL)lParam );
+         return TRUE;
+diff --git a/dlls/comctl32/tests/combo.c b/dlls/comctl32/tests/combo.c
+index 0ba720a03ce..ddb3eb4d78a 100644
+--- a/dlls/comctl32/tests/combo.c
++++ b/dlls/comctl32/tests/combo.c
+@@ -1236,9 +1236,13 @@ static void test_combo_WS_VSCROLL(void)
+     COMBOBOXINFO info;
+     DWORD style;
+     int i;
++    DWORD idx;
+ 
+     hCombo = create_combobox(CBS_DROPDOWNLIST);
+ 
++    idx = SendMessageA(hCombo, WM_GETOBJECT, 0, OBJID_QUERYCLASSNAMEIDX);
++    ok(idx == 0x10005, "Got index 0x%08lx\n", idx);
++
+     get_combobox_info(hCombo, &info);
+     hList = info.hwndList;
+ 
+-- 
+2.43.0
+

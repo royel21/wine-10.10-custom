@@ -1,0 +1,93 @@
+From 972862c128906af3973cb5c6b2153f478abfb6e9 Mon Sep 17 00:00:00 2001
+From: Piotr Caban <piotr@codeweavers.com>
+Date: Tue, 24 Jun 2025 12:01:14 +0200
+Subject: [PATCH 220/293] msvcrt: Support _SH_SECURE in _wsopen_dispatch().
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=58229
+---
+ dlls/msvcrt/file.c         |  3 +++
+ dlls/ucrtbase/tests/misc.c | 28 +++++++++++++++++++++++++++-
+ include/msvcrt/share.h     |  2 ++
+ 3 files changed, 32 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/msvcrt/file.c b/dlls/msvcrt/file.c
+index 97bfc746abc..90d3d59c744 100644
+--- a/dlls/msvcrt/file.c
++++ b/dlls/msvcrt/file.c
+@@ -2452,6 +2452,9 @@ int CDECL _wsopen_dispatch( const wchar_t* path, int oflags, int shflags, int pm
+     case _SH_DENYNO:
+       sharing = FILE_SHARE_READ | FILE_SHARE_WRITE;
+       break;
++    case _SH_SECURE:
++      sharing = (access == GENERIC_READ ? FILE_SHARE_READ : 0);
++      break;
+     default:
+       ERR( "Unhandled shflags %#x\n", shflags );
+       return EINVAL;
+diff --git a/dlls/ucrtbase/tests/misc.c b/dlls/ucrtbase/tests/misc.c
+index e39291c2be8..68d43e61bb3 100644
+--- a/dlls/ucrtbase/tests/misc.c
++++ b/dlls/ucrtbase/tests/misc.c
+@@ -493,7 +493,7 @@ static void test__sopen_dispatch(void)
+ 
+ static void test__sopen_s(void)
+ {
+-    int ret, fd;
++    int ret, fd, fd2;
+     char *tempf;
+ 
+     tempf = _tempnam(".", "wne");
+@@ -523,6 +523,32 @@ static void test__sopen_s(void)
+     ok(fd == -1, "got fd %d\n", fd);
+     CHECK_CALLED(global_invalid_parameter_handler);
+ 
++    fd = 0;
++    ret = _sopen_s(&fd, tempf, _O_CREAT | _O_WRONLY, _SH_SECURE, _S_IWRITE);
++    ok(!ret, "got %d\n", ret);
++    ok(fd > 0, "got fd %d\n", fd);
++    fd2 = 0;
++    ret = _sopen_s(&fd2, tempf, _O_RDONLY, _SH_SECURE, 0);
++    ok(ret == EACCES, "got %d\n", ret);
++    ok(fd2 == -1, "got fd %d\n", fd2);
++    ret = _close(fd);
++    ok(!ret, "close() returned %d\n", ret);
++
++    fd = 0;
++    ret = _sopen_s(&fd, tempf, _O_RDONLY, _SH_SECURE, 0);
++    ok(!ret, "got %d\n", ret);
++    ok(fd > 0, "got fd %d\n", fd);
++    fd2 = 0;
++    ret = _sopen_s(&fd2, tempf, _O_RDONLY, _SH_SECURE, 0);
++    ok(!ret, "got %d\n", ret);
++    ok(fd2 > 0, "got fd %d\n", fd2);
++    ret = close(fd);
++    ok(!ret, "_close() returned %d\n", ret);
++    ret = close(fd2);
++    ok(!ret, "_close() returned %d\n", ret);
++    ret = unlink(tempf);
++    ok(!ret, "unlink() returned %d\n", ret);
++
+     free(tempf);
+ }
+ 
+diff --git a/include/msvcrt/share.h b/include/msvcrt/share.h
+index 3813e769197..248006d9cb5 100644
+--- a/include/msvcrt/share.h
++++ b/include/msvcrt/share.h
+@@ -32,11 +32,13 @@
+ #define	SH_DENYWR	0x20	/* Deny write */
+ #define	SH_DENYRD	0x30	/* Deny read */
+ #define	SH_DENYNO	0x40	/* Deny nothing */
++#define	SH_SECURE	0x80	/* Share read access if read-only */
+ 
+ #define _SH_COMPAT SH_COMPAT
+ #define _SH_DENYRW SH_DENYRW
+ #define _SH_DENYWR SH_DENYWR
+ #define _SH_DENYRD SH_DENYRD
+ #define _SH_DENYNO SH_DENYNO
++#define _SH_SECURE SH_SECURE
+ 
+ #endif	/* __WINE_SHARE_H_ */
+-- 
+2.43.0
+

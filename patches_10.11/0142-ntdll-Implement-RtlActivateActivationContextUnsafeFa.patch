@@ -1,0 +1,81 @@
+From 20db80f2d618480ad690a1554d9a6ef78478348e Mon Sep 17 00:00:00 2001
+From: Zhiyi Zhang <zzhang@codeweavers.com>
+Date: Mon, 16 Jun 2025 17:20:16 +0800
+Subject: [PATCH 142/293] ntdll: Implement
+ RtlActivateActivationContextUnsafeFast().
+
+---
+ dlls/ntdll/actctx.c   | 20 ++++++++++++++++++++
+ dlls/ntdll/ntdll.spec |  2 +-
+ include/winternl.h    | 11 +++++++++++
+ 3 files changed, 32 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/ntdll/actctx.c b/dlls/ntdll/actctx.c
+index d4dba2369e3..de2203a3c3a 100644
+--- a/dlls/ntdll/actctx.c
++++ b/dlls/ntdll/actctx.c
+@@ -5431,6 +5431,26 @@ NTSTATUS WINAPI RtlActivateActivationContext( ULONG unknown, ACTIVATION_CONTEXT
+     return RtlActivateActivationContextEx( 0, NtCurrentTeb(), actctx, cookie );
+ }
+ 
++/******************************************************************
++ *              RtlActivateActivationContextUnsafeFast (NTDLL.@)
++ *
++ * FIXME: function prototype might be wrong
++ */
++DEFINE_FASTCALL_WRAPPER( RtlActivateActivationContextUnsafeFast, 8 )
++RTL_ACTIVATION_CONTEXT_STACK_FRAME * FASTCALL RtlActivateActivationContextUnsafeFast( RTL_CALLER_ALLOCATED_ACTIVATION_CONTEXT_STACK_FRAME_EXTENDED *frame_extended,
++                                                                                      ACTIVATION_CONTEXT *actctx )
++{
++    ACTIVATION_CONTEXT_STACK *actctx_stack = NtCurrentTeb()->ActivationContextStackPointer;
++
++    TRACE( "%p %p\n", frame_extended, actctx );
++
++    frame_extended->Frame.Previous = actctx_stack->ActiveFrame;
++    frame_extended->Frame.ActivationContext = actctx;
++    frame_extended->Frame.Flags = 0;
++    actctx_stack->ActiveFrame = &frame_extended->Frame;
++    RtlAddRefActivationContext( actctx );
++    return &frame_extended->Frame;
++}
+ 
+ /******************************************************************
+  *		RtlActivateActivationContextEx (NTDLL.@)
+diff --git a/dlls/ntdll/ntdll.spec b/dlls/ntdll/ntdll.spec
+index 4e36bfe2662..f79dfd50da5 100644
+--- a/dlls/ntdll/ntdll.spec
++++ b/dlls/ntdll/ntdll.spec
+@@ -484,7 +484,7 @@
+ @ stdcall RtlAcquireSRWLockShared(ptr)
+ @ stdcall RtlActivateActivationContext(long ptr ptr)
+ @ stdcall RtlActivateActivationContextEx(long ptr ptr ptr)
+-@ stub RtlActivateActivationContextUnsafeFast
++@ stdcall -fastcall RtlActivateActivationContextUnsafeFast(ptr ptr)
+ @ stdcall RtlAddAccessAllowedAce(ptr long long ptr)
+ @ stdcall RtlAddAccessAllowedAceEx(ptr long long long ptr)
+ @ stdcall RtlAddAccessAllowedObjectAce(ptr long long long ptr ptr ptr)
+diff --git a/include/winternl.h b/include/winternl.h
+index e8a0b6ef5c6..fe102fb47ff 100644
+--- a/include/winternl.h
++++ b/include/winternl.h
+@@ -231,6 +231,17 @@ typedef struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME
+     ULONG                                       Flags;
+ } RTL_ACTIVATION_CONTEXT_STACK_FRAME, *PRTL_ACTIVATION_CONTEXT_STACK_FRAME;
+ 
++typedef struct _RTL_CALLER_ALLOCATED_ACTIVATION_CONTEXT_STACK_FRAME_EXTENDED
++{
++    SIZE_T Size;
++    ULONG Format;
++    RTL_ACTIVATION_CONTEXT_STACK_FRAME Frame;
++    PVOID Extra1;
++    PVOID Extra2;
++    PVOID Extra3;
++    PVOID Extra4;
++} RTL_CALLER_ALLOCATED_ACTIVATION_CONTEXT_STACK_FRAME_EXTENDED, *PRTL_CALLER_ALLOCATED_ACTIVATION_CONTEXT_STACK_FRAME_EXTENDED;
++
+ typedef struct _ACTIVATION_CONTEXT_STACK
+ {
+     RTL_ACTIVATION_CONTEXT_STACK_FRAME *ActiveFrame;
+-- 
+2.43.0
+

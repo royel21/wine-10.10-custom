@@ -1,0 +1,56 @@
+From 4f51853e156c5c0bb6eb7c807505953ed0586d36 Mon Sep 17 00:00:00 2001
+From: Zhiyi Zhang <zzhang@codeweavers.com>
+Date: Mon, 16 Jun 2025 17:20:16 +0800
+Subject: [PATCH 143/293] ntdll: Implement
+ RtlDeactivateActivationContextUnsafeFast().
+
+---
+ dlls/ntdll/actctx.c   | 18 ++++++++++++++++++
+ dlls/ntdll/ntdll.spec |  2 +-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/ntdll/actctx.c b/dlls/ntdll/actctx.c
+index de2203a3c3a..99b44a70275 100644
+--- a/dlls/ntdll/actctx.c
++++ b/dlls/ntdll/actctx.c
+@@ -5452,6 +5452,24 @@ RTL_ACTIVATION_CONTEXT_STACK_FRAME * FASTCALL RtlActivateActivationContextUnsafe
+     return &frame_extended->Frame;
+ }
+ 
++/******************************************************************
++ *              RtlDeactivateActivationContextUnsafeFast (NTDLL.@)
++ *
++ * FIXME: function prototype might be wrong
++ */
++DEFINE_FASTCALL1_WRAPPER( RtlDeactivateActivationContextUnsafeFast )
++void FASTCALL RtlDeactivateActivationContextUnsafeFast( RTL_CALLER_ALLOCATED_ACTIVATION_CONTEXT_STACK_FRAME_EXTENDED *frame_extended )
++{
++    ACTIVATION_CONTEXT_STACK *actctx_stack = NtCurrentTeb()->ActivationContextStackPointer;
++    ACTIVATION_CONTEXT *actctx;
++
++    TRACE( "%p\n", frame_extended );
++
++    actctx = actctx_stack->ActiveFrame->ActivationContext;
++    actctx_stack->ActiveFrame = frame_extended->Frame.Previous;
++    RtlReleaseActivationContext( actctx );
++}
++
+ /******************************************************************
+  *		RtlActivateActivationContextEx (NTDLL.@)
+  */
+diff --git a/dlls/ntdll/ntdll.spec b/dlls/ntdll/ntdll.spec
+index f79dfd50da5..78da963b969 100644
+--- a/dlls/ntdll/ntdll.spec
++++ b/dlls/ntdll/ntdll.spec
+@@ -606,7 +606,7 @@
+ @ stub RtlCutoverTimeToSystemTime
+ @ stdcall RtlDeNormalizeProcessParams(ptr)
+ @ stdcall RtlDeactivateActivationContext(long long)
+-@ stub RtlDeactivateActivationContextUnsafeFast
++@ stdcall -fastcall RtlDeactivateActivationContextUnsafeFast(ptr)
+ @ stub RtlDebugPrintTimes
+ @ stdcall RtlDecodePointer(ptr)
+ @ stdcall RtlDecodeSystemPointer(ptr) RtlDecodePointer
+-- 
+2.43.0
+

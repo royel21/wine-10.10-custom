@@ -1,0 +1,28 @@
+From 86a72fd712d8f453b6b39e47c2eb767fe53c6167 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bernhard=20=C3=9Cbelacker?= <bernhardu@mailbox.org>
+Date: Sat, 21 Jun 2025 14:30:53 +0200
+Subject: [PATCH 170/293] gitlab: Remove name containing CI environment
+ variables in windows tests.
+
+---
+ tools/gitlab/test.yml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/tools/gitlab/test.yml b/tools/gitlab/test.yml
+index 83075880151..58ce75e8cb0 100644
+--- a/tools/gitlab/test.yml
++++ b/tools/gitlab/test.yml
+@@ -52,6 +52,10 @@
+   interruptible: true
+   variables:
+     GIT_STRATEGY: none
++    # Non-ascii characters in authors name may get into the output of kernel32:process test which cause
++    # qemu-agent.py in Windows to fail with: UnicodeDecodeError: 'utf-8' codec can't decode byte ...
++    CI_COMMIT_AUTHOR: ""
++    GITLAB_USER_NAME: ""
+ 
+ test-linux-64:
+   extends: .wine-test
+-- 
+2.43.0
+

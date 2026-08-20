@@ -1,0 +1,33 @@
+From bb413905906c6394f28ae696e0e66dd6ee94a660 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Mon, 16 Jun 2025 18:45:36 +0100
+Subject: [PATCH 024/293] uiautomationcore/tests: Fix missing terminators in
+ some nav_seqs.
+
+---
+ dlls/uiautomationcore/tests/uiautomation.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/dlls/uiautomationcore/tests/uiautomation.c b/dlls/uiautomationcore/tests/uiautomation.c
+index e49fb668cc8..01813e72370 100644
+--- a/dlls/uiautomationcore/tests/uiautomation.c
++++ b/dlls/uiautomationcore/tests/uiautomation.c
+@@ -10476,6 +10476,7 @@ static const struct prov_method_sequence nav_seq9[] = {
+     { &Provider, PROV_GET_PROVIDER_OPTIONS, METHOD_OPTIONAL },
+     { &Provider_nc, PROV_GET_PROVIDER_OPTIONS, METHOD_OPTIONAL },
+     { &Provider_hwnd, PROV_GET_PROVIDER_OPTIONS, METHOD_OPTIONAL },
++    { 0 },
+ };
+ 
+ static const struct prov_method_sequence nav_seq10[] = {
+@@ -10554,6 +10555,7 @@ static const struct prov_method_sequence nav_seq14[] = {
+ static const struct prov_method_sequence nav_seq15[] = {
+     NODE_CREATE_SEQ(&Provider_child2_child_child),
+     { &Provider_child2_child_child, PROV_GET_PROPERTY_VALUE }, /* UIA_ProviderDescriptionPropertyId */
++    { 0 },
+ };
+ 
+ static const struct prov_method_sequence nav_seq16[] = {
+-- 
+2.43.0
+

@@ -1,0 +1,269 @@
+From fe3a13e234928fff82b7c3900a4ed7ccbb0fd63c Mon Sep 17 00:00:00 2001
+From: Alexandre Julliard <julliard@winehq.org>
+Date: Tue, 24 Jun 2025 12:03:19 +0200
+Subject: [PATCH 217/293] ntdll: Add a private helper to retrieve a DOS file
+ name.
+
+---
+ dlls/ntdll/unix/file.c       | 36 +++++++++++++++++++++++++++++--
+ dlls/win32u/freetype.c       | 20 +++--------------
+ dlls/winemac.drv/clipboard.c | 26 +---------------------
+ dlls/winex11.drv/clipboard.c | 42 ++++++------------------------------
+ include/wine/unixlib.h       |  1 +
+ 5 files changed, 45 insertions(+), 80 deletions(-)
+
+diff --git a/dlls/ntdll/unix/file.c b/dlls/ntdll/unix/file.c
+index 8d2809ca193..3d590e4915b 100644
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -238,6 +238,8 @@ static unsigned int dir_data_cache_size;
+ static BOOL show_dot_files;
+ static mode_t start_umask;
+ 
++static const WCHAR unix_prefixW[] = {'\\','?','?','\\','u','n','i','x'};
++
+ /* at some point we may want to allow Winelib apps to set this */
+ static const BOOL is_case_sensitive = FALSE;
+ 
+@@ -4062,6 +4064,38 @@ NTSTATUS WINAPI wine_unix_to_nt_file_name( const char *name, WCHAR *buffer, ULON
+ }
+ 
+ 
++/******************************************************************
++ *           ntdll_get_dos_file_name
++ */
++NTSTATUS ntdll_get_dos_file_name( const char *unix_name, WCHAR **dos, UINT disposition )
++{
++    NTSTATUS status;
++    WCHAR *buffer;
++    ULONG len = strlen(unix_name) + 1;
++    char *name = strdup( unix_name );
++
++    *dos = NULL;
++    if (!name) return STATUS_NO_MEMORY;
++    status = find_drive_nt_root( name, len - 1, &buffer, disposition );
++    free( name );
++    if (status && status != STATUS_NO_SUCH_FILE) return status;
++
++    if (!buffer)  /* conversion failed, return \\?\unix path */
++    {
++        if (!(buffer = malloc( sizeof(unix_prefixW) + len * sizeof(WCHAR) ))) return STATUS_NO_MEMORY;
++        memcpy( buffer, unix_prefixW, sizeof(unix_prefixW) );
++        ntdll_umbstowcs( unix_name, len, buffer + ARRAY_SIZE(unix_prefixW), len );
++        collapse_path( buffer );
++    }
++
++    if (buffer[5] == ':') memmove( buffer, buffer + 4, (wcslen(buffer + 4) + 1) * sizeof(WCHAR) );
++    else buffer[1] = '\\';
++
++    *dos = buffer;
++    return status;
++}
++
++
+ /***********************************************************************
+  *           get_nt_and_unix_names
+  *
+@@ -4077,7 +4111,6 @@ NTSTATUS WINAPI wine_unix_to_nt_file_name( const char *name, WCHAR *buffer, ULON
+ NTSTATUS get_nt_and_unix_names( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *nt_name,
+                                 char **unix_name_ret, UINT disposition )
+ {
+-    static const WCHAR unix_prefixW[] = {'\\','?','?','\\','u','n','i','x'};
+     ULONG lenA, lenW = attr->ObjectName->Length / sizeof(WCHAR);
+     UNICODE_STRING *orig = attr->ObjectName;
+     NTSTATUS status;
+@@ -4128,7 +4161,6 @@ NTSTATUS get_nt_and_unix_names( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *nt_name
+  */
+ NTSTATUS get_full_path( char *name, const WCHAR *curdir, UNICODE_STRING *nt_name )
+ {
+-    static const WCHAR unix_prefixW[] = {'\\','?','?','\\','u','n','i','x'};
+     static const WCHAR uncW[] = {'\\','?','?','\\','U','N','C','\\'};
+     static const WCHAR devW[] = {'\\','?','?','\\'};
+     static const WCHAR rootW[] = {'\\','?','?','\\','C',':','\\'};
+diff --git a/dlls/win32u/freetype.c b/dlls/win32u/freetype.c
+index c638a6addfb..c749e076c65 100644
+--- a/dlls/win32u/freetype.c
++++ b/dlls/win32u/freetype.c
+@@ -1312,21 +1312,6 @@ static int add_unix_face( const char *unix_name, const WCHAR *file, void *data_p
+     return ret;
+ }
+ 
+-static WCHAR *get_dos_file_name( LPCSTR str )
+-{
+-    WCHAR *buffer;
+-    ULONG len = strlen(str) + 1;
+-
+-    len += 8;  /* \??\unix prefix */
+-    if (!(buffer = malloc( len * sizeof(WCHAR) ))) return NULL;
+-    if (wine_unix_to_nt_file_name( str, buffer, &len ))
+-    {
+-        free( buffer );
+-        return NULL;
+-    }
+-    return buffer;
+-}
+-
+ static char *get_unix_file_name( LPCWSTR path )
+ {
+     UNICODE_STRING nt_name;
+@@ -1384,7 +1369,8 @@ static INT AddFontToList(const WCHAR *dos_name, const char *unix_name, void *fon
+     }
+ #endif /* __APPLE__ */
+ 
+-    if (!dos_name && unix_name) dos_name = filename = get_dos_file_name( unix_name );
++    if (!dos_name && unix_name && !ntdll_get_dos_file_name( unix_name, &filename, FILE_OPEN ))
++        dos_name = filename;
+ 
+     do
+         ret += add_unix_face( unix_name, dos_name, font_data_ptr, font_data_size, face_index, flags, &num_faces );
+@@ -1550,7 +1536,7 @@ static void fontconfig_add_font( FcPattern *pattern, UINT flags )
+     if (pFcPatternGetInteger( pattern, FC_INDEX, 0, &face_index ) != FcResultMatch)
+         face_index = 0;
+ 
+-    dos_name = get_dos_file_name( unix_name );
++    ntdll_get_dos_file_name( unix_name, &dos_name, FILE_OPEN );
+     add_unix_face( unix_name, dos_name, NULL, 0, face_index, flags, NULL );
+     free( dos_name );
+ }
+diff --git a/dlls/winemac.drv/clipboard.c b/dlls/winemac.drv/clipboard.c
+index 4824aec39d6..ee48bf62fb3 100644
+--- a/dlls/winemac.drv/clipboard.c
++++ b/dlls/winemac.drv/clipboard.c
+@@ -588,29 +588,6 @@ static CPTABLEINFO *get_ansi_cp(void)
+ }
+ 
+ 
+-/* based on wine_get_dos_file_name */
+-static WCHAR *get_dos_file_name(const char *path)
+-{
+-    ULONG len = strlen(path) + 9; /* \??\unix prefix */
+-    WCHAR *ret;
+-
+-    if (!(ret = malloc(len * sizeof(WCHAR)))) return NULL;
+-    if (wine_unix_to_nt_file_name(path, ret, &len))
+-    {
+-        free(ret);
+-        return NULL;
+-    }
+-
+-    if (ret[5] == ':')
+-    {
+-        /* get rid of the \??\ prefix */
+-        memmove(ret, ret + 4, (len - 4) * sizeof(WCHAR));
+-    }
+-    else ret[1] = '\\';
+-    return ret;
+-}
+-
+-
+ /***********************************************************************
+  *           get_nt_pathname
+  *
+@@ -750,8 +727,7 @@ static void *import_nsfilenames_to_hdrop(CFDataRef data, size_t *ret_size)
+             WARN("failed to get file-system representation for %s\n", debugstr_cf(name));
+             goto done;
+         }
+-        paths[i] = get_dos_file_name(buffer);
+-        if (!paths[i])
++        if (ntdll_get_dos_file_name( buffer, &paths[i], FILE_OPEN ))
+         {
+             WARN("failed to get DOS path for %s\n", debugstr_a(buffer));
+             goto done;
+diff --git a/dlls/winex11.drv/clipboard.c b/dlls/winex11.drv/clipboard.c
+index 04b34660331..881a857d38a 100644
+--- a/dlls/winex11.drv/clipboard.c
++++ b/dlls/winex11.drv/clipboard.c
+@@ -580,29 +580,6 @@ static void *create_dib_from_bitmap( HBITMAP hBmp, size_t *size )
+ }
+ 
+ 
+-/* based on wine_get_dos_file_name */
+-static WCHAR *get_dos_file_name( const char *path )
+-{
+-    ULONG len = strlen( path ) + 9; /* \??\unix prefix */
+-    WCHAR *ret;
+-
+-    if (!(ret = malloc( len * sizeof(WCHAR) ))) return NULL;
+-    if (wine_unix_to_nt_file_name( path, ret, &len ))
+-    {
+-        free( ret );
+-        return NULL;
+-    }
+-
+-    if (ret[5] == ':')
+-    {
+-        /* get rid of the \??\ prefix */
+-        memmove( ret, ret + 4, (len - 4) * sizeof(WCHAR) );
+-    }
+-    else ret[1] = '\\';
+-    return ret;
+-}
+-
+-
+ /***********************************************************************
+  *           get_nt_pathname
+  *
+@@ -751,7 +728,7 @@ static WCHAR* uri_to_dos(char *encodedURI)
+             if (uri[7] == '/')
+             {
+                 /* file:///path/to/file (nautilus, thunar) */
+-                ret = get_dos_file_name( &uri[7] );
++                ntdll_get_dos_file_name( &uri[7], &ret, FILE_OPEN );
+             }
+             else if (uri[7])
+             {
+@@ -761,18 +738,11 @@ static WCHAR* uri_to_dos(char *encodedURI)
+                 if (path)
+                 {
+                     *path = '\0';
+-                    if (strcmp(&uri[7], "localhost") == 0)
++                    if (!strcmp(&uri[7], "localhost") ||
++                        (!gethostname(hostname, sizeof(hostname)) && !strcmp(hostname, &uri[7])))
+                     {
+                         *path = '/';
+-                        ret = get_dos_file_name( path );
+-                    }
+-                    else if (gethostname(hostname, sizeof(hostname)) == 0)
+-                    {
+-                        if (strcmp(hostname, &uri[7]) == 0)
+-                        {
+-                            *path = '/';
+-                            ret = get_dos_file_name( path );
+-                        }
++                        ntdll_get_dos_file_name( path, &ret, FILE_OPEN );
+                     }
+                 }
+             }
+@@ -780,7 +750,7 @@ static WCHAR* uri_to_dos(char *encodedURI)
+         else if (uri[6])
+         {
+             /* file:/path/to/file (konqueror) */
+-            ret = get_dos_file_name( &uri[5] );
++            ntdll_get_dos_file_name( &uri[5], &ret, FILE_OPEN );
+         }
+     }
+     free( uri );
+@@ -1057,7 +1027,7 @@ DROPFILES *file_list_to_drop_files( const void *data, size_t size, size_t *ret_s
+ 
+     for (ptr = data; ptr < (const char *)data + size; ptr += strlen( ptr ) + 1)
+     {
+-        path = get_dos_file_name( ptr );
++        ntdll_get_dos_file_name( ptr, &path, FILE_OPEN );
+ 
+         TRACE( "converted URI %s to DOS path %s\n", debugstr_a(ptr), debugstr_w(path) );
+ 
+diff --git a/include/wine/unixlib.h b/include/wine/unixlib.h
+index e8b9d6d401e..a9e934622df 100644
+--- a/include/wine/unixlib.h
++++ b/include/wine/unixlib.h
+@@ -38,6 +38,7 @@ extern DECLSPEC_EXPORT const unixlib_entry_t __wine_unix_call_wow64_funcs[];
+ 
+ NTSYSAPI const char *ntdll_get_build_dir(void);
+ NTSYSAPI const char *ntdll_get_data_dir(void);
++NTSYSAPI NTSTATUS ntdll_get_dos_file_name( const char *unix_name, WCHAR **dos, UINT disposition );
+ 
+ /* exception handling */
+ 
+-- 
+2.43.0
+

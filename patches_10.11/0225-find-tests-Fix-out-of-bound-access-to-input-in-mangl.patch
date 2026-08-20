@@ -1,0 +1,27 @@
+From 47c754a48a6a4ff95846508a62b0aad682d6e536 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 24 Jun 2025 19:07:42 +0100
+Subject: [PATCH 225/293] find/tests: Fix out-of-bound access to input in
+ mangle_text.
+
+input is not null-terminated so we need to check for length first.
+---
+ programs/find/tests/find.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/programs/find/tests/find.c b/programs/find/tests/find.c
+index 10fd8ad8ae3..70d3cb9338e 100644
+--- a/programs/find/tests/find.c
++++ b/programs/find/tests/find.c
+@@ -105,7 +105,7 @@ static void mangle_text(const BYTE *input, int input_len, BYTE *output, int outp
+     int count_wchar;
+ 
+     /* Check for UTF-16 LE BOM */
+-    if (input[0] == 0xFF && input[1] == 0xFE)
++    if (input_len > 1 && input[0] == 0xFF && input[1] == 0xFE)
+     {
+         int buffer_count = 0;
+         int i;
+-- 
+2.43.0
+

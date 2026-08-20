@@ -1,0 +1,58 @@
+From 057e1d73e84b06fac90cba96dbf0305d219df3d5 Mon Sep 17 00:00:00 2001
+From: Yuxuan Shui <yshui@codeweavers.com>
+Date: Tue, 17 Jun 2025 18:09:07 +0100
+Subject: [PATCH 128/293] crypt32: Handle missing attributes in
+ CDecodeSignedMsg_GetParam.
+
+---
+ dlls/crypt32/msg.c       |  4 ++++
+ dlls/crypt32/tests/msg.c | 11 +++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/dlls/crypt32/msg.c b/dlls/crypt32/msg.c
+index 0f76dcc5ac1..1c8711e4215 100644
+--- a/dlls/crypt32/msg.c
++++ b/dlls/crypt32/msg.c
+@@ -3245,6 +3245,8 @@ static BOOL CDecodeSignedMsg_GetParam(CDecodeMsg *msg, DWORD dwParamType,
+         {
+             if (dwIndex >= msg->u.signed_data.info->cSignerInfo)
+                 SetLastError(CRYPT_E_INVALID_INDEX);
++            else if (!msg->u.signed_data.info->rgSignerInfo[dwIndex].AuthAttrs.cAttr)
++                SetLastError(CRYPT_E_ATTRIBUTES_MISSING);
+             else
+                 ret = CRYPT_CopyAttr(pvData, pcbData,
+                  &msg->u.signed_data.info->rgSignerInfo[dwIndex].AuthAttrs);
+@@ -3257,6 +3259,8 @@ static BOOL CDecodeSignedMsg_GetParam(CDecodeMsg *msg, DWORD dwParamType,
+         {
+             if (dwIndex >= msg->u.signed_data.info->cSignerInfo)
+                 SetLastError(CRYPT_E_INVALID_INDEX);
++            else if (!msg->u.signed_data.info->rgSignerInfo[dwIndex].UnauthAttrs.cAttr)
++                SetLastError(CRYPT_E_ATTRIBUTES_MISSING);
+             else
+                 ret = CRYPT_CopyAttr(pvData, pcbData,
+                  &msg->u.signed_data.info->rgSignerInfo[dwIndex].UnauthAttrs);
+diff --git a/dlls/crypt32/tests/msg.c b/dlls/crypt32/tests/msg.c
+index fa48d978e17..ef9c05d46f4 100644
+--- a/dlls/crypt32/tests/msg.c
++++ b/dlls/crypt32/tests/msg.c
+@@ -2808,6 +2808,17 @@ static void test_decode_msg_get_param(void)
+         compare_signer_info((CMSG_SIGNER_INFO *)buf, &signer);
+         CryptMemFree(buf);
+     }
++    size = 0;
++    SetLastError(0xdeadbeef);
++    ret = CryptMsgGetParam(msg, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &size);
++    ok(!ret, "CryptMsgGetParam succeeded unexpectedly\n");
++    ok(GetLastError() == CRYPT_E_ATTRIBUTES_MISSING, "unexpected error %08lx\n", GetLastError());
++    ok(size == 0, "unexpected size: %lu\n", size);
++    SetLastError(0xdeadbeef);
++    ret = CryptMsgGetParam(msg, CMSG_SIGNER_AUTH_ATTR_PARAM, 0, NULL, &size);
++    ok(!ret, "CryptMsgGetParam succeeded unexpectedly\n");
++    ok(GetLastError() == CRYPT_E_ATTRIBUTES_MISSING, "unexpected error %08lx\n", GetLastError());
++    ok(size == 0, "unexpected size: %lu\n", size);
+     /* Getting the CMS signer info of a PKCS7 message is possible. */
+     size = 0;
+     ret = CryptMsgGetParam(msg, CMSG_CMS_SIGNER_INFO_PARAM, 0, NULL, &size);
+-- 
+2.43.0
+

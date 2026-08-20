@@ -1,0 +1,46 @@
+From c17f193da20d60475591cc0ea6811da5019e5f50 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Tue, 10 Jun 2025 18:25:49 -0500
+Subject: [PATCH 039/293] ir50_32: Fix the error value for mismatching
+ dimensions.
+
+---
+ dlls/ir50_32/ir50.c          | 2 +-
+ dlls/ir50_32/tests/ir50_32.c | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/ir50_32/ir50.c b/dlls/ir50_32/ir50.c
+index c7347815332..9d7b16c00ab 100644
+--- a/dlls/ir50_32/ir50.c
++++ b/dlls/ir50_32/ir50.c
+@@ -105,7 +105,7 @@ IV50_DecompressQuery( LPBITMAPINFO in, LPBITMAPINFO out )
+                 || in->bmiHeader.biWidth != out->bmiHeader.biWidth)
+         {
+             TRACE("incompatible output dimensions requested\n");
+-            return ICERR_BADFORMAT;
++            return ICERR_BADPARAM;
+         }
+     }
+ 
+diff --git a/dlls/ir50_32/tests/ir50_32.c b/dlls/ir50_32/tests/ir50_32.c
+index 0a52fa29cb5..080a7a1f930 100644
+--- a/dlls/ir50_32/tests/ir50_32.c
++++ b/dlls/ir50_32/tests/ir50_32.c
+@@ -85,12 +85,12 @@ static void test_formats(void)
+ 
+     out->bmiHeader.biHeight = -480;
+     ret = ICDecompressQuery(hic, &in, out);
+-    todo_wine ok(ret == ICERR_BADPARAM, "Got %Id.\n", ret);
++    ok(ret == ICERR_BADPARAM, "Got %Id.\n", ret);
+     out->bmiHeader.biHeight = -240;
+ 
+     out->bmiHeader.biWidth = 640;
+     ret = ICDecompressQuery(hic, &in, out);
+-    todo_wine ok(ret == ICERR_BADPARAM, "Got %Id.\n", ret);
++    ok(ret == ICERR_BADPARAM, "Got %Id.\n", ret);
+     out->bmiHeader.biWidth = 320;
+ 
+     out->bmiHeader.biBitCount = 8;
+-- 
+2.43.0
+
