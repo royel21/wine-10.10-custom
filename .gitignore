@@ -10,5 +10,3 @@ include/stamp-h
 /Makefile
 /loader-wow64
 /wine
-git-key.pub
-git-key

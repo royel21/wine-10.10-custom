@@ -58,7 +58,7 @@ struct pulse_stream
 {
     EDataFlow dataflow;
 
-    pa_stream *stream;
+    pa_stream* stream;
     pa_sample_spec ss;
     pa_channel_map map;
     pa_buffer_attr attr;
@@ -76,8 +76,8 @@ struct pulse_stream
     SIZE_T bufsize_frames, real_bufsize_bytes, period_bytes;
     SIZE_T peek_ofs, read_offs_bytes, lcl_offs_bytes, pa_offs_bytes;
     SIZE_T tmp_buffer_bytes, held_bytes, peek_len, peek_buffer_len, pa_held_bytes;
-    BYTE *local_buffer, *tmp_buffer, *peek_buffer;
-    void *locked_ptr;
+    BYTE* local_buffer, * tmp_buffer, * peek_buffer;
+    void* locked_ptr;
     BOOL please_quit, just_started, just_underran;
     pa_usec_t mmdev_period_usec;
 
@@ -91,13 +91,13 @@ typedef struct _ACPacket
 {
     struct list entry;
     UINT64 qpcpos;
-    BYTE *data;
+    BYTE* data;
     UINT32 discont;
 } ACPacket;
 
 typedef struct _PhysDevice {
     struct list entry;
-    WCHAR *name;
+    WCHAR* name;
     enum phys_device_bus_type bus_type;
     USHORT vendor_id, product_id;
     EndpointFormFactor form;
@@ -108,8 +108,8 @@ typedef struct _PhysDevice {
     char pulse_name[0];
 } PhysDevice;
 
-static pa_context *pulse_ctx;
-static pa_mainloop *pulse_ml;
+static pa_context* pulse_ctx;
+static pa_mainloop* pulse_ml;
 
 static struct list g_phys_speakers = LIST_INIT(g_phys_speakers);
 static struct list g_phys_sources = LIST_INIT(g_phys_sources);
@@ -119,7 +119,7 @@ static pthread_cond_t pulse_cond = PTHREAD_COND_INITIALIZER;
 
 static ULONG_PTR zero_bits = 0;
 
-static NTSTATUS pulse_not_implemented(void *args)
+static NTSTATUS pulse_not_implemented(void* args)
 {
     return STATUS_SUCCESS;
 }
@@ -144,12 +144,12 @@ static void pulse_broadcast(void)
     pthread_cond_broadcast(&pulse_cond);
 }
 
-static struct pulse_stream *handle_get_stream(stream_handle h)
+static struct pulse_stream* handle_get_stream(stream_handle h)
 {
-    return (struct pulse_stream *)(UINT_PTR)h;
+    return (struct pulse_stream*)(UINT_PTR)h;
 }
 
-static void dump_attr(const pa_buffer_attr *attr)
+static void dump_attr(const pa_buffer_attr* attr)
 {
     TRACE("maxlength: %u\n", attr->maxlength);
     TRACE("minreq: %u\n", attr->minreq);
@@ -160,9 +160,9 @@ static void dump_attr(const pa_buffer_attr *attr)
 
 static void free_phys_device_lists(void)
 {
-    static struct list *const lists[] = { &g_phys_speakers, &g_phys_sources, NULL };
-    struct list *const *list = lists;
-    PhysDevice *dev, *dev_next;
+    static struct list* const lists[] = { &g_phys_speakers, &g_phys_sources, NULL };
+    struct list* const* list = lists;
+    PhysDevice* dev, * dev_next;
 
     do {
         LIST_FOR_EACH_ENTRY_SAFE(dev, dev_next, *list, PhysDevice, entry) {
@@ -196,15 +196,15 @@ static int muldiv(int a, int b, int c)
     return ret;
 }
 
-static char *wstr_to_str(const WCHAR *wstr)
+static char* wstr_to_str(const WCHAR* wstr)
 {
     const int len = wcslen(wstr);
-    char *str = malloc(len * 3 + 1);
+    char* str = malloc(len * 3 + 1);
     ntdll_wcstoumbs(wstr, len + 1, str, len * 3 + 1, FALSE);
     return str;
 }
 
-static BOOL wait_pa_operation_complete(pa_operation *o)
+static BOOL wait_pa_operation_complete(pa_operation* o)
 {
     if (!o)
         return FALSE;
@@ -229,7 +229,7 @@ static BOOL wait_pa_operation_complete(pa_operation *o)
  * pa_threaded_mainloop_signal -> pthread_cond_broadcast
  * pa_threaded_mainloop_wait -> pthread_cond_wait
  */
-static int pulse_poll_func(struct pollfd *ufds, unsigned long nfds, int timeout, void *userdata)
+static int pulse_poll_func(struct pollfd* ufds, unsigned long nfds, int timeout, void* userdata)
 {
     int r;
     pulse_unlock();
@@ -238,7 +238,7 @@ static int pulse_poll_func(struct pollfd *ufds, unsigned long nfds, int timeout,
     return r;
 }
 
-static NTSTATUS pulse_process_attach(void *args)
+static NTSTATUS pulse_process_attach(void* args)
 {
     pthread_mutexattr_t attr;
 
@@ -271,7 +271,7 @@ static void pulse_main_loop_thread_cleanup(void* context)
     pulse_broadcast();
 }
 
-static NTSTATUS pulse_process_detach(void *args)
+static NTSTATUS pulse_process_detach(void* args)
 {
     free_phys_device_lists();
     if (pulse_ctx)
@@ -285,7 +285,7 @@ static NTSTATUS pulse_process_detach(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_main_loop(void *args)
+static NTSTATUS pulse_main_loop(void* args)
 {
     struct main_loop_params* params = args;
     int ret;
@@ -301,14 +301,14 @@ static NTSTATUS pulse_main_loop(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_endpoint_ids(void *args)
+static NTSTATUS pulse_get_endpoint_ids(void* args)
 {
-    struct get_endpoint_ids_params *params = args;
-    struct list *list = (params->flow == eRender) ? &g_phys_speakers : &g_phys_sources;
-    struct endpoint *endpoint = params->endpoints;
+    struct get_endpoint_ids_params* params = args;
+    struct list* list = (params->flow == eRender) ? &g_phys_speakers : &g_phys_sources;
+    struct endpoint* endpoint = params->endpoints;
     size_t len, name_len, needed;
     unsigned int offset;
-    PhysDevice *dev;
+    PhysDevice* dev;
 
     params->num = list_count(list);
     offset = needed = params->num * sizeof(*params->endpoints);
@@ -320,10 +320,10 @@ static NTSTATUS pulse_get_endpoint_ids(void *args)
 
         if (needed <= params->size) {
             endpoint->name = offset;
-            memcpy((char *)params->endpoints + offset, dev->name, name_len * sizeof(WCHAR));
+            memcpy((char*)params->endpoints + offset, dev->name, name_len * sizeof(WCHAR));
             offset += name_len * sizeof(WCHAR);
             endpoint->device = offset;
-            memcpy((char *)params->endpoints + offset, dev->pulse_name, len);
+            memcpy((char*)params->endpoints + offset, dev->pulse_name, len);
             offset += (len + 1) & ~1;
             endpoint++;
         }
@@ -333,80 +333,81 @@ static NTSTATUS pulse_get_endpoint_ids(void *args)
     if (needed > params->size) {
         params->size = needed;
         params->result = HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
-    } else
+    }
+    else
         params->result = S_OK;
     return STATUS_SUCCESS;
 }
 
-static void pulse_contextcallback(pa_context *c, void *userdata)
+static void pulse_contextcallback(pa_context* c, void* userdata)
 {
     switch (pa_context_get_state(c)) {
-        default:
-            FIXME("Unhandled state: %i\n", pa_context_get_state(c));
-            return;
+    default:
+        FIXME("Unhandled state: %i\n", pa_context_get_state(c));
+        return;
 
-        case PA_CONTEXT_CONNECTING:
-        case PA_CONTEXT_UNCONNECTED:
-        case PA_CONTEXT_AUTHORIZING:
-        case PA_CONTEXT_SETTING_NAME:
-        case PA_CONTEXT_TERMINATED:
-            TRACE("State change to %i\n", pa_context_get_state(c));
-            return;
+    case PA_CONTEXT_CONNECTING:
+    case PA_CONTEXT_UNCONNECTED:
+    case PA_CONTEXT_AUTHORIZING:
+    case PA_CONTEXT_SETTING_NAME:
+    case PA_CONTEXT_TERMINATED:
+        TRACE("State change to %i\n", pa_context_get_state(c));
+        return;
 
-        case PA_CONTEXT_READY:
-            TRACE("Ready\n");
-            break;
+    case PA_CONTEXT_READY:
+        TRACE("Ready\n");
+        break;
 
-        case PA_CONTEXT_FAILED:
-            WARN("Context failed: %s\n", pa_strerror(pa_context_errno(c)));
-            break;
+    case PA_CONTEXT_FAILED:
+        WARN("Context failed: %s\n", pa_strerror(pa_context_errno(c)));
+        break;
     }
     pulse_broadcast();
 }
 
-static void pulse_stream_state(pa_stream *s, void *user)
+static void pulse_stream_state(pa_stream* s, void* user)
 {
     pa_stream_state_t state = pa_stream_get_state(s);
     TRACE("Stream state changed to %i\n", state);
     pulse_broadcast();
 }
 
-static void pulse_attr_update(pa_stream *s, void *user) {
-    const pa_buffer_attr *attr = pa_stream_get_buffer_attr(s);
+static void pulse_attr_update(pa_stream* s, void* user) {
+    const pa_buffer_attr* attr = pa_stream_get_buffer_attr(s);
     TRACE("New attributes or device moved:\n");
     dump_attr(attr);
 }
 
-static void pulse_underflow_callback(pa_stream *s, void *userdata)
+static void pulse_underflow_callback(pa_stream* s, void* userdata)
 {
-    struct pulse_stream *stream = userdata;
+    struct pulse_stream* stream = userdata;
     WARN("%p: Underflow\n", userdata);
     stream->just_underran = TRUE;
 }
 
-static void pulse_started_callback(pa_stream *s, void *userdata)
+static void pulse_started_callback(pa_stream* s, void* userdata)
 {
     TRACE("%p: (Re)started playing\n", userdata);
 }
 
-static void pulse_op_cb(pa_stream *s, int success, void *user)
+static void pulse_op_cb(pa_stream* s, int success, void* user)
 {
     TRACE("Success: %i\n", success);
     *(int*)user = success;
     pulse_broadcast();
 }
 
-static void silence_buffer(pa_sample_format_t format, BYTE *buffer, UINT32 bytes)
+static void silence_buffer(pa_sample_format_t format, BYTE* buffer, UINT32 bytes)
 {
     memset(buffer, format == PA_SAMPLE_U8 ? 0x80 : 0, bytes);
 }
 
-static BOOL pulse_stream_valid(struct pulse_stream *stream)
+static BOOL pulse_stream_valid(struct pulse_stream* stream)
 {
     return pa_stream_get_state(stream->stream) == PA_STREAM_READY;
 }
 
-static HRESULT pulse_connect(const char *name)
+static HRESULT pulse_connect(const char* name)
 {
     pa_context_state_t state;
 
@@ -429,7 +430,7 @@ static HRESULT pulse_connect(const char *name)
 
     /* Wait for connection */
     while ((state = pa_context_get_state(pulse_ctx)) != PA_CONTEXT_READY &&
-           state != PA_CONTEXT_FAILED && state != PA_CONTEXT_TERMINATED)
+        state != PA_CONTEXT_FAILED && state != PA_CONTEXT_TERMINATED)
         pulse_cond_wait();
 
     if (state != PA_CONTEXT_READY)
@@ -446,33 +447,33 @@ fail:
     return E_FAIL;
 }
 
-static UINT pulse_channel_map_to_channel_mask(const pa_channel_map *map)
+static UINT pulse_channel_map_to_channel_mask(const pa_channel_map* map)
 {
     int i;
     UINT mask = 0;
 
     for (i = 0; i < map->channels; ++i) {
         switch (map->map[i]) {
-            default: FIXME("Unhandled channel %s\n", pa_channel_position_to_string(map->map[i])); break;
-            case PA_CHANNEL_POSITION_FRONT_LEFT: mask |= SPEAKER_FRONT_LEFT; break;
-            case PA_CHANNEL_POSITION_MONO:
-            case PA_CHANNEL_POSITION_FRONT_CENTER: mask |= SPEAKER_FRONT_CENTER; break;
-            case PA_CHANNEL_POSITION_FRONT_RIGHT: mask |= SPEAKER_FRONT_RIGHT; break;
-            case PA_CHANNEL_POSITION_REAR_LEFT: mask |= SPEAKER_BACK_LEFT; break;
-            case PA_CHANNEL_POSITION_REAR_CENTER: mask |= SPEAKER_BACK_CENTER; break;
-            case PA_CHANNEL_POSITION_REAR_RIGHT: mask |= SPEAKER_BACK_RIGHT; break;
-            case PA_CHANNEL_POSITION_LFE: mask |= SPEAKER_LOW_FREQUENCY; break;
-            case PA_CHANNEL_POSITION_SIDE_LEFT: mask |= SPEAKER_SIDE_LEFT; break;
-            case PA_CHANNEL_POSITION_SIDE_RIGHT: mask |= SPEAKER_SIDE_RIGHT; break;
-            case PA_CHANNEL_POSITION_TOP_CENTER: mask |= SPEAKER_TOP_CENTER; break;
-            case PA_CHANNEL_POSITION_TOP_FRONT_LEFT: mask |= SPEAKER_TOP_FRONT_LEFT; break;
-            case PA_CHANNEL_POSITION_TOP_FRONT_CENTER: mask |= SPEAKER_TOP_FRONT_CENTER; break;
-            case PA_CHANNEL_POSITION_TOP_FRONT_RIGHT: mask |= SPEAKER_TOP_FRONT_RIGHT; break;
-            case PA_CHANNEL_POSITION_TOP_REAR_LEFT: mask |= SPEAKER_TOP_BACK_LEFT; break;
-            case PA_CHANNEL_POSITION_TOP_REAR_CENTER: mask |= SPEAKER_TOP_BACK_CENTER; break;
-            case PA_CHANNEL_POSITION_TOP_REAR_RIGHT: mask |= SPEAKER_TOP_BACK_RIGHT; break;
-            case PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER: mask |= SPEAKER_FRONT_LEFT_OF_CENTER; break;
-            case PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER: mask |= SPEAKER_FRONT_RIGHT_OF_CENTER; break;
+        default: FIXME("Unhandled channel %s\n", pa_channel_position_to_string(map->map[i])); break;
+        case PA_CHANNEL_POSITION_FRONT_LEFT: mask |= SPEAKER_FRONT_LEFT; break;
+        case PA_CHANNEL_POSITION_MONO:
+        case PA_CHANNEL_POSITION_FRONT_CENTER: mask |= SPEAKER_FRONT_CENTER; break;
+        case PA_CHANNEL_POSITION_FRONT_RIGHT: mask |= SPEAKER_FRONT_RIGHT; break;
+        case PA_CHANNEL_POSITION_REAR_LEFT: mask |= SPEAKER_BACK_LEFT; break;
+        case PA_CHANNEL_POSITION_REAR_CENTER: mask |= SPEAKER_BACK_CENTER; break;
+        case PA_CHANNEL_POSITION_REAR_RIGHT: mask |= SPEAKER_BACK_RIGHT; break;
+        case PA_CHANNEL_POSITION_LFE: mask |= SPEAKER_LOW_FREQUENCY; break;
+        case PA_CHANNEL_POSITION_SIDE_LEFT: mask |= SPEAKER_SIDE_LEFT; break;
+        case PA_CHANNEL_POSITION_SIDE_RIGHT: mask |= SPEAKER_SIDE_RIGHT; break;
+        case PA_CHANNEL_POSITION_TOP_CENTER: mask |= SPEAKER_TOP_CENTER; break;
+        case PA_CHANNEL_POSITION_TOP_FRONT_LEFT: mask |= SPEAKER_TOP_FRONT_LEFT; break;
+        case PA_CHANNEL_POSITION_TOP_FRONT_CENTER: mask |= SPEAKER_TOP_FRONT_CENTER; break;
+        case PA_CHANNEL_POSITION_TOP_FRONT_RIGHT: mask |= SPEAKER_TOP_FRONT_RIGHT; break;
+        case PA_CHANNEL_POSITION_TOP_REAR_LEFT: mask |= SPEAKER_TOP_BACK_LEFT; break;
+        case PA_CHANNEL_POSITION_TOP_REAR_CENTER: mask |= SPEAKER_TOP_BACK_CENTER; break;
+        case PA_CHANNEL_POSITION_TOP_REAR_RIGHT: mask |= SPEAKER_TOP_BACK_RIGHT; break;
+        case PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER: mask |= SPEAKER_FRONT_LEFT_OF_CENTER; break;
+        case PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER: mask |= SPEAKER_FRONT_RIGHT_OF_CENTER; break;
         }
     }
 
@@ -481,7 +482,7 @@ static UINT pulse_channel_map_to_channel_mask(const pa_channel_map *map)
 
 #define MAX_DEVICE_NAME_LEN 62
 
-static WCHAR *get_device_name(const char *desc, pa_proplist *proplist)
+static WCHAR* get_device_name(const char* desc, pa_proplist* proplist)
 {
     /*
        Some broken apps (e.g. Split/Second with fmodex) can't handle names that
@@ -492,10 +493,10 @@ static WCHAR *get_device_name(const char *desc, pa_proplist *proplist)
     WCHAR buf[MAX_DEVICE_NAME_LEN + 1];
 
     /* For monitors of sinks; this does not seem to be localized in PA either */
-    static const WCHAR monitor_of[] = {'M','o','n','i','t','o','r',' ','o','f',' '};
+    static const WCHAR monitor_of[] = { 'M','o','n','i','t','o','r',' ','o','f',' ' };
 
     size_t len = strlen(desc);
-    WCHAR *name, *tmp;
+    WCHAR* name, * tmp;
 
     if (!(name = malloc((len + 1) * sizeof(WCHAR))))
         return NULL;
@@ -505,7 +506,7 @@ static WCHAR *get_device_name(const char *desc, pa_proplist *proplist)
     }
 
     if (len > MAX_DEVICE_NAME_LEN && proplist) {
-        const char *prop = pa_proplist_gets(proplist, PA_PROP_DEVICE_CLASS);
+        const char* prop = pa_proplist_gets(proplist, PA_PROP_DEVICE_CLASS);
         unsigned prop_len, rem = ARRAY_SIZE(buf);
         BOOL monitor = FALSE;
 
@@ -525,7 +526,7 @@ static WCHAR *get_device_name(const char *desc, pa_proplist *proplist)
 
         if (prop) {
             /* We know we have a name that fits within the limit now */
-            WCHAR *p = name;
+            WCHAR* p = name;
 
             if (monitor) {
                 memcpy(p, monitor_of, sizeof(monitor_of));
@@ -554,9 +555,9 @@ static WCHAR *get_device_name(const char *desc, pa_proplist *proplist)
     return name;
 }
 
-static void fill_device_info(PhysDevice *dev, pa_proplist *p)
+static void fill_device_info(PhysDevice* dev, pa_proplist* p)
 {
-    const char *buffer;
+    const char* buffer;
 
     dev->bus_type = phys_device_bus_invalid;
     dev->vendor_id = 0;
@@ -579,11 +580,11 @@ static void fill_device_info(PhysDevice *dev, pa_proplist *p)
         dev->product_id = strtol(buffer, NULL, 16);
 }
 
-static void pulse_add_device(struct list *list, pa_proplist *proplist, int index, EndpointFormFactor form,
-                             UINT channel_mask, const char *pulse_name, const char *desc)
+static void pulse_add_device(struct list* list, pa_proplist* proplist, int index, EndpointFormFactor form,
+    UINT channel_mask, const char* pulse_name, const char* desc)
 {
     size_t len = strlen(pulse_name);
-    PhysDevice *dev = malloc(FIELD_OFFSET(PhysDevice, pulse_name[len + 1]));
+    PhysDevice* dev = malloc(FIELD_OFFSET(PhysDevice, pulse_name[len + 1]));
 
     if (!dev)
         return;
@@ -605,9 +606,9 @@ static void pulse_add_device(struct list *list, pa_proplist *proplist, int index
     TRACE("%s\n", debugstr_w(dev->name));
 }
 
-static void pulse_phys_speakers_cb(pa_context *c, const pa_sink_info *i, int eol, void *userdata)
+static void pulse_phys_speakers_cb(pa_context* c, const pa_sink_info* i, int eol, void* userdata)
 {
-    struct list *speaker;
+    struct list* speaker;
     UINT channel_mask;
 
     if (!i || !i->name || !i->name[0])
@@ -623,7 +624,7 @@ static void pulse_phys_speakers_cb(pa_context *c, const pa_sink_info *i, int eol
     pulse_add_device(&g_phys_speakers, i->proplist, i->index, Speakers, channel_mask, i->name, i->description);
 }
 
-static void pulse_phys_sources_cb(pa_context *c, const pa_source_info *i, int eol, void *userdata)
+static void pulse_phys_sources_cb(pa_context* c, const pa_source_info* i, int eol, void* userdata)
 {
     if (!i || !i->name || !i->name[0])
         return;
@@ -637,7 +638,7 @@ static void pulse_phys_sources_cb(pa_context *c, const pa_source_info *i, int eo
  * GetMixFormat! Some applications behave badly if given an odd number of
  * channels (e.g. 2.1).  Here, we find the nearest configuration that Windows
  * would report for a given channel layout. */
-static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIBLE *fmt)
+static void convert_channel_map(const pa_channel_map* pa_map, WAVEFORMATEXTENSIBLE* fmt)
 {
     UINT pa_mask = pulse_channel_map_to_channel_mask(pa_map);
 
@@ -654,7 +655,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
      * which is a superset of the given speakers */
 
     if (pa_map->channels <= 2 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_STEREO) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_STEREO) == 0)
     {
         fmt->Format.nChannels = 2;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_STEREO;
@@ -662,7 +663,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     }
 
     if (pa_map->channels <= 4 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_QUAD) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_QUAD) == 0)
     {
         fmt->Format.nChannels = 4;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_QUAD;
@@ -670,7 +671,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     }
 
     if (pa_map->channels <= 4 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_SURROUND) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_SURROUND) == 0)
     {
         fmt->Format.nChannels = 4;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_SURROUND;
@@ -678,7 +679,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     }
 
     if (pa_map->channels <= 6 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_5POINT1) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_5POINT1) == 0)
     {
         fmt->Format.nChannels = 6;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_5POINT1;
@@ -686,7 +687,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     }
 
     if (pa_map->channels <= 6 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_5POINT1_SURROUND) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_5POINT1_SURROUND) == 0)
     {
         fmt->Format.nChannels = 6;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_5POINT1_SURROUND;
@@ -694,7 +695,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     }
 
     if (pa_map->channels <= 8 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_7POINT1) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_7POINT1) == 0)
     {
         fmt->Format.nChannels = 8;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_7POINT1;
@@ -702,7 +703,7 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     }
 
     if (pa_map->channels <= 8 &&
-            (pa_mask & ~KSAUDIO_SPEAKER_7POINT1_SURROUND) == 0)
+        (pa_mask & ~KSAUDIO_SPEAKER_7POINT1_SURROUND) == 0)
     {
         fmt->Format.nChannels = 8;
         fmt->dwChannelMask = KSAUDIO_SPEAKER_7POINT1_SURROUND;
@@ -714,10 +715,10 @@ static void convert_channel_map(const pa_channel_map *pa_map, WAVEFORMATEXTENSIB
     fmt->dwChannelMask = pa_mask;
 }
 
-static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATEXTENSIBLE *fmt, REFERENCE_TIME *def_period, REFERENCE_TIME *min_period)
+static void pulse_probe_settings(int render, const char* pulse_name, WAVEFORMATEXTENSIBLE* fmt, REFERENCE_TIME* def_period, REFERENCE_TIME* min_period)
 {
-    WAVEFORMATEX *wfx = &fmt->Format;
-    pa_stream *stream;
+    WAVEFORMATEX* wfx = &fmt->Format;
+    pa_stream* stream;
     pa_channel_map map;
     pa_sample_spec ss;
     pa_buffer_attr attr;
@@ -744,13 +745,14 @@ static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATE
         ret = -1;
     else if (render)
         ret = pa_stream_connect_playback(stream, pulse_name, &attr,
-        PA_STREAM_START_CORKED|PA_STREAM_FIX_RATE|PA_STREAM_FIX_CHANNELS|PA_STREAM_EARLY_REQUESTS, NULL, NULL);
+            PA_STREAM_START_CORKED | PA_STREAM_FIX_RATE | PA_STREAM_FIX_CHANNELS | PA_STREAM_EARLY_REQUESTS, NULL, NULL);
     else
-        ret = pa_stream_connect_record(stream, pulse_name, &attr, PA_STREAM_START_CORKED|PA_STREAM_FIX_RATE|PA_STREAM_FIX_CHANNELS|PA_STREAM_EARLY_REQUESTS);
+        ret = pa_stream_connect_record(stream, pulse_name, &attr, PA_STREAM_START_CORKED | PA_STREAM_FIX_RATE | PA_STREAM_FIX_CHANNELS | PA_STREAM_EARLY_REQUESTS);
     if (ret >= 0) {
         while (pa_mainloop_iterate(pulse_ml, 1, &ret) >= 0 &&
-                pa_stream_get_state(stream) == PA_STREAM_CREATING)
-        {}
+            pa_stream_get_state(stream) == PA_STREAM_CREATING)
+        {
+        }
         if (pa_stream_get_state(stream) == PA_STREAM_READY) {
             ss = *pa_stream_get_sample_spec(stream);
             map = *pa_stream_get_channel_map(stream);
@@ -760,8 +762,9 @@ static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATE
                 length = pa_stream_get_buffer_attr(stream)->fragsize;
             pa_stream_disconnect(stream);
             while (pa_mainloop_iterate(pulse_ml, 1, &ret) >= 0 &&
-                    pa_stream_get_state(stream) == PA_STREAM_READY)
-            {}
+                pa_stream_get_state(stream) == PA_STREAM_READY)
+            {
+            }
         }
     }
 
@@ -794,13 +797,13 @@ static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATE
  * have to do as much as possible without creating a new thread. this function
  * sets up a synchronous connection to verify the server is running and query
  * static data. */
-static NTSTATUS pulse_test_connect(void *args)
+static NTSTATUS pulse_test_connect(void* args)
 {
-    struct test_connect_params *params = args;
-    PhysDevice *dev;
-    pa_operation *o;
+    struct test_connect_params* params = args;
+    PhysDevice* dev;
+    pa_operation* o;
     int ret;
-    char *name = wstr_to_str(params->name);
+    char* name = wstr_to_str(params->name);
 
     pulse_lock();
     pulse_ml = pa_mainloop_new();
@@ -855,16 +858,18 @@ static NTSTATUS pulse_test_connect(void *args)
     o = pa_context_get_sink_info_list(pulse_ctx, &pulse_phys_speakers_cb, NULL);
     if (o) {
         while (pa_mainloop_iterate(pulse_ml, 1, &ret) >= 0 &&
-                pa_operation_get_state(o) == PA_OPERATION_RUNNING)
-        {}
+            pa_operation_get_state(o) == PA_OPERATION_RUNNING)
+        {
+        }
         pa_operation_unref(o);
     }
 
     o = pa_context_get_source_info_list(pulse_ctx, &pulse_phys_sources_cb, NULL);
     if (o) {
         while (pa_mainloop_iterate(pulse_ml, 1, &ret) >= 0 &&
-                pa_operation_get_state(o) == PA_OPERATION_RUNNING)
-        {}
+            pa_operation_get_state(o) == PA_OPERATION_RUNNING)
+        {
+        }
         pa_operation_unref(o);
     }
 
@@ -898,7 +903,7 @@ fail:
 
 static UINT get_channel_mask(unsigned int channels)
 {
-    switch(channels) {
+    switch (channels) {
     case 0:
         return 0;
     case 1:
@@ -943,13 +948,13 @@ static const enum pa_channel_position pulse_pos_from_wfx[] = {
     PA_CHANNEL_POSITION_TOP_REAR_RIGHT
 };
 
-static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAVEFORMATEX *fmt)
+static HRESULT pulse_spec_from_waveformat(struct pulse_stream* stream, const WAVEFORMATEX* fmt)
 {
     pa_channel_map_init(&stream->map);
     stream->ss.rate = fmt->nSamplesPerSec;
     stream->ss.format = PA_SAMPLE_INVALID;
 
-    switch(fmt->wFormatTag) {
+    switch (fmt->wFormatTag) {
     case WAVE_FORMAT_IEEE_FLOAT:
         if (!fmt->nChannels || fmt->nChannels > 2 || fmt->wBitsPerSample != 32)
             break;
@@ -968,7 +973,7 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
         pa_channel_map_init_auto(&stream->map, fmt->nChannels, PA_CHANNEL_MAP_ALSA);
         break;
     case WAVE_FORMAT_EXTENSIBLE: {
-        WAVEFORMATEXTENSIBLE *wfe = (WAVEFORMATEXTENSIBLE*)fmt;
+        WAVEFORMATEXTENSIBLE* wfe = (WAVEFORMATEXTENSIBLE*)fmt;
         UINT mask = wfe->dwChannelMask;
         unsigned i = 0, j;
         if (fmt->cbSize != (sizeof(*wfe) - sizeof(*fmt)) && fmt->cbSize != sizeof(*wfe))
@@ -984,30 +989,30 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
             if (!valid || valid > fmt->wBitsPerSample)
                 break;
             switch (fmt->wBitsPerSample) {
-                case 8:
-                    if (valid == 8)
-                        stream->ss.format = PA_SAMPLE_U8;
-                    break;
-                case 16:
-                    if (valid == 16)
-                        stream->ss.format = PA_SAMPLE_S16LE;
-                    break;
-                case 24:
-                    if (valid == 24)
-                        stream->ss.format = PA_SAMPLE_S24LE;
-                    break;
-                case 32:
-                    if (valid == 24)
-                        stream->ss.format = PA_SAMPLE_S24_32LE;
-                    else if (valid == 32)
-                        stream->ss.format = PA_SAMPLE_S32LE;
-                    break;
-                default:
-                    return AUDCLNT_E_UNSUPPORTED_FORMAT;
+            case 8:
+                if (valid == 8)
+                    stream->ss.format = PA_SAMPLE_U8;
+                break;
+            case 16:
+                if (valid == 16)
+                    stream->ss.format = PA_SAMPLE_S16LE;
+                break;
+            case 24:
+                if (valid == 24)
+                    stream->ss.format = PA_SAMPLE_S24LE;
+                break;
+            case 32:
+                if (valid == 24)
+                    stream->ss.format = PA_SAMPLE_S24_32LE;
+                else if (valid == 32)
+                    stream->ss.format = PA_SAMPLE_S32LE;
+                break;
+            default:
+                return AUDCLNT_E_UNSUPPORTED_FORMAT;
             }
         }
         stream->map.channels = fmt->nChannels;
-        if (!mask || (mask & (SPEAKER_ALL|SPEAKER_RESERVED)))
+        if (!mask || (mask & (SPEAKER_ALL | SPEAKER_RESERVED)))
             mask = get_channel_mask(fmt->nChannels);
         for (j = 0; j < ARRAY_SIZE(pulse_pos_from_wfx) && i < fmt->nChannels; ++j) {
             if (mask & (1 << j))
@@ -1024,7 +1029,7 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
             break;
         }
         break;
-        }
+    }
     case WAVE_FORMAT_ALAW:
     case WAVE_FORMAT_MULAW:
         if (fmt->wBitsPerSample != 8) {
@@ -1051,7 +1056,7 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
     return S_OK;
 }
 
-static HRESULT pulse_stream_connect(struct pulse_stream *stream, const char *pulse_name, UINT32 period_bytes)
+static HRESULT pulse_stream_connect(struct pulse_stream* stream, const char* pulse_name, UINT32 period_bytes)
 {
     pa_stream_flags_t flags = PA_STREAM_START_CORKED | PA_STREAM_START_UNMUTED | PA_STREAM_ADJUST_LATENCY;
     int ret;
@@ -1086,7 +1091,7 @@ static HRESULT pulse_stream_connect(struct pulse_stream *stream, const char *pul
         pulse_name = NULL;  /* use default */
 
     if (stream->dataflow == eRender)
-        ret = pa_stream_connect_playback(stream->stream, pulse_name, &attr, flags|PA_STREAM_VARIABLE_RATE, NULL, NULL);
+        ret = pa_stream_connect_playback(stream->stream, pulse_name, &attr, flags | PA_STREAM_VARIABLE_RATE, NULL, NULL);
     else
         ret = pa_stream_connect_record(stream->stream, pulse_name, &attr, flags);
     if (ret < 0) {
@@ -1105,10 +1110,10 @@ static HRESULT pulse_stream_connect(struct pulse_stream *stream, const char *pul
     return S_OK;
 }
 
-static HRESULT get_device_period_helper(EDataFlow flow, const char *pulse_name, REFERENCE_TIME *def, REFERENCE_TIME *min)
+static HRESULT get_device_period_helper(EDataFlow flow, const char* pulse_name, REFERENCE_TIME* def, REFERENCE_TIME* min)
 {
-    struct list *list = (flow == eRender) ? &g_phys_speakers : &g_phys_sources;
-    PhysDevice *dev;
+    struct list* list = (flow == eRender) ? &g_phys_speakers : &g_phys_sources;
+    PhysDevice* dev;
 
     if (!def && !min) {
         return E_POINTER;
@@ -1128,13 +1133,13 @@ static HRESULT get_device_period_helper(EDataFlow flow, const char *pulse_name, 
     return E_FAIL;
 }
 
-static NTSTATUS pulse_create_stream(void *args)
+static NTSTATUS pulse_create_stream(void* args)
 {
-    struct create_stream_params *params = args;
-    struct pulse_stream *stream;
+    struct create_stream_params* params = args;
+    struct pulse_stream* stream;
     unsigned int i, bufsize_bytes;
     HRESULT hr;
-    char *name;
+    char* name;
 
     if (params->share == AUDCLNT_SHAREMODE_EXCLUSIVE) {
         params->result = AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED;
@@ -1174,8 +1179,8 @@ static NTSTATUS pulse_create_stream(void *args)
     stream->duration = params->duration;
 
     stream->period_bytes = pa_frame_size(&stream->ss) * muldiv(params->period,
-                                                               stream->ss.rate,
-                                                               10000000);
+        stream->ss.rate,
+        10000000);
 
     stream->bufsize_frames = ceil((params->duration / 10000000.) * params->fmt->nSamplesPerSec);
     bufsize_bytes = stream->bufsize_frames * pa_frame_size(&stream->ss);
@@ -1186,7 +1191,7 @@ static NTSTATUS pulse_create_stream(void *args)
     hr = pulse_stream_connect(stream, params->device, stream->period_bytes);
     if (SUCCEEDED(hr)) {
         UINT32 unalign;
-        const pa_buffer_attr *attr = pa_stream_get_buffer_attr(stream->stream);
+        const pa_buffer_attr* attr = pa_stream_get_buffer_attr(stream->stream);
         SIZE_T size;
 
         stream->attr = *attr;
@@ -1195,10 +1200,11 @@ static NTSTATUS pulse_create_stream(void *args)
         if (stream->dataflow == eRender) {
             size = stream->real_bufsize_bytes =
                 stream->bufsize_frames * 2 * pa_frame_size(&stream->ss);
-            if (NtAllocateVirtualMemory(GetCurrentProcess(), (void **)&stream->local_buffer,
-                                        zero_bits, &size, MEM_COMMIT, PAGE_READWRITE))
+            if (NtAllocateVirtualMemory(GetCurrentProcess(), (void**)&stream->local_buffer,
+                zero_bits, &size, MEM_COMMIT, PAGE_READWRITE))
                 hr = E_OUTOFMEMORY;
-        } else {
+        }
+        else {
             UINT32 i, capture_packets;
 
             if ((unalign = bufsize_bytes % stream->period_bytes))
@@ -1209,12 +1215,12 @@ static NTSTATUS pulse_create_stream(void *args)
             capture_packets = stream->real_bufsize_bytes / stream->period_bytes;
 
             size = stream->real_bufsize_bytes + capture_packets * sizeof(ACPacket);
-            if (NtAllocateVirtualMemory(GetCurrentProcess(), (void **)&stream->local_buffer,
-                                        zero_bits, &size, MEM_COMMIT, PAGE_READWRITE))
+            if (NtAllocateVirtualMemory(GetCurrentProcess(), (void**)&stream->local_buffer,
+                zero_bits, &size, MEM_COMMIT, PAGE_READWRITE))
                 hr = E_OUTOFMEMORY;
             else {
-                ACPacket *cur_packet = (ACPacket*)((char*)stream->local_buffer + stream->real_bufsize_bytes);
-                BYTE *data = stream->local_buffer;
+                ACPacket* cur_packet = (ACPacket*)((char*)stream->local_buffer + stream->real_bufsize_bytes);
+                BYTE* data = stream->local_buffer;
                 silence_buffer(stream->ss.format, stream->local_buffer, stream->real_bufsize_bytes);
                 list_init(&stream->packet_free_head);
                 list_init(&stream->packet_filled_head);
@@ -1244,13 +1250,13 @@ exit:
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_release_stream(void *args)
+static NTSTATUS pulse_release_stream(void* args)
 {
-    struct release_stream_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct release_stream_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     SIZE_T size;
 
-    if(params->timer_thread) {
+    if (params->timer_thread) {
         stream->please_quit = TRUE;
         NtWaitForSingleObject(params->timer_thread, FALSE, NULL);
         NtClose(params->timer_thread);
@@ -1267,25 +1273,25 @@ static NTSTATUS pulse_release_stream(void *args)
 
     if (stream->tmp_buffer) {
         size = 0;
-        NtFreeVirtualMemory(GetCurrentProcess(), (void **)&stream->tmp_buffer,
-                            &size, MEM_RELEASE);
+        NtFreeVirtualMemory(GetCurrentProcess(), (void**)&stream->tmp_buffer,
+            &size, MEM_RELEASE);
     }
     if (stream->local_buffer) {
         size = 0;
-        NtFreeVirtualMemory(GetCurrentProcess(), (void **)&stream->local_buffer,
-                            &size, MEM_RELEASE);
+        NtFreeVirtualMemory(GetCurrentProcess(), (void**)&stream->local_buffer,
+            &size, MEM_RELEASE);
     }
     free(stream->peek_buffer);
     free(stream);
     return STATUS_SUCCESS;
 }
 
-static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 bytes)
+static int write_buffer(const struct pulse_stream* stream, BYTE* buffer, UINT32 bytes)
 {
-    const float *vol = stream->vol;
+    const float* vol = stream->vol;
     UINT32 i, channels, mute = 0;
     BOOL adjust = FALSE;
-    BYTE *end;
+    BYTE* end;
 
     if (!bytes) return 0;
 
@@ -1330,7 +1336,7 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
 #undef PROCESS_BUFFER
     case PA_SAMPLE_S24_32LE:
     {
-        UINT32 *p = (UINT32*)buffer;
+        UINT32* p = (UINT32*)buffer;
         do
         {
             for (i = 0; i < channels; i++)
@@ -1345,8 +1351,8 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
     case PA_SAMPLE_S24LE:
     {
         /* do it 12 bytes at a time until it is no longer possible */
-        UINT32 *q = (UINT32*)buffer;
-        BYTE *p;
+        UINT32* q = (UINT32*)buffer;
+        BYTE* p;
 
         i = 0;
         while (end - (BYTE*)q >= 12)
@@ -1354,14 +1360,14 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
             UINT32 v[4], k;
             v[0] = q[0] << 8;
             v[1] = q[1] << 16 | (q[0] >> 16 & ~0xff);
-            v[2] = q[2] << 24 | (q[1] >> 8  & ~0xff);
+            v[2] = q[2] << 24 | (q[1] >> 8 & ~0xff);
             v[3] = q[2] & ~0xff;
             for (k = 0; k < 4; k++)
             {
                 v[k] = (INT32)((INT32)v[k] * vol[i]);
                 if (++i == channels) i = 0;
             }
-            *q++ = v[0] >> 8  | (v[1] & ~0xff) << 16;
+            *q++ = v[0] >> 8 | (v[1] & ~0xff) << 16;
             *q++ = v[1] >> 16 | (v[2] & ~0xff) << 8;
             *q++ = v[2] >> 24 | (v[3] & ~0xff);
         }
@@ -1369,7 +1375,7 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
         while (p != end)
         {
             UINT32 v = (INT32)((INT32)(p[0] << 8 | p[1] << 16 | p[2] << 24) * vol[i]);
-            *p++ = v >> 8  & 0xff;
+            *p++ = v >> 8 & 0xff;
             *p++ = v >> 16 & 0xff;
             *p++ = v >> 24;
             if (++i == channels) i = 0;
@@ -1379,7 +1385,7 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
 #endif
     case PA_SAMPLE_U8:
     {
-        UINT8 *p = (UINT8*)buffer;
+        UINT8* p = (UINT8*)buffer;
         do
         {
             for (i = 0; i < channels; i++)
@@ -1390,7 +1396,7 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
     }
     case PA_SAMPLE_ALAW:
     {
-        UINT8 *p = (UINT8*)buffer;
+        UINT8* p = (UINT8*)buffer;
         do
         {
             for (i = 0; i < channels; i++)
@@ -1401,7 +1407,7 @@ static int write_buffer(const struct pulse_stream *stream, BYTE *buffer, UINT32 
     }
     case PA_SAMPLE_ULAW:
     {
-        UINT8 *p = (UINT8*)buffer;
+        UINT8* p = (UINT8*)buffer;
         do
         {
             for (i = 0; i < channels; i++)
@@ -1419,20 +1425,20 @@ write:
     return pa_stream_write(stream->stream, buffer, bytes, NULL, 0, PA_SEEK_RELATIVE);
 }
 
-static void pulse_write(struct pulse_stream *stream)
+static void pulse_write(struct pulse_stream* stream)
 {
     /* write as much data to PA as we can */
     UINT32 to_write;
-    BYTE *buf = stream->local_buffer + stream->pa_offs_bytes;
+    BYTE* buf = stream->local_buffer + stream->pa_offs_bytes;
     UINT32 bytes = pa_stream_writable_size(stream->stream);
 
     if (stream->just_underran)
     {
         /* prebuffer with silence if needed */
-        if(stream->pa_held_bytes < bytes){
+        if (stream->pa_held_bytes < bytes) {
             to_write = bytes - stream->pa_held_bytes;
             TRACE("prebuffering %u frames of silence\n",
-                    (int)(to_write / pa_frame_size(&stream->ss)));
+                (int)(to_write / pa_frame_size(&stream->ss)));
             buf = calloc(1, to_write);
             pa_stream_write(stream->stream, buf, to_write, NULL, 0, PA_SEEK_RELATIVE);
             free(buf);
@@ -1465,7 +1471,7 @@ static void pulse_write(struct pulse_stream *stream)
     stream->pa_held_bytes -= to_write;
 }
 
-static void pulse_read(struct pulse_stream *stream)
+static void pulse_read(struct pulse_stream* stream)
 {
     size_t bytes = pa_stream_readable_size(stream->stream);
 
@@ -1475,13 +1481,13 @@ static void pulse_read(struct pulse_stream *stream)
 
     while (bytes >= stream->period_bytes)
     {
-        BYTE *dst = NULL, *src;
+        BYTE* dst = NULL, * src;
         size_t src_len, copy, rem = stream->period_bytes;
 
         if (stream->started)
         {
             LARGE_INTEGER stamp, freq;
-            ACPacket *p, *next;
+            ACPacket* p, * next;
 
             if (!(p = (ACPacket*)list_head(&stream->packet_free_head)))
             {
@@ -1490,7 +1496,8 @@ static void pulse_read(struct pulse_stream *stream)
                 if (!p->discont) {
                     next = (ACPacket*)p->entry.next;
                     next->discont = 1;
-                } else
+                }
+                else
                     p = (ACPacket*)list_tail(&stream->packet_filled_head);
             }
             else
@@ -1520,7 +1527,7 @@ static void pulse_read(struct pulse_stream *stream)
 
                 rem -= copy;
                 stream->peek_ofs += copy;
-                if(stream->peek_len == stream->peek_ofs)
+                if (stream->peek_len == stream->peek_ofs)
                     stream->peek_len = stream->peek_ofs = 0;
 
             }
@@ -1529,7 +1536,7 @@ static void pulse_read(struct pulse_stream *stream)
                 copy = min(rem, src_len);
 
                 if (dst) {
-                    if(src)
+                    if (src)
                         memcpy(dst, src, copy);
                     else
                         silence_buffer(stream->ss.format, dst, copy);
@@ -1548,7 +1555,7 @@ static void pulse_read(struct pulse_stream *stream)
                         stream->peek_buffer_len = src_len;
                     }
 
-                    if(src)
+                    if (src)
                         memcpy(stream->peek_buffer, src + copy, src_len - copy);
                     else
                         silence_buffer(stream->ss.format, stream->peek_buffer, src_len - copy);
@@ -1565,10 +1572,10 @@ static void pulse_read(struct pulse_stream *stream)
     }
 }
 
-static NTSTATUS pulse_timer_loop(void *args)
+static NTSTATUS pulse_timer_loop(void* args)
 {
-    struct timer_loop_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct timer_loop_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     LARGE_INTEGER delay;
     pa_usec_t last_time;
     UINT32 adv_bytes;
@@ -1597,7 +1604,7 @@ static NTSTATUS pulse_timer_loop(void *args)
             TRACE("got now: %s, last time: %s\n", wine_dbgstr_longlong(now), wine_dbgstr_longlong(last_time));
             if (stream->started && (stream->dataflow == eCapture || stream->held_bytes))
             {
-                if(stream->just_underran)
+                if (stream->just_underran)
                 {
                     last_time = now;
                     stream->just_started = TRUE;
@@ -1620,9 +1627,9 @@ static NTSTATUS pulse_timer_loop(void *args)
 
                     adv_usec = now - last_time;
 
-                    if(adjust > ((INT32)(stream->mmdev_period_usec / 2)))
+                    if (adjust > ((INT32)(stream->mmdev_period_usec / 2)))
                         adjust = stream->mmdev_period_usec / 2;
-                    else if(adjust < -((INT32)(stream->mmdev_period_usec / 2)))
+                    else if (adjust < -((INT32)(stream->mmdev_period_usec / 2)))
                         adjust = -1 * stream->mmdev_period_usec / 2;
 
                     delay.QuadPart = -(stream->mmdev_period_usec + adjust) * 10;
@@ -1640,7 +1647,7 @@ static NTSTATUS pulse_timer_loop(void *args)
                     stream->lcl_offs_bytes %= stream->real_bufsize_bytes;
                     stream->held_bytes -= adv_bytes;
                 }
-                else if(stream->dataflow == eCapture)
+                else if (stream->dataflow == eCapture)
                 {
                     pulse_read(stream);
                 }
@@ -1656,9 +1663,9 @@ static NTSTATUS pulse_timer_loop(void *args)
             NtSetEvent(stream->event, NULL);
 
         TRACE("%p after update, adv usec: %d, held: %u, delay usec: %u\n",
-                stream, (int)adv_usec,
-                (int)(stream->held_bytes/ pa_frame_size(&stream->ss)),
-                (unsigned int)(-delay.QuadPart / 10));
+            stream, (int)adv_usec,
+            (int)(stream->held_bytes / pa_frame_size(&stream->ss)),
+            (unsigned int)(-delay.QuadPart / 10));
 
         pulse_unlock();
     }
@@ -1666,10 +1673,10 @@ static NTSTATUS pulse_timer_loop(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_start(void *args)
+static NTSTATUS pulse_start(void* args)
 {
-    struct start_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct start_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     int success;
 
     params->result = S_OK;
@@ -1714,10 +1721,10 @@ static NTSTATUS pulse_start(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_stop(void *args)
+static NTSTATUS pulse_stop(void* args)
 {
-    struct stop_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct stop_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     int success;
 
     pulse_lock();
@@ -1749,10 +1756,10 @@ static NTSTATUS pulse_stop(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_reset(void *args)
+static NTSTATUS pulse_reset(void* args)
 {
-    struct reset_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct reset_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     if (!pulse_stream_valid(stream))
@@ -1792,7 +1799,7 @@ static NTSTATUS pulse_reset(void *args)
     }
     else
     {
-        ACPacket *p;
+        ACPacket* p;
         stream->clock_written += stream->held_bytes;
         stream->held_bytes = 0;
 
@@ -1808,7 +1815,7 @@ static NTSTATUS pulse_reset(void *args)
     return STATUS_SUCCESS;
 }
 
-static BOOL alloc_tmp_buffer(struct pulse_stream *stream, SIZE_T bytes)
+static BOOL alloc_tmp_buffer(struct pulse_stream* stream, SIZE_T bytes)
 {
     SIZE_T size;
 
@@ -1818,27 +1825,27 @@ static BOOL alloc_tmp_buffer(struct pulse_stream *stream, SIZE_T bytes)
     if (stream->tmp_buffer)
     {
         size = 0;
-        NtFreeVirtualMemory(GetCurrentProcess(), (void **)&stream->tmp_buffer,
-                            &size, MEM_RELEASE);
+        NtFreeVirtualMemory(GetCurrentProcess(), (void**)&stream->tmp_buffer,
+            &size, MEM_RELEASE);
         stream->tmp_buffer = NULL;
         stream->tmp_buffer_bytes = 0;
     }
-    if (NtAllocateVirtualMemory(GetCurrentProcess(), (void **)&stream->tmp_buffer,
-                                zero_bits, &bytes, MEM_COMMIT, PAGE_READWRITE))
+    if (NtAllocateVirtualMemory(GetCurrentProcess(), (void**)&stream->tmp_buffer,
+        zero_bits, &bytes, MEM_COMMIT, PAGE_READWRITE))
         return FALSE;
 
     stream->tmp_buffer_bytes = bytes;
     return TRUE;
 }
 
-static UINT32 pulse_render_padding(struct pulse_stream *stream)
+static UINT32 pulse_render_padding(struct pulse_stream* stream)
 {
     return stream->held_bytes / pa_frame_size(&stream->ss);
 }
 
-static UINT32 pulse_capture_padding(struct pulse_stream *stream)
+static UINT32 pulse_capture_padding(struct pulse_stream* stream)
 {
-    ACPacket *packet = stream->locked_ptr;
+    ACPacket* packet = stream->locked_ptr;
     if (!packet && !list_empty(&stream->packet_filled_head))
     {
         packet = (ACPacket*)list_head(&stream->packet_filled_head);
@@ -1848,10 +1855,10 @@ static UINT32 pulse_capture_padding(struct pulse_stream *stream)
     return stream->held_bytes / pa_frame_size(&stream->ss);
 }
 
-static NTSTATUS pulse_get_render_buffer(void *args)
+static NTSTATUS pulse_get_render_buffer(void* args)
 {
-    struct get_render_buffer_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct get_render_buffer_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     size_t bytes;
     UINT32 wri_offs_bytes;
 
@@ -1911,7 +1918,7 @@ static NTSTATUS pulse_get_render_buffer(void *args)
     return STATUS_SUCCESS;
 }
 
-static void pulse_wrap_buffer(struct pulse_stream *stream, BYTE *buffer, UINT32 written_bytes)
+static void pulse_wrap_buffer(struct pulse_stream* stream, BYTE* buffer, UINT32 written_bytes)
 {
     UINT32 wri_offs_bytes = (stream->lcl_offs_bytes + stream->held_bytes) % stream->real_bufsize_bytes;
     UINT32 chunk_bytes = stream->real_bufsize_bytes - wri_offs_bytes;
@@ -1927,12 +1934,12 @@ static void pulse_wrap_buffer(struct pulse_stream *stream, BYTE *buffer, UINT32 
     }
 }
 
-static NTSTATUS pulse_release_render_buffer(void *args)
+static NTSTATUS pulse_release_render_buffer(void* args)
 {
-    struct release_render_buffer_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct release_render_buffer_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     UINT32 written_bytes;
-    BYTE *buffer;
+    BYTE* buffer;
 
     pulse_lock();
     if (!stream->locked || !params->written_frames)
@@ -1984,11 +1991,11 @@ static NTSTATUS pulse_release_render_buffer(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_capture_buffer(void *args)
+static NTSTATUS pulse_get_capture_buffer(void* args)
 {
-    struct get_capture_buffer_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
-    ACPacket *packet;
+    struct get_capture_buffer_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
+    ACPacket* packet;
 
     pulse_lock();
     if (!pulse_stream_valid(stream))
@@ -2026,14 +2033,14 @@ static NTSTATUS pulse_get_capture_buffer(void *args)
         *params->frames = 0;
     stream->locked = *params->frames;
     pulse_unlock();
-    params->result =  *params->frames ? S_OK : AUDCLNT_S_BUFFER_EMPTY;
+    params->result = *params->frames ? S_OK : AUDCLNT_S_BUFFER_EMPTY;
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_release_capture_buffer(void *args)
+static NTSTATUS pulse_release_capture_buffer(void* args)
 {
-    struct release_capture_buffer_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct release_capture_buffer_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     if (!stream->locked && params->done)
@@ -2050,7 +2057,7 @@ static NTSTATUS pulse_release_capture_buffer(void *args)
     }
     if (params->done)
     {
-        ACPacket *packet = stream->locked_ptr;
+        ACPacket* packet = stream->locked_ptr;
         stream->locked_ptr = NULL;
         stream->held_bytes -= stream->period_bytes;
         if (packet->discont)
@@ -2065,12 +2072,12 @@ static NTSTATUS pulse_release_capture_buffer(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_is_format_supported(void *args)
+static NTSTATUS pulse_is_format_supported(void* args)
 {
-    struct is_format_supported_params *params = args;
+    struct is_format_supported_params* params = args;
     WAVEFORMATEXTENSIBLE in;
-    WAVEFORMATEXTENSIBLE *out;
-    const WAVEFORMATEX *fmt = &in.Format;
+    WAVEFORMATEXTENSIBLE* out;
+    const WAVEFORMATEX* fmt = &in.Format;
     const BOOLEAN exclusive = params->share == AUDCLNT_SHAREMODE_EXCLUSIVE;
 
     params->result = S_OK;
@@ -2081,13 +2088,13 @@ static NTSTATUS pulse_is_format_supported(void *args)
         params->result = E_INVALIDARG;
     else {
         memcpy(&in, params->fmt_in, params->fmt_in->wFormatTag == WAVE_FORMAT_EXTENSIBLE ?
-                                    sizeof(in) : sizeof(in.Format));
+            sizeof(in) : sizeof(in.Format));
 
         if (fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
             if (fmt->cbSize < sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX))
                 params->result = E_INVALIDARG;
             else if (fmt->nAvgBytesPerSec == 0 || fmt->nBlockAlign == 0 ||
-                    (in.Samples.wValidBitsPerSample > fmt->wBitsPerSample))
+                (in.Samples.wValidBitsPerSample > fmt->wBitsPerSample))
                 params->result = E_INVALIDARG;
             else if (fmt->nChannels == 0)
                 params->result = AUDCLNT_E_UNSUPPORTED_FORMAT;
@@ -2102,16 +2109,16 @@ static NTSTATUS pulse_is_format_supported(void *args)
     else {
         out = params->fmt_out;
         memcpy(out, fmt, fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE ?
-                         sizeof(*out) : sizeof((*out).Format));
+            sizeof(*out) : sizeof((*out).Format));
     }
 
     switch (fmt->wFormatTag) {
     case WAVE_FORMAT_EXTENSIBLE: {
         if ((fmt->cbSize != sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX) &&
-             fmt->cbSize != sizeof(WAVEFORMATEXTENSIBLE)) ||
-             fmt->nBlockAlign != fmt->wBitsPerSample / 8 * fmt->nChannels ||
-             in.Samples.wValidBitsPerSample > fmt->wBitsPerSample ||
-             fmt->nAvgBytesPerSec != fmt->nBlockAlign * fmt->nSamplesPerSec) {
+            fmt->cbSize != sizeof(WAVEFORMATEXTENSIBLE)) ||
+            fmt->nBlockAlign != fmt->wBitsPerSample / 8 * fmt->nChannels ||
+            in.Samples.wValidBitsPerSample > fmt->wBitsPerSample ||
+            fmt->nAvgBytesPerSec != fmt->nBlockAlign * fmt->nSamplesPerSec) {
             params->result = E_INVALIDARG;
             break;
         }
@@ -2131,7 +2138,8 @@ static NTSTATUS pulse_is_format_supported(void *args)
                     params->result = AUDCLNT_E_UNSUPPORTED_FORMAT;
                     break;
                 }
-            } else {
+            }
+            else {
                 params->result = AUDCLNT_E_UNSUPPORTED_FORMAT;
                 break;
             }
@@ -2147,20 +2155,22 @@ static NTSTATUS pulse_is_format_supported(void *args)
                 params->result = S_FALSE;
                 out->Samples.wValidBitsPerSample = fmt->wBitsPerSample;
             }
-        } else if (IsEqualGUID(&in.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM)) {
+        }
+        else if (IsEqualGUID(&in.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM)) {
             if (!fmt->wBitsPerSample || fmt->wBitsPerSample > 32 || fmt->wBitsPerSample % 8) {
                 params->result = E_INVALIDARG;
                 break;
             }
 
             if (in.Samples.wValidBitsPerSample != fmt->wBitsPerSample &&
-               !(fmt->wBitsPerSample == 32 &&
-                in.Samples.wValidBitsPerSample == 24)) {
+                !(fmt->wBitsPerSample == 32 &&
+                    in.Samples.wValidBitsPerSample == 24)) {
                 params->result = S_FALSE;
                 out->Samples.wValidBitsPerSample = fmt->wBitsPerSample;
                 break;
             }
-        } else {
+        }
+        else {
             params->result = AUDCLNT_E_UNSUPPORTED_FORMAT;
             break;
         }
@@ -2173,16 +2183,16 @@ static NTSTATUS pulse_is_format_supported(void *args)
             params->result = E_INVALIDARG;
             break;
         }
-    /* Fall-through */
+        /* Fall-through */
     case WAVE_FORMAT_IEEE_FLOAT:
         if (fmt->wFormatTag == WAVE_FORMAT_IEEE_FLOAT && fmt->wBitsPerSample != 32) {
             params->result = E_INVALIDARG;
             break;
         }
-    /* Fall-through */
+        /* Fall-through */
     case WAVE_FORMAT_PCM: {
         if (fmt->wFormatTag == WAVE_FORMAT_PCM &&
-           (!fmt->wBitsPerSample || fmt->wBitsPerSample > 32 || fmt->wBitsPerSample % 8)) {
+            (!fmt->wBitsPerSample || fmt->wBitsPerSample > 32 || fmt->wBitsPerSample % 8)) {
             params->result = E_INVALIDARG;
             break;
         }
@@ -2204,8 +2214,8 @@ static NTSTATUS pulse_is_format_supported(void *args)
     if (exclusive) { /* This driver does not support exclusive mode. */
         if (params->result == S_OK)
             params->result = params->flow == eCapture ?
-                                             AUDCLNT_E_UNSUPPORTED_FORMAT :
-                                             AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED;
+            AUDCLNT_E_UNSUPPORTED_FORMAT :
+            AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED;
         else if (params->result == S_FALSE)
             params->result = AUDCLNT_E_UNSUPPORTED_FORMAT;
     }
@@ -2213,9 +2223,9 @@ static NTSTATUS pulse_is_format_supported(void *args)
     return STATUS_SUCCESS;
 }
 
-static void sink_name_info_cb(pa_context *c, const pa_sink_info *i, int eol, void *userdata)
+static void sink_name_info_cb(pa_context* c, const pa_sink_info* i, int eol, void* userdata)
 {
-    uint32_t *current_device_index = userdata;
+    uint32_t* current_device_index = userdata;
     pulse_broadcast();
 
     if (!i || !i->name || !i->name[0])
@@ -2225,13 +2235,13 @@ static void sink_name_info_cb(pa_context *c, const pa_sink_info *i, int eol, voi
 
 struct find_monitor_of_sink_cb_param
 {
-    struct get_loopback_capture_device_params *params;
+    struct get_loopback_capture_device_params* params;
     uint32_t current_device_index;
 };
 
-static void find_monitor_of_sink_cb(pa_context *c, const pa_source_info *i, int eol, void *userdata)
+static void find_monitor_of_sink_cb(pa_context* c, const pa_source_info* i, int eol, void* userdata)
 {
-    struct find_monitor_of_sink_cb_param *p = userdata;
+    struct find_monitor_of_sink_cb_param* p = userdata;
     unsigned int len;
 
     pulse_broadcast();
@@ -2252,13 +2262,13 @@ static void find_monitor_of_sink_cb(pa_context *c, const pa_source_info *i, int 
     p->params->result = STATUS_BUFFER_TOO_SMALL;
 }
 
-static NTSTATUS pulse_get_loopback_capture_device(void *args)
+static NTSTATUS pulse_get_loopback_capture_device(void* args)
 {
-    struct get_loopback_capture_device_params *params = args;
+    struct get_loopback_capture_device_params* params = args;
     uint32_t current_device_index = PA_INVALID_INDEX;
     struct find_monitor_of_sink_cb_param p;
-    const char *device_name;
-    char *name;
+    const char* device_name;
+    char* name;
 
     pulse_lock();
 
@@ -2296,11 +2306,11 @@ static NTSTATUS pulse_get_loopback_capture_device(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_mix_format(void *args)
+static NTSTATUS pulse_get_mix_format(void* args)
 {
-    struct get_mix_format_params *params = args;
-    struct list *list = (params->flow == eRender) ? &g_phys_speakers : &g_phys_sources;
-    PhysDevice *dev;
+    struct get_mix_format_params* params = args;
+    struct list* list = (params->flow == eRender) ? &g_phys_speakers : &g_phys_sources;
+    PhysDevice* dev;
 
     LIST_FOR_EACH_ENTRY(dev, list, PhysDevice, entry) {
         if (strcmp(params->device, dev->pulse_name))
@@ -2316,18 +2326,18 @@ static NTSTATUS pulse_get_mix_format(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_device_period(void *args)
+static NTSTATUS pulse_get_device_period(void* args)
 {
-    struct get_device_period_params *params = args;
+    struct get_device_period_params* params = args;
 
     params->result = get_device_period_helper(params->flow, params->device, params->def_period, params->min_period);
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_buffer_size(void *args)
+static NTSTATUS pulse_get_buffer_size(void* args)
 {
-    struct get_buffer_size_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct get_buffer_size_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     params->result = S_OK;
 
@@ -2341,11 +2351,11 @@ static NTSTATUS pulse_get_buffer_size(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_latency(void *args)
+static NTSTATUS pulse_get_latency(void* args)
 {
-    struct get_latency_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
-    const pa_buffer_attr *attr;
+    struct get_latency_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
+    const pa_buffer_attr* attr;
     REFERENCE_TIME lat;
 
     pulse_lock();
@@ -2366,10 +2376,10 @@ static NTSTATUS pulse_get_latency(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_current_padding(void *args)
+static NTSTATUS pulse_get_current_padding(void* args)
 {
-    struct get_current_padding_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct get_current_padding_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     if (!pulse_stream_valid(stream))
@@ -2386,15 +2396,15 @@ static NTSTATUS pulse_get_current_padding(void *args)
     pulse_unlock();
 
     TRACE("%p Pad: %u ms (%u)\n", stream, muldiv(*params->padding, 1000, stream->ss.rate),
-          *params->padding);
+        *params->padding);
     params->result = S_OK;
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_next_packet_size(void *args)
+static NTSTATUS pulse_get_next_packet_size(void* args)
 {
-    struct get_next_packet_size_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct get_next_packet_size_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     pulse_capture_padding(stream);
@@ -2408,10 +2418,10 @@ static NTSTATUS pulse_get_next_packet_size(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_frequency(void *args)
+static NTSTATUS pulse_get_frequency(void* args)
 {
-    struct get_frequency_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct get_frequency_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     if (!pulse_stream_valid(stream))
@@ -2429,10 +2439,10 @@ static NTSTATUS pulse_get_frequency(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_get_position(void *args)
+static NTSTATUS pulse_get_position(void* args)
 {
-    struct get_position_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct get_position_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     if (!pulse_stream_valid(stream))
@@ -2467,10 +2477,10 @@ static NTSTATUS pulse_get_position(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_set_volumes(void *args)
+static NTSTATUS pulse_set_volumes(void* args)
 {
-    struct set_volumes_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct set_volumes_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     unsigned int i;
 
     for (i = 0; i < stream->ss.channels; i++)
@@ -2479,10 +2489,10 @@ static NTSTATUS pulse_set_volumes(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_set_event_handle(void *args)
+static NTSTATUS pulse_set_event_handle(void* args)
 {
-    struct set_event_handle_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct set_event_handle_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     HRESULT hr = S_OK;
 
     pulse_lock();
@@ -2500,10 +2510,10 @@ static NTSTATUS pulse_set_event_handle(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_set_sample_rate(void *args)
+static NTSTATUS pulse_set_sample_rate(void* args)
 {
-    struct set_sample_rate_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct set_sample_rate_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
     HRESULT hr = S_OK;
     int success;
     pa_sample_spec new_ss;
@@ -2547,10 +2557,10 @@ exit:
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_is_started(void *args)
+static NTSTATUS pulse_is_started(void* args)
 {
-    struct is_started_params *params = args;
-    struct pulse_stream *stream = handle_get_stream(params->stream);
+    struct is_started_params* params = args;
+    struct pulse_stream* stream = handle_get_stream(params->stream);
 
     pulse_lock();
     params->result = pulse_stream_valid(stream) && stream->started ? S_OK : S_FALSE;
@@ -2559,10 +2569,10 @@ static NTSTATUS pulse_is_started(void *args)
     return STATUS_SUCCESS;
 }
 
-static BOOL get_device_path(PhysDevice *dev, struct get_prop_value_params *params)
+static BOOL get_device_path(PhysDevice* dev, struct get_prop_value_params* params)
 {
-    const GUID *guid = params->guid;
-    PROPVARIANT *out = params->value;
+    const GUID* guid = params->guid;
+    PROPVARIANT* out = params->value;
     UINT serial_number;
     char path[128];
     int len;
@@ -2600,7 +2610,7 @@ static BOOL get_device_path(PhysDevice *dev, struct get_prop_value_params *param
     return TRUE;
 }
 
-static NTSTATUS pulse_get_prop_value(void *args)
+static NTSTATUS pulse_get_prop_value(void* args)
 {
     static const GUID PKEY_AudioEndpoint_GUID = {
         0x1da5d803, 0xd492, 0x4edd, {0x8c, 0x23, 0xe0, 0xc0, 0xff, 0xee, 0x7f, 0x0e}
@@ -2608,9 +2618,9 @@ static NTSTATUS pulse_get_prop_value(void *args)
     static const PROPERTYKEY devicepath_key = { /* undocumented? - {b3f8fa53-0004-438e-9003-51a46e139bfc},2 */
         {0xb3f8fa53, 0x0004, 0x438e, {0x90, 0x03, 0x51, 0xa4, 0x6e, 0x13, 0x9b, 0xfc}}, 2
     };
-    struct get_prop_value_params *params = args;
-    struct list *list = (params->flow == eRender) ? &g_phys_speakers : &g_phys_sources;
-    PhysDevice *dev;
+    struct get_prop_value_params* params = args;
+    struct list* list = (params->flow == eRender) ? &g_phys_speakers : &g_phys_sources;
+    PhysDevice* dev;
 
     LIST_FOR_EACH_ENTRY(dev, list, PhysDevice, entry) {
         if (strcmp(params->device, dev->pulse_name))
@@ -2618,7 +2628,8 @@ static NTSTATUS pulse_get_prop_value(void *args)
         if (IsEqualPropertyKey(*params->prop, devicepath_key)) {
             get_device_path(dev, params);
             return STATUS_SUCCESS;
-        } else if (IsEqualGUID(&params->prop->fmtid, &PKEY_AudioEndpoint_GUID)) {
+        }
+        else if (IsEqualGUID(&params->prop->fmtid, &PKEY_AudioEndpoint_GUID)) {
             switch (params->prop->pid) {
             case 0:   /* FormFactor */
                 params->value->vt = VT_UI4;
@@ -2644,11 +2655,11 @@ fail:
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_midi_get_driver(void *args)
+static NTSTATUS pulse_midi_get_driver(void* args)
 {
-    static const WCHAR driver[] = {'a','l','s','a',0};
+    static const WCHAR driver[] = { 'a','l','s','a',0 };
 
-    memcpy( args, driver, sizeof(driver) );
+    memcpy(args, driver, sizeof(driver));
     return STATUS_SUCCESS;
 }
 
@@ -2699,7 +2710,7 @@ C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == funcs_count);
 
 typedef UINT PTR32;
 
-static NTSTATUS pulse_wow64_main_loop(void *args)
+static NTSTATUS pulse_wow64_main_loop(void* args)
 {
     struct
     {
@@ -2712,7 +2723,7 @@ static NTSTATUS pulse_wow64_main_loop(void *args)
     return pulse_main_loop(&params);
 }
 
-static NTSTATUS pulse_wow64_get_endpoint_ids(void *args)
+static NTSTATUS pulse_wow64_get_endpoint_ids(void* args)
 {
     struct
     {
@@ -2737,7 +2748,7 @@ static NTSTATUS pulse_wow64_get_endpoint_ids(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_create_stream(void *args)
+static NTSTATUS pulse_wow64_create_stream(void* args)
 {
     struct
     {
@@ -2771,7 +2782,7 @@ static NTSTATUS pulse_wow64_create_stream(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_release_stream(void *args)
+static NTSTATUS pulse_wow64_release_stream(void* args)
 {
     struct
     {
@@ -2789,7 +2800,7 @@ static NTSTATUS pulse_wow64_release_stream(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_render_buffer(void *args)
+static NTSTATUS pulse_wow64_get_render_buffer(void* args)
 {
     struct
     {
@@ -2798,7 +2809,7 @@ static NTSTATUS pulse_wow64_get_render_buffer(void *args)
         HRESULT result;
         PTR32 data;
     } *params32 = args;
-    BYTE *data = NULL;
+    BYTE* data = NULL;
     struct get_render_buffer_params params =
     {
         .stream = params32->stream,
@@ -2807,11 +2818,11 @@ static NTSTATUS pulse_wow64_get_render_buffer(void *args)
     };
     pulse_get_render_buffer(&params);
     params32->result = params.result;
-    *(unsigned int *)ULongToPtr(params32->data) = PtrToUlong(data);
+    *(unsigned int*)ULongToPtr(params32->data) = PtrToUlong(data);
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_capture_buffer(void *args)
+static NTSTATUS pulse_wow64_get_capture_buffer(void* args)
 {
     struct
     {
@@ -2823,7 +2834,7 @@ static NTSTATUS pulse_wow64_get_capture_buffer(void *args)
         PTR32 devpos;
         PTR32 qpcpos;
     } *params32 = args;
-    BYTE *data = NULL;
+    BYTE* data = NULL;
     struct get_capture_buffer_params params =
     {
         .stream = params32->stream,
@@ -2835,11 +2846,11 @@ static NTSTATUS pulse_wow64_get_capture_buffer(void *args)
     };
     pulse_get_capture_buffer(&params);
     params32->result = params.result;
-    *(unsigned int *)ULongToPtr(params32->data) = PtrToUlong(data);
+    *(unsigned int*)ULongToPtr(params32->data) = PtrToUlong(data);
     return STATUS_SUCCESS;
 };
 
-static NTSTATUS pulse_wow64_is_format_supported(void *args)
+static NTSTATUS pulse_wow64_is_format_supported(void* args)
 {
     struct
     {
@@ -2863,7 +2874,7 @@ static NTSTATUS pulse_wow64_is_format_supported(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_loopback_capture_device(void *args)
+static NTSTATUS pulse_wow64_get_loopback_capture_device(void* args)
 {
     struct
     {
@@ -2888,7 +2899,7 @@ static NTSTATUS pulse_wow64_get_loopback_capture_device(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_mix_format(void *args)
+static NTSTATUS pulse_wow64_get_mix_format(void* args)
 {
     struct
     {
@@ -2908,7 +2919,7 @@ static NTSTATUS pulse_wow64_get_mix_format(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_device_period(void *args)
+static NTSTATUS pulse_wow64_get_device_period(void* args)
 {
     struct
     {
@@ -2930,7 +2941,7 @@ static NTSTATUS pulse_wow64_get_device_period(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_buffer_size(void *args)
+static NTSTATUS pulse_wow64_get_buffer_size(void* args)
 {
     struct
     {
@@ -2948,7 +2959,7 @@ static NTSTATUS pulse_wow64_get_buffer_size(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_latency(void *args)
+static NTSTATUS pulse_wow64_get_latency(void* args)
 {
     struct
     {
@@ -2966,7 +2977,7 @@ static NTSTATUS pulse_wow64_get_latency(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_current_padding(void *args)
+static NTSTATUS pulse_wow64_get_current_padding(void* args)
 {
     struct
     {
@@ -2984,7 +2995,7 @@ static NTSTATUS pulse_wow64_get_current_padding(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_next_packet_size(void *args)
+static NTSTATUS pulse_wow64_get_next_packet_size(void* args)
 {
     struct
     {
@@ -3002,7 +3013,7 @@ static NTSTATUS pulse_wow64_get_next_packet_size(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_frequency(void *args)
+static NTSTATUS pulse_wow64_get_frequency(void* args)
 {
     struct
     {
@@ -3020,7 +3031,7 @@ static NTSTATUS pulse_wow64_get_frequency(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_position(void *args)
+static NTSTATUS pulse_wow64_get_position(void* args)
 {
     struct
     {
@@ -3042,7 +3053,7 @@ static NTSTATUS pulse_wow64_get_position(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_set_volumes(void *args)
+static NTSTATUS pulse_wow64_set_volumes(void* args)
 {
     struct
     {
@@ -3061,7 +3072,7 @@ static NTSTATUS pulse_wow64_set_volumes(void *args)
     return pulse_set_volumes(&params);
 }
 
-static NTSTATUS pulse_wow64_set_event_handle(void *args)
+static NTSTATUS pulse_wow64_set_event_handle(void* args)
 {
     struct
     {
@@ -3079,7 +3090,7 @@ static NTSTATUS pulse_wow64_set_event_handle(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_test_connect(void *args)
+static NTSTATUS pulse_wow64_test_connect(void* args)
 {
     struct
     {
@@ -3095,7 +3106,7 @@ static NTSTATUS pulse_wow64_test_connect(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS pulse_wow64_get_prop_value(void *args)
+static NTSTATUS pulse_wow64_get_prop_value(void* args)
 {
     struct propvariant32
     {
