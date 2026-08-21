@@ -27,6 +27,7 @@
 #include <wingdi.h>
 
 #include "wine/wgl.h"
+#include "wine/debug.h"
 
 struct wgl_pixel_format
 {
@@ -59,6 +60,8 @@ struct wgl_pixel_format
 };
 
 #ifdef WINE_UNIX_LIB
+
+#include "wine/gdi_driver.h"
 
 /* Wine internal opengl driver version, needs to be bumped upon opengl_funcs changes. */
 #define WINE_OPENGL_DRIVER_VERSION 36
@@ -123,6 +126,32 @@ struct egl_platform
     BOOL        has_EGL_EXT_pixel_format_float;
 };
 
+/* a driver opengl drawable, either a client surface of a pbuffer */
+struct opengl_drawable;
+struct opengl_drawable_funcs
+{
+    void (*destroy)( struct opengl_drawable *iface );
+};
+
+struct opengl_drawable
+{
+    const struct opengl_drawable_funcs* funcs;
+    LONG ref;
+    
+    int format;  /* pixel format of the drawable */
+    HWND hwnd;   /* window the drawable was created for */
+    HDC hdc;     /* DC the drawable was created for */
+};
+
+static inline const char *debugstr_opengl_drawable( struct opengl_drawable *drawable )
+{
+    if (!drawable) return "(null)";
+    return wine_dbg_sprintf( "%p (format %u, hwnd %p, hdc %p)", drawable, drawable->format, drawable->hwnd, drawable->hdc );
+}
+
+W32KAPI void opengl_drawable_add_ref(struct opengl_drawable* drawable);
+W32KAPI void opengl_drawable_release(struct opengl_drawable* drawable);
+
 /* interface between win32u and the user drivers */
 struct opengl_driver_funcs
 {
@@ -137,10 +166,11 @@ struct opengl_driver_funcs
     BOOL (*p_context_destroy)(void*);
     BOOL (*p_context_flush)(void*,HWND,HDC,int,void(*)(void));
     BOOL (*p_context_make_current)(HDC,HDC,void*);
-    BOOL (*p_pbuffer_create)(HDC,int,BOOL,GLenum,GLenum,GLint,GLsizei*,GLsizei*,void **);
-    BOOL (*p_pbuffer_destroy)(HDC,void*);
-    BOOL (*p_pbuffer_updated)(HDC,void*,GLenum,GLint);
-    UINT (*p_pbuffer_bind)(HDC,void*,GLenum);
+    BOOL (*p_pbuffer_create)( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
+                              GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable );
+    BOOL (*p_pbuffer_destroy)( HDC hdc, struct opengl_drawable *drawable );
+    BOOL (*p_pbuffer_updated)( HDC hdc, struct opengl_drawable *drawable, GLenum cube_face, GLint mipmap_level );
+    UINT (*p_pbuffer_bind)( HDC hdc, struct opengl_drawable *drawable, GLenum buffer );
 };
 
 #endif /* WINE_UNIX_LIB */
