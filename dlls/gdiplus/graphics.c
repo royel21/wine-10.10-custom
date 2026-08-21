@@ -615,18 +615,23 @@ static GpStatus alpha_blend_pixels_hrgn(GpGraphics *graphics, INT dst_x, INT dst
         hrgn = CreateRectRgn(dst_x, dst_y, dst_x + src_width, dst_y + src_height);
         if (!hrgn)
             return OutOfMemory;
-
-        stat = get_clip_hrgn(graphics, &visible_rgn);
-        if (stat != Ok)
+        if (hregion)
+            CombineRgn(hrgn, hrgn, hregion, RGN_AND);
+        else
         {
-            DeleteObject(hrgn);
-            return stat;
-        }
+            stat = get_clip_hrgn(graphics, &visible_rgn);
+            if (stat != Ok)
+            {
+                DeleteObject(hrgn);
+                return stat;
+            }
 
-        if (visible_rgn)
-        {
-            CombineRgn(hrgn, hrgn, visible_rgn, RGN_AND);
-            DeleteObject(visible_rgn);
+            if (visible_rgn)
+            {
+                CombineRgn(hrgn, hrgn, visible_rgn, RGN_AND);
+                DeleteObject(visible_rgn);
+            }
+         
         }
 
         if (hregion)
@@ -4831,6 +4836,11 @@ static GpStatus get_clipped_region_hrgn(GpGraphics* graphics, GpRegion* region, 
             status = GdipGetRegionHRgn(device_region, NULL, hrgn);
 
         GdipDeleteRegion(device_region);
+    }
+
+    if (status == Ok && graphics->gdi_clip)
+    {
+        CombineRgn(*hrgn, *hrgn, graphics->gdi_clip, RGN_AND);
     }
 
     return status;
