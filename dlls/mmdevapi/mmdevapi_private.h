@@ -27,9 +27,15 @@
 
 #include "unixlib.h"
 
+struct audio_session_event {
+    IAudioSessionEvents *events;
+    struct list entry;
+};
+
 typedef struct audio_session {
     GUID guid;
     struct list clients;
+    struct list notifications;
 
     IMMDevice *device;
 
