@@ -35,6 +35,7 @@
 @ stub DbgPrompt
 # @ stub DbgQueryDebugFilterState
 # @ stub DbgSetDebugFilterState
+@ stdcall RtlGetPersistedStateLocation(ptr ptr ptr ptr)
 @ stdcall DbgUiConnectToDbg()
 @ stdcall DbgUiContinue(ptr long)
 @ stdcall DbgUiConvertStateChangeStructure(ptr ptr)

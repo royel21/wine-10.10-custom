@@ -1679,3 +1679,15 @@ DWORD WINAPI RtlConvertDeviceFamilyInfoToString(DWORD *device_family_size, DWORD
     memcpy(device_form, unknown_form, form_length);
     return STATUS_SUCCESS;
 }
+
+/***********************************************************************
+ *           RtlGetPersistedStateLocation (NTDLL.@)
+ */
+NTSTATUS WINAPI RtlGetPersistedStateLocation(const WCHAR* state_name, const WCHAR* state_type,
+    const WCHAR* custom_path, WCHAR* path_buffer)
+{
+    FIXME("(%s, %s, %s, %p): stub\n", debugstr_w(state_name), debugstr_w(state_type),
+        debugstr_w(custom_path), path_buffer);
+
+    return STATUS_NOT_FOUND;
+}

@@ -55,6 +55,9 @@
 #include "wincodec.h"
 #include "wine/debug.h"
 
+#define COBJMACROS
+#include "gdiplus.h"
+
 WINE_DEFAULT_DEBUG_CHANNEL(olepicture);
 
 #define BITMAP_FORMAT_BMP   0x4d42 /* "BM" */
@@ -1181,50 +1184,56 @@ end:
     IWICBitmapSource_Release(real_source);
     return hr;
 }
-
-static HRESULT OLEPictureImpl_LoadWICDecoder(OLEPictureImpl *This, REFGUID format_guid, BYTE *xbuf, ULONG xread)
+static HRESULT OLEPictureImpl_LoadWICDecoder(OLEPictureImpl* This, REFGUID format_guid, BYTE* xbuf, ULONG xread)
 {
     HRESULT hr;
-    IWICImagingFactory *factory;
-    IWICBitmapDecoder *decoder;
-    IWICBitmapFrameDecode *framedecode;
-    IWICStream *stream;
+    IWICImagingFactory* factory;
+    IWICBitmapDecoder* decoder = NULL;
+    IWICBitmapFrameDecode* framedecode = NULL;
+    IWICStream* stream;
 
     hr = WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION, &factory);
     if (FAILED(hr))
         return hr;
 
     hr = IWICImagingFactory_CreateStream(factory, &stream);
-
-    if (SUCCEEDED(hr)) /* created stream */
+    if (SUCCEEDED(hr))
     {
         hr = IWICStream_InitializeFromMemory(stream, xbuf, xread);
-
-        if (SUCCEEDED(hr)) /* initialized stream */
+        if (SUCCEEDED(hr))
         {
-            hr = IWICImagingFactory_CreateDecoder(factory, format_guid, &GUID_VendorMicrosoftBuiltIn, &decoder);
-            if (SUCCEEDED(hr)) /* created decoder */
+            /* If format_guid is NULL, let WIC auto-detect the decoder directly from the stream */
+            if (!format_guid)
             {
-                hr = IWICBitmapDecoder_Initialize(decoder, (IStream*)stream, WICDecodeMetadataCacheOnLoad);
+                hr = IWICImagingFactory_CreateDecoderFromStream(factory, (IStream*)stream, NULL,
+                    WICDecodeMetadataCacheOnLoad, &decoder);
+            }
+            else
+            {
+                /* Pass NULL for pguidVendor so any registered WIC codec can match */
+                hr = IWICImagingFactory_CreateDecoder(factory, format_guid, NULL, &decoder);
+                if (SUCCEEDED(hr))
+                {
+                    hr = IWICBitmapDecoder_Initialize(decoder, (IStream*)stream, WICDecodeMetadataCacheOnLoad);
+                }
+            }
 
-                if (SUCCEEDED(hr)) /* initialized decoder */
-                    hr = IWICBitmapDecoder_GetFrame(decoder, 0, &framedecode);
-
+            if (SUCCEEDED(hr))
+            {
+                hr = IWICBitmapDecoder_GetFrame(decoder, 0, &framedecode);
                 IWICBitmapDecoder_Release(decoder);
             }
         }
-
         IWICStream_Release(stream);
     }
 
-    if (SUCCEEDED(hr)) /* got framedecode */
+    if (SUCCEEDED(hr))
     {
         hr = OLEPictureImpl_LoadWICSource(This, factory, (IWICBitmapSource*)framedecode);
         IWICBitmapFrameDecode_Release(framedecode);
     }
 
     IWICImagingFactory_Release(factory);
-
     return hr;
 }
 
@@ -1373,207 +1382,296 @@ static HRESULT OLEPictureImpl_LoadAPM(OLEPictureImpl *This,
     This->himetricHeight = MulDiv((INT)header->bottom - header->top, 2540, header->inch);
     return S_OK;
 }
-
 /************************************************************************
  * OLEPictureImpl_IPersistStream_Load (IUnknown)
  *
  * Loads the binary data from the IStream. Starts at current position.
  * There appears to be an 2 DWORD header:
- * 	DWORD magic;
- * 	DWORD len;
+ *      DWORD magic;
+ *      DWORD len;
  *
- * Currently implemented: BITMAP, ICON, CURSOR, JPEG, GIF, WMF, EMF
+ * Currently implemented: BITMAP, ICON, CURSOR, JPEG, GIF, WMF, EMF, PNG, DDS
  */
-static HRESULT WINAPI OLEPictureImpl_Load(IPersistStream* iface, IStream *pStm) {
-  HRESULT	hr;
-  BOOL		headerisdata;
-  BOOL		statfailed = FALSE;
-  ULONG		xread, toread;
-  ULONG 	headerread;
-  BYTE 		*xbuf;
-  DWORD		header[2];
-  WORD		magic;
-  STATSTG       statstg;
-  OLEPictureImpl *This = impl_from_IPersistStream(iface);
-  
-  TRACE("(%p,%p)\n",This,pStm);
+static HRESULT WINAPI OLEPictureImpl_Load(IPersistStream* iface, IStream* pStm) {
+    HRESULT       hr;
+    BOOL          headerisdata;
+    BOOL          statfailed = FALSE;
+    ULONG         xread, toread;
+    ULONG         headerread;
+    BYTE* xbuf;
+    DWORD         header[2];
+    WORD          magic;
+    STATSTG       statstg;
+    OLEPictureImpl* This = impl_from_IPersistStream(iface);
 
-  /****************************************************************************************
-   * Part 1: Load the data
-   */
-  /* Sometimes we have a header, sometimes we don't. Apply some guesses to find
-   * out whether we do.
-   *
-   * UPDATE: the IStream can be mapped to a plain file instead of a stream in a
-   * compound file. This may explain most, if not all, of the cases of "no
-   * header", and the header validation should take this into account.
-   * At least in Visual Basic 6, resource streams, valid headers are
-   *    header[0] == "lt\0\0",
-   *    header[1] == length_of_stream.
-   *
-   * Also handle streams where we do not have a working "Stat" method by
-   * reading all data until the end of the stream.
-   */
-  hr = IStream_Stat(pStm,&statstg,STATFLAG_NONAME);
-  if (hr != S_OK) {
-      TRACE("stat failed with hres %#lx, proceeding to read all data.\n",hr);
-      statfailed = TRUE;
-      /* we will read at least 8 byte ... just right below */
-      statstg.cbSize.QuadPart = 8;
-  }
+    TRACE("(%p,%p)\n", This, pStm);
 
-  toread = 0;
-  headerread = 0;
-  headerisdata = FALSE;
-  do {
-      hr = IStream_Read(pStm, header, 8, &xread);
-      if (hr != S_OK || xread!=8) {
-          ERR("Failure while reading picture header (hr is %#lx, nread is %ld).\n",hr,xread);
-          return (hr?hr:E_FAIL);
-      }
-      headerread += xread;
-      xread = 0;
-
-      if (!memcmp(&(header[0]),"lt\0\0", 4) && (statfailed || (header[1] + headerread <= statstg.cbSize.QuadPart))) {
-          if (toread != 0 && toread != header[1]) 
-              FIXME("varying lengths of image data (prev=%lu curr=%lu), only last one will be used\n",
-                  toread, header[1]);
-          toread = header[1];
-          if (statfailed)
-          {
-              statstg.cbSize.QuadPart = header[1] + 8;
-              statfailed = FALSE;
-          }
-          if (toread == 0) break;
-      } else {
-          if (!memcmp(&(header[0]), "GIF8",     4) ||   /* GIF header */
-              !memcmp(&(header[0]), "BM",       2) ||   /* BMP header */
-              !memcmp(&(header[0]), "\xff\xd8", 2) ||   /* JPEG header */
-              (header[0] == EMR_HEADER)            ||   /* EMF header */
-              (header[0] == 0x10000)               ||   /* icon: idReserved 0, idType 1 */
-              (header[0] == 0x20000)               ||   /* cursor: idReserved 0, idType 2 */
-              (header[1] > statstg.cbSize.QuadPart)||   /* invalid size */
-              (header[1]==0)
-          ) {/* Found start of bitmap data */
-              headerisdata = TRUE;
-              if (toread == 0) 
-              	  toread = statstg.cbSize.QuadPart-8;
-              else toread -= 8;
-              xread = 8;
-          } else {
-              FIXME("Unknown stream header magic: %#lx.\n", header[0]);
-              toread = header[1];
-          }
-      }
-  } while (!headerisdata);
-
-  if (statfailed) { /* we don't know the size ... read all we get */
-      unsigned int sizeinc = 4096;
-      unsigned int origsize = sizeinc;
-      ULONG nread = 42;
-
-      TRACE("Reading all data from stream.\n");
-      xbuf = calloc(1, origsize);
-      if (headerisdata)
-          memcpy (xbuf, header, 8);
-      while (1) {
-          while (xread < origsize) {
-              hr = IStream_Read(pStm,xbuf+xread,origsize-xread,&nread);
-              xread += nread;
-              if (hr != S_OK || !nread)
-                  break;
-          }
-          if (!nread || hr != S_OK) /* done, or error */
-              break;
-          if (xread == origsize) {
-              sizeinc = 2*sizeinc; /* exponential increase */
-              xbuf = realloc(xbuf, origsize + sizeinc);
-              memset(xbuf + origsize, 0, sizeinc);
-              origsize += sizeinc;
-          }
-      }
-      if (hr != S_OK)
-          TRACE("hr in no-stat loader case is %#lx.\n", hr);
-      TRACE("loaded %ld bytes.\n", xread);
-      This->datalen = xread;
-      This->data    = xbuf;
-  } else {
-      This->datalen = toread+(headerisdata?8:0);
-      xbuf = This->data = calloc(1, This->datalen);
-      if (!xbuf)
-          return E_OUTOFMEMORY;
-
-      if (headerisdata)
-          memcpy (xbuf, header, 8);
-
-      while (xread < This->datalen) {
-          ULONG nread;
-          hr = IStream_Read(pStm,xbuf+xread,This->datalen-xread,&nread);
-          xread += nread;
-          if (hr != S_OK || !nread)
-              break;
-      }
-      if (xread != This->datalen)
-          ERR("Could only read %ld of %d bytes out of stream?\n", xread, This->datalen);
-  }
-  if (This->datalen == 0) { /* Marks the "NONE" picture */
-      This->desc.picType = PICTYPE_NONE;
-      return S_OK;
-  }
-
-
-  /****************************************************************************************
-   * Part 2: Process the loaded data
-   */
-
-  magic = xbuf[0] + (xbuf[1]<<8);
-  This->loadtime_format = magic;
-
-  switch (magic) {
-  case BITMAP_FORMAT_GIF: /* GIF */
-    hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatGif, xbuf, xread);
-    break;
-  case BITMAP_FORMAT_JPEG: /* JPEG */
-    hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatJpeg, xbuf, xread);
-    break;
-  case BITMAP_FORMAT_BMP: /* Bitmap */
-    hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatBmp, xbuf, xread);
-    break;
-  case BITMAP_FORMAT_PNG: /* PNG */
-    hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatPng, xbuf, xread);
-    break;
-  case BITMAP_FORMAT_APM: /* APM */
-    hr = OLEPictureImpl_LoadAPM(This, xbuf, xread);
-    break;
-  case 0x0000: { /* ICON or CURSOR, first word is dwReserved */
-    hr = OLEPictureImpl_LoadIcon(This, xbuf, xread);
-    break;
-  }
-  default:
-  {
-    unsigned int i;
-
-    /* let's see if it's a EMF */
-    hr = OLEPictureImpl_LoadEnhMetafile(This, xbuf, xread);
-    if (hr == S_OK) break;
-
-    FIXME("Unknown magic %04x, %ld read bytes:\n", magic, xread);
-    hr=E_FAIL;
-    for (i=0;i<xread+8;i++) {
-	if (i<8) FIXME("%02x ",((unsigned char*)header)[i]);
-	else FIXME("%02x ",xbuf[i-8]);
-        if (i % 10 == 9) FIXME("\n");
+    /****************************************************************************************
+     * Part 1: Load the data
+     */
+    hr = IStream_Stat(pStm, &statstg, STATFLAG_NONAME);
+    if (hr != S_OK) {
+        TRACE("stat failed with hres %#lx, proceeding to read all data.\n", hr);
+        statfailed = TRUE;
+        statstg.cbSize.QuadPart = 8;
     }
-    FIXME("\n");
-    break;
-  }
-  }
-  This->bIsDirty = FALSE;
 
-  /* FIXME: this notify is not really documented */
-  if (hr==S_OK)
-      OLEPicture_SendNotify(This,DISPID_PICT_TYPE);
-  return hr;
+    toread = 0;
+    headerread = 0;
+    headerisdata = FALSE;
+    do {
+        hr = IStream_Read(pStm, header, 8, &xread);
+        if (hr != S_OK || xread != 8) {
+            ERR("Failure while reading picture header (hr is %#lx, nread is %ld).\n", hr, xread);
+            return (hr ? hr : E_FAIL);
+        }
+        headerread += xread;
+        xread = 0;
+
+        if (!memcmp(&(header[0]), "lt\0\0", 4) && (statfailed || (header[1] + headerread <= statstg.cbSize.QuadPart))) {
+            if (toread != 0 && toread != header[1])
+                FIXME("varying lengths of image data (prev=%lu curr=%lu), only last one will be used\n",
+                    toread, header[1]);
+            toread = header[1];
+            if (statfailed)
+            {
+                statstg.cbSize.QuadPart = header[1] + 8;
+                statfailed = FALSE;
+            }
+            if (toread == 0) break;
+        }
+        else {
+            if (!memcmp(&(header[0]), "GIF8", 4) ||   /* GIF header */
+                !memcmp(&(header[0]), "BM", 2) ||   /* BMP header */
+                !memcmp(&(header[0]), "\xff\xd8", 2) ||   /* JPEG header */
+                !memcmp(&(header[0]), "\x89PNG", 4) ||   /* PNG header */
+                !memcmp(&(header[0]), "DDS ", 4) ||   /* DDS DirectDraw Surface header */
+                (header[0] == EMR_HEADER) ||   /* EMF header */
+                (header[0] == 0x10000) ||   /* icon: idReserved 0, idType 1 */
+                (header[0] == 0x20000) ||   /* cursor: idReserved 0, idType 2 */
+                (header[1] > statstg.cbSize.QuadPart) ||   /* invalid size */
+                (header[1] == 0)
+                ) {/* Found start of image data */
+                headerisdata = TRUE;
+                if (toread == 0)
+                    toread = statstg.cbSize.QuadPart - 8;
+                else toread -= 8;
+                xread = 8;
+            }
+            else {
+                /* For unknown stream header magic, do NOT trust header[1] as stream length.
+                 * Force reading the full remainder of the stream. */
+                TRACE("Unknown stream header magic: %#lx, attempting full stream load.\n", header[0]);
+                headerisdata = TRUE;
+                if (statstg.cbSize.QuadPart > 8)
+                    toread = statstg.cbSize.QuadPart - 8;
+                else
+                    statfailed = TRUE;
+                xread = 8;
+            }
+        }
+    } while (!headerisdata);
+
+    if (statfailed) { /* we don't know the size ... read all we get */
+        unsigned int sizeinc = 4096;
+        unsigned int origsize = sizeinc;
+        ULONG nread = 42;
+
+        TRACE("Reading all data from stream.\n");
+        xbuf = calloc(1, origsize);
+        if (headerisdata)
+            memcpy(xbuf, header, 8);
+        while (1) {
+            while (xread < origsize) {
+                hr = IStream_Read(pStm, xbuf + xread, origsize - xread, &nread);
+                xread += nread;
+                if (hr != S_OK || !nread)
+                    break;
+            }
+            if (!nread || hr != S_OK) /* done, or error */
+                break;
+            if (xread == origsize) {
+                sizeinc = 2 * sizeinc; /* exponential increase */
+                xbuf = realloc(xbuf, origsize + sizeinc);
+                memset(xbuf + origsize, 0, sizeinc);
+                origsize += sizeinc;
+            }
+        }
+        if (hr != S_OK)
+            TRACE("hr in no-stat loader case is %#lx.\n", hr);
+        TRACE("loaded %ld bytes.\n", xread);
+        This->datalen = xread;
+        This->data = xbuf;
+    }
+    else {
+        This->datalen = toread + (headerisdata ? 8 : 0);
+        xbuf = This->data = calloc(1, This->datalen);
+        if (!xbuf)
+            return E_OUTOFMEMORY;
+
+        if (headerisdata)
+            memcpy(xbuf, header, 8);
+
+        while (xread < This->datalen) {
+            ULONG nread;
+            hr = IStream_Read(pStm, xbuf + xread, This->datalen - xread, &nread);
+            xread += nread;
+            if (hr != S_OK || !nread)
+                break;
+        }
+        if (xread != This->datalen)
+            ERR("Could only read %ld of %d bytes out of stream?\n", xread, This->datalen);
+    }
+    if (This->datalen == 0) { /* Marks the "NONE" picture */
+        This->desc.picType = PICTYPE_NONE;
+        return S_OK;
+    }
+
+
+    /****************************************************************************************
+     * Part 2: Process the loaded data
+     */
+
+    magic = xbuf[0] + (xbuf[1] << 8);
+    This->loadtime_format = magic;
+
+    switch (magic) {
+    case BITMAP_FORMAT_GIF: /* GIF */
+        hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatGif, xbuf, xread);
+        break;
+    case BITMAP_FORMAT_JPEG: /* JPEG */
+        hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatJpeg, xbuf, xread);
+        break;
+    case BITMAP_FORMAT_BMP: /* Bitmap */
+        hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatBmp, xbuf, xread);
+        break;
+    case BITMAP_FORMAT_PNG: /* PNG */
+        hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatPng, xbuf, xread);
+        break;
+    case BITMAP_FORMAT_APM: /* APM */
+        hr = OLEPictureImpl_LoadAPM(This, xbuf, xread);
+        break;
+    case 0x0000: { /* ICON or CURSOR, first word is dwReserved */
+        hr = OLEPictureImpl_LoadIcon(This, xbuf, xread);
+        break;
+    }
+    default:
+    {
+        unsigned int i;
+
+        /* 1. DirectDraw Surface (DDS) format check ("DDS " = 0x20534444) */
+        if (xread >= 4 && !memcmp(xbuf, "DDS ", 4))
+        {
+            GpImage* gp_image = NULL;
+            IStream* mem_stream = NULL;
+
+            TRACE("Detected DDS texture stream (%ld bytes)\n", xread);
+
+            if (CreateStreamOnHGlobal(NULL, TRUE, &mem_stream) == S_OK)
+            {
+                IStream_Write(mem_stream, xbuf, xread, NULL);
+                LARGE_INTEGER zero = { {0} };
+                IStream_Seek(mem_stream, zero, STREAM_SEEK_SET, NULL);
+
+                if (GdipLoadImageFromStream(mem_stream, &gp_image) == 0 && gp_image)
+                {
+                    HBITMAP hbm = NULL;
+                    GdipCreateHBITMAPFromBitmap((GpBitmap*)gp_image, &hbm, 0);
+                    GdipDisposeImage(gp_image);
+
+                    if (hbm)
+                    {
+                        This->desc.picType = PICTYPE_BITMAP;
+                        This->desc.bmp.hbitmap = hbm;
+                        This->desc.bmp.hpal = NULL;
+                        IStream_Release(mem_stream);
+                        hr = S_OK;
+                        break;
+                    }
+                }
+                IStream_Release(mem_stream);
+            }
+        }
+
+        /* 2. Try EMF metafile */
+        hr = OLEPictureImpl_LoadEnhMetafile(This, xbuf, xread);
+        if (hr == S_OK) break;
+
+        /* 3. Try WIC Stream Auto-Detection (NULL format_guid) */
+        hr = OLEPictureImpl_LoadWICDecoder(This, NULL, xbuf, xread);
+        if (hr == S_OK) break;
+
+        /* 4. Handle raw DIBs missing BITMAPFILEHEADER ("BM") where biSize == 40 (0x28) or 12 */
+        if (xread >= sizeof(BITMAPINFOHEADER)) {
+            BITMAPINFOHEADER* bmih = (BITMAPINFOHEADER*)xbuf;
+            if (bmih->biSize == sizeof(BITMAPINFOHEADER) || bmih->biSize == 12 /* BITMAPCOREHEADER */) {
+                ULONG total_bmp_size = sizeof(BITMAPFILEHEADER) + xread;
+                BYTE* bmp_buf = malloc(total_bmp_size);
+                if (bmp_buf) {
+                    BITMAPFILEHEADER* bmfh = (BITMAPFILEHEADER*)bmp_buf;
+                    bmfh->bfType = 0x4D42; /* "BM" */
+                    bmfh->bfSize = total_bmp_size;
+                    bmfh->bfReserved1 = 0;
+                    bmfh->bfReserved2 = 0;
+                    bmfh->bfOffBits = sizeof(BITMAPFILEHEADER) + bmih->biSize;
+
+                    memcpy(bmp_buf + sizeof(BITMAPFILEHEADER), xbuf, xread);
+
+                    hr = OLEPictureImpl_LoadWICDecoder(This, &GUID_ContainerFormatBmp, bmp_buf, total_bmp_size);
+                    free(bmp_buf);
+                    if (hr == S_OK) break;
+                }
+            }
+        }
+
+        /* 5. GDI+ direct stream loader fallback */
+        {
+            GpImage* gp_image = NULL;
+            IStream* mem_stream = NULL;
+
+            if (CreateStreamOnHGlobal(NULL, TRUE, &mem_stream) == S_OK)
+            {
+                IStream_Write(mem_stream, xbuf, xread, NULL);
+                LARGE_INTEGER zero = { {0} };
+                IStream_Seek(mem_stream, zero, STREAM_SEEK_SET, NULL);
+
+                if (GdipLoadImageFromStream(mem_stream, &gp_image) == 0 && gp_image)
+                {
+                    HBITMAP hbm = NULL;
+                    GdipCreateHBITMAPFromBitmap((GpBitmap*)gp_image, &hbm, 0);
+                    GdipDisposeImage(gp_image);
+
+                    if (hbm)
+                    {
+                        This->desc.picType = PICTYPE_BITMAP;
+                        This->desc.bmp.hbitmap = hbm;
+                        This->desc.bmp.hpal = NULL;
+                        IStream_Release(mem_stream);
+                        hr = S_OK;
+                        break;
+                    }
+                }
+                IStream_Release(mem_stream);
+            }
+        }
+
+        /* 6. If all decoders fail, print hex dump */
+        FIXME("Unknown magic %04x, %ld read bytes:\n", magic, xread);
+        hr = E_FAIL;
+        for (i = 0; i < xread + 8; i++) {
+            if (i < 8) FIXME("%02x ", ((unsigned char*)header)[i]);
+            else FIXME("%02x ", xbuf[i - 8]);
+            if (i % 10 == 9) FIXME("\n");
+        }
+        FIXME("\n");
+        break;
+    }
+    }
+    This->bIsDirty = FALSE;
+
+    if (hr == S_OK)
+        OLEPicture_SendNotify(This, DISPID_PICT_TYPE);
+    return hr;
 }
 
 /* pass NULL buffer to fetch size */
@@ -2482,44 +2580,53 @@ HRESULT WINAPI OleCreatePictureIndirect(LPPICTDESC lpPictDesc, REFIID riid,
   return hr;
 }
 
-
 /***********************************************************************
  * OleLoadPicture (OLEAUT32.418)
  */
-HRESULT WINAPI OleLoadPicture( LPSTREAM lpstream, LONG lSize, BOOL fRunmode,
-		            REFIID riid, LPVOID *ppvObj )
+HRESULT WINAPI OleLoadPicture(LPSTREAM lpstream, LONG lSize, BOOL fRunmode,
+    REFIID riid, LPVOID* ppvObj)
 {
-  LPPERSISTSTREAM ps;
-  IPicture	*newpic;
-  HRESULT hr;
+    LPPERSISTSTREAM ps;
+    IPicture* newpic;
+    HRESULT hr;
 
-  TRACE("%p, %ld, %d, %s, %p), partially implemented.\n",
-	lpstream, lSize, fRunmode, debugstr_guid(riid), ppvObj);
+    TRACE("(%p, %d, %d, %s, %p)\n",
+        lpstream, lSize, fRunmode, debugstr_guid(riid), ppvObj);
 
-  hr = OleCreatePictureIndirect(NULL,riid,!fRunmode,(LPVOID*)&newpic);
-  if (hr != S_OK)
+    if (!ppvObj)
+        return E_POINTER;
+
+    *ppvObj = NULL;
+
+    if (!lpstream)
+        return E_INVALIDARG;
+
+    /* 1. Always create the initial object requesting IID_IPicture explicitly */
+    hr = OleCreatePictureIndirect(NULL, &IID_IPicture, !fRunmode, (LPVOID*)&newpic);
+    if (FAILED(hr))
+        return hr;
+
+    /* 2. Query for IPersistStream to load the image data from stream */
+    hr = IPicture_QueryInterface(newpic, &IID_IPersistStream, (LPVOID*)&ps);
+    if (SUCCEEDED(hr)) {
+        hr = IPersistStream_Load(ps, lpstream);
+        IPersistStream_Release(ps);
+    }
+
+    if (FAILED(hr)) {
+        ERR("IPersistStream_Load failed with hr 0x%08x\n", hr);
+        IPicture_Release(newpic);
+        return hr;
+    }
+
+    /* 3. Query for the caller's requested interface (e.g. IID_IPictureDisp) */
+    hr = IPicture_QueryInterface(newpic, riid, ppvObj);
+    if (FAILED(hr)) {
+        ERR("Failed to get interface %s from IPicture (hr 0x%08x)\n", debugstr_guid(riid), hr);
+    }
+
+    IPicture_Release(newpic);
     return hr;
-  hr = IPicture_QueryInterface(newpic,&IID_IPersistStream, (LPVOID*)&ps);
-  if (hr != S_OK) {
-      ERR("Could not get IPersistStream iface from Ole Picture?\n");
-      IPicture_Release(newpic);
-      *ppvObj = NULL;
-      return hr;
-  }
-  hr = IPersistStream_Load(ps,lpstream);
-  IPersistStream_Release(ps);
-  if (FAILED(hr))
-  {
-      ERR("IPersistStream_Load failed\n");
-      IPicture_Release(newpic);
-      *ppvObj = NULL;
-      return hr;
-  }
-  hr = IPicture_QueryInterface(newpic,riid,ppvObj);
-  if (hr != S_OK)
-      ERR("Failed to get interface %s from IPicture.\n",debugstr_guid(riid));
-  IPicture_Release(newpic);
-  return hr;
 }
 
 /***********************************************************************

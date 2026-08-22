@@ -209,10 +209,9 @@ static HRESULT WINAPI BaseMemAllocator_GetProperties(IMemAllocator * iface, ALLO
 
     return S_OK;
 }
-
-static HRESULT WINAPI BaseMemAllocator_Commit(IMemAllocator * iface)
+static HRESULT WINAPI BaseMemAllocator_Commit(IMemAllocator* iface)
 {
-    BaseMemAllocator *This = impl_from_IMemAllocator(iface);
+    BaseMemAllocator* This = impl_from_IMemAllocator(iface);
     HRESULT hr;
 
     TRACE("(%p)->()\n", This);
@@ -234,6 +233,13 @@ static HRESULT WINAPI BaseMemAllocator_Commit(IMemAllocator * iface)
             hr = S_OK;
         else
         {
+            /* Clean up any lingering semaphore handle before creating a new one */
+            if (This->hSemWaiting)
+            {
+                CloseHandle(This->hSemWaiting);
+                This->hSemWaiting = NULL;
+            }
+
             if (!(This->hSemWaiting = CreateSemaphoreW(NULL, This->props.cBuffers, This->props.cBuffers, NULL)))
             {
                 ERR("Failed to create semaphore, error %lu.\n", GetLastError());
@@ -243,9 +249,17 @@ static HRESULT WINAPI BaseMemAllocator_Commit(IMemAllocator * iface)
             {
                 hr = This->fnAlloc(iface);
                 if (SUCCEEDED(hr))
+                {
                     This->bCommitted = TRUE;
+                    This->bDecommitQueued = FALSE;
+                }
                 else
+                {
                     ERR("Failed to allocate, hr %#lx.\n", hr);
+                    /* Destroy semaphore if allocation failed to prevent Decommit deadlocks */
+                    CloseHandle(This->hSemWaiting);
+                    This->hSemWaiting = NULL;
+                }
             }
         }
     }
@@ -253,42 +267,50 @@ static HRESULT WINAPI BaseMemAllocator_Commit(IMemAllocator * iface)
 
     return hr;
 }
-
-static HRESULT WINAPI BaseMemAllocator_Decommit(IMemAllocator * iface)
+static HRESULT WINAPI BaseMemAllocator_Decommit(IMemAllocator* iface)
 {
-    BaseMemAllocator *This = impl_from_IMemAllocator(iface);
-    HRESULT hr;
+    BaseMemAllocator* This = impl_from_IMemAllocator(iface);
+    HRESULT hr = S_OK;
 
     TRACE("(%p)->()\n", This);
 
     EnterCriticalSection(This->pCritSect);
     {
         if (!This->bCommitted)
-            hr = S_OK;
-        else
         {
-            if (!list_empty(&This->used_list))
-            {
-                This->bDecommitQueued = TRUE;
-                /* notify ALL waiting threads that they cannot be allocated a buffer any more */
-                ReleaseSemaphore(This->hSemWaiting, This->lWaiting, NULL);
-                
-                hr = S_OK;
-            }
-            else
-            {
-                if (This->lWaiting != 0)
-                    ERR("Waiting: %ld\n", This->lWaiting);
+            LeaveCriticalSection(This->pCritSect);
+            return S_OK;
+        }
 
-                This->bCommitted = FALSE;
-                CloseHandle(This->hSemWaiting);
-                This->hSemWaiting = NULL;
+        This->bCommitted = FALSE;
+        This->bDecommitQueued = TRUE;
 
-                hr = This->fnFree(iface);
-            }
+        /* Notify ALL waiting threads that no more buffers will be allocated */
+        if (This->hSemWaiting && This->lWaiting > 0)
+        {
+            ReleaseSemaphore(This->hSemWaiting, This->lWaiting, NULL);
+        }
+
+        /* If samples are still out in 'used_list', mark queued and defer handle cleanup */
+        if (!list_empty(&This->used_list))
+        {
+            LeaveCriticalSection(This->pCritSect);
+            return S_OK;
+        }
+
+        if (This->lWaiting != 0)
+            WARN("Waiting threads count non-zero during decommit: %ld\n", This->lWaiting);
+
+        if (This->hSemWaiting)
+        {
+            CloseHandle(This->hSemWaiting);
+            This->hSemWaiting = NULL;
         }
     }
     LeaveCriticalSection(This->pCritSect);
+
+    /* ALWAYS call fnFree OUTSIDE pCritSect to prevent re-entrancy deadlocks */
+    hr = This->fnAlloc ? This->fnFree(iface) : S_OK;
 
     return hr;
 }
@@ -354,49 +376,68 @@ static HRESULT WINAPI BaseMemAllocator_GetBuffer(IMemAllocator * iface, IMediaSa
     return hr;
 }
 
-static HRESULT WINAPI BaseMemAllocator_ReleaseBuffer(IMemAllocator * iface, IMediaSample * pSample)
+static HRESULT WINAPI BaseMemAllocator_ReleaseBuffer(IMemAllocator* iface, IMediaSample* pSample)
 {
-    BaseMemAllocator *This = impl_from_IMemAllocator(iface);
-    StdMediaSample2 * pStdSample = unsafe_impl_from_IMediaSample(pSample);
+    BaseMemAllocator* This = impl_from_IMemAllocator(iface);
+    StdMediaSample2* pStdSample = unsafe_impl_from_IMediaSample(pSample);
     HRESULT hr = S_OK;
+    BOOL do_free = FALSE;
+    HANDLE sem_to_release = NULL;
 
     TRACE("(%p)->(%p)\n", This, pSample);
 
-    /* FIXME: make sure that sample is currently on the used list */
-
-    /* FIXME: we should probably check the ref count on the sample before freeing
-     * it to make sure that it is not still in use */
     EnterCriticalSection(This->pCritSect);
     {
-        if (!This->bCommitted)
-            ERR("Releasing a buffer when the allocator is not committed?!?\n");
+        if (!This->bCommitted && !This->bDecommitQueued)
+            ERR("Releasing a buffer when the allocator is not committed!\n");
 
-		/* remove from used_list */
+        /* Remove sample from used_list and return it to free_list */
         list_remove(&pStdSample->listentry);
-
         list_add_head(&This->free_list, &pStdSample->listentry);
 
-        if (list_empty(&This->used_list) && This->bDecommitQueued && This->bCommitted)
+        /* Check if decommit was queued and this was the last remaining sample */
+        if (list_empty(&This->used_list) && This->bDecommitQueued)
         {
             if (This->lWaiting != 0)
-                ERR("Waiting: %ld\n", This->lWaiting);
+                WARN("Waiting threads remaining during delayed decommit: %ld\n", This->lWaiting);
 
             This->bCommitted = FALSE;
             This->bDecommitQueued = FALSE;
 
-            CloseHandle(This->hSemWaiting);
-            This->hSemWaiting = NULL;
-            
-            This->fnFree(iface);
+            if (This->hSemWaiting)
+            {
+                CloseHandle(This->hSemWaiting);
+                This->hSemWaiting = NULL;
+            }
+
+            /* Flag fnFree to run OUTSIDE the critical section */
+            do_free = TRUE;
+        }
+        else if (This->hSemWaiting)
+        {
+            /* Cache handle to release semaphore safely after checking conditions */
+            sem_to_release = This->hSemWaiting;
         }
     }
     LeaveCriticalSection(This->pCritSect);
 
-    /* notify a waiting thread that there is now a free buffer */
-    if (This->hSemWaiting && !ReleaseSemaphore(This->hSemWaiting, 1, NULL))
+    /* Perform memory free outside of pCritSect to prevent re-entrancy deadlocks */
+    if (do_free)
     {
-        ERR("Failed to release semaphore, error %lu.\n", GetLastError());
-        hr = HRESULT_FROM_WIN32(GetLastError());
+        This->fnFree(iface);
+        return S_OK;
+    }
+
+    /* Notify waiting GetBuffer thread that a buffer is now available */
+    if (sem_to_release && !ReleaseSemaphore(sem_to_release, 1, NULL))
+    {
+        /* ERROR_TOO_MANY_POSTS (299) can occur during race teardowns; log as warning */
+        DWORD err = GetLastError();
+        if (err != ERROR_TOO_MANY_POSTS)
+        {
+            ERR("Failed to release semaphore, error %lu.\n", err);
+            hr = HRESULT_FROM_WIN32(err);
+        }
     }
 
     return hr;

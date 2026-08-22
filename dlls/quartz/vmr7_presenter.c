@@ -96,13 +96,13 @@ static ULONG WINAPI image_presenter_Release(IVMRImagePresenter *iface)
 static HRESULT WINAPI image_presenter_StartPresenting(IVMRImagePresenter *iface, DWORD_PTR cookie)
 {
     FIXME("iface %p, cookie %#Ix, stub!\n", iface, cookie);
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI image_presenter_StopPresenting(IVMRImagePresenter *iface, DWORD_PTR cookie)
 {
     FIXME("iface %p, cookie %#Ix, stub!\n", iface, cookie);
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI image_presenter_PresentImage(IVMRImagePresenter *iface,

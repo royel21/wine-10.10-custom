@@ -1309,64 +1309,66 @@ static HRESULT send_sample(struct parser_source *pin, IMediaSample *sample,
     return hr;
 }
 
-/* Send a single GStreamer buffer (splitting it into multiple IMediaSamples if
- * necessary). */
-static void send_buffer(struct parser_source *pin, const struct wg_parser_buffer *buffer)
+/* Ensure EOS is delivered downstream so the Video Renderer unblocks */
+static void mark_end_of_stream(struct parser_source* pin)
+{
+    if (!pin->eos)
+    {
+        pin->eos = true;
+        if (pin->pin.pin.peer)
+            IPin_EndOfStream(pin->pin.pin.peer);
+
+        /* Notify the DirectShow filter graph that video playback is finished */
+        if (pin->pin.pin.filter->graph)
+        {
+            IMediaEventSink* event_sink;
+            if (SUCCEEDED(IFilterGraph_QueryInterface(pin->pin.pin.filter->graph,
+                &IID_IMediaEventSink, (void**)&event_sink)))
+            {
+                IMediaEventSink_Notify(event_sink, EC_COMPLETE, S_OK, (LONG_PTR)pin->pin.pin.filter);
+                IMediaEventSink_Release(event_sink);
+            }
+        }
+    }
+}
+
+static void send_buffer(struct parser_source* pin, const struct wg_parser_buffer* buffer)
 {
     HRESULT hr;
-    IMediaSample *sample;
+    IMediaSample* sample;
+
+    if (pin->pin.pin.filter->state == State_Stopped || !pin->pin.pAllocator)
+    {
+        wg_parser_stream_release_buffer(pin->wg_stream);
+        return;
+    }
+
+    /* Check if buffer is empty or represents EOS */
+    if (!buffer || buffer->size == 0)
+    {
+        mark_end_of_stream(pin);
+        if (buffer) wg_parser_stream_release_buffer(pin->wg_stream);
+        return;
+    }
 
     if (pin->need_segment)
     {
         if (FAILED(hr = IPin_NewSegment(pin->pin.pin.peer,
-                pin->seek.llCurrent, pin->seek.llStop, pin->seek.dRate)))
+            pin->seek.llCurrent, pin->seek.llStop, pin->seek.dRate)))
             WARN("Failed to deliver new segment, hr %#lx.\n", hr);
         pin->need_segment = false;
     }
 
-    if (IsEqualGUID(&pin->pin.pin.mt.formattype, &FORMAT_WaveFormatEx)
-            && (IsEqualGUID(&pin->pin.pin.mt.subtype, &MEDIASUBTYPE_PCM)
-            || IsEqualGUID(&pin->pin.pin.mt.subtype, &MEDIASUBTYPE_IEEE_FLOAT)))
+    if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
     {
-        WAVEFORMATEX *format = (WAVEFORMATEX *)pin->pin.pin.mt.pbFormat;
-        uint32_t offset = 0;
-
-        while (offset < buffer->size)
-        {
-            uint32_t advance;
-
-            if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
-            {
-                ERR("Failed to get a sample, hr %#lx.\n", hr);
-                break;
-            }
-
-            advance = min(IMediaSample_GetSize(sample), buffer->size - offset);
-
-            hr = send_sample(pin, sample, buffer, offset, advance, format->nAvgBytesPerSec);
-
-            IMediaSample_Release(sample);
-
-            if (FAILED(hr))
-                break;
-
-            offset += advance;
-        }
-    }
-    else
-    {
-        if (FAILED(hr = IMemAllocator_GetBuffer(pin->pin.pAllocator, &sample, NULL, NULL, 0)))
-        {
-            ERR("Failed to get a sample, hr %#lx.\n", hr);
-        }
-        else
-        {
-            hr = send_sample(pin, sample, buffer, 0, buffer->size, 0);
-
-            IMediaSample_Release(sample);
-        }
+        WARN("Failed to get sample hr %#lx, signaling EOS to unblock render thread.\n", hr);
+        mark_end_of_stream(pin);
+        wg_parser_stream_release_buffer(pin->wg_stream);
+        return;
     }
 
+    hr = send_sample(pin, sample, buffer, 0, buffer->size, 0);
+    IMediaSample_Release(sample);
     wg_parser_stream_release_buffer(pin->wg_stream);
 }
 

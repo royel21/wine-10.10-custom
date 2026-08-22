@@ -1,7 +1,7 @@
 EXTRADEFS = -D_OLEAUT32_
 MODULE    = oleaut32.dll
 IMPORTLIB = oleaut32
-IMPORTS   = uuid ole32 rpcrt4 user32 gdi32 advapi32
+IMPORTS   = uuid ole32 rpcrt4 user32 gdi32 advapi32 gdiplus
 DELAYIMPORTS = comctl32 urlmon windowscodecs
 
 SOURCES = \

@@ -57,7 +57,7 @@ int do_esync(void)
 #endif
 }
 
-static char shm_name[29];
+static char shm_name[200];
 static int shm_fd;
 static off_t shm_size;
 static void **shm_addrs;
