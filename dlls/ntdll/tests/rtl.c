@@ -133,6 +133,7 @@ static NTSTATUS  (WINAPI *pRtlDeriveCapabilitySidsFromName)(UNICODE_STRING *, PS
 static NTSTATUS  (WINAPI *pRtlInitializeNtUserPfn)( const UINT64 *client_procsA, ULONG procsA_size,
                                                     const UINT64 *client_procsW, ULONG procsW_size,
                                                     const void *client_workers, ULONG workers_size );
+static NTSTATUS  (WINAPI *pRtlGetPersistedStateLocation)(const WCHAR *, const WCHAR *, const WCHAR *, WCHAR *);
 static PRTL_SPLAY_LINKS (WINAPI *pRtlRealPredecessor)(PRTL_SPLAY_LINKS);
 static PRTL_SPLAY_LINKS (WINAPI *pRtlRealSuccessor)(PRTL_SPLAY_LINKS);
 static NTSTATUS  (WINAPI *pRtlRetrieveNtUserPfn)( const UINT64 **client_procsA,
@@ -199,6 +200,7 @@ static void InitFunctionPtrs(void)
         pRtlCreateServiceSid = (void *)GetProcAddress(hntdll, "RtlCreateServiceSid");
         pRtlDeriveCapabilitySidsFromName = (void *)GetProcAddress(hntdll, "RtlDeriveCapabilitySidsFromName");
         pRtlGetDeviceFamilyInfoEnum = (void *)GetProcAddress(hntdll, "RtlGetDeviceFamilyInfoEnum");
+        pRtlGetPersistedStateLocation = (void *)GetProcAddress(hntdll, "RtlGetPersistedStateLocation");
         pRtlRbInsertNodeEx = (void *)GetProcAddress(hntdll, "RtlRbInsertNodeEx");
         pRtlRbRemoveNode = (void *)GetProcAddress(hntdll, "RtlRbRemoveNode");
         pRtlConvertDeviceFamilyInfoToString = (void *)GetProcAddress(hntdll, "RtlConvertDeviceFamilyInfoToString");
@@ -672,6 +674,47 @@ static void test_RtlComputeCrc32(void)
 
   crc = RtlComputeCrc32(crc, (const BYTE *)src, LEN);
   ok(crc == 0x40861dc2,"Expected 0x40861dc2, got %8lx\n", crc);
+}
+
+static void test_RtlGetPersistedStateLocation(void)
+{
+    static const WCHAR state_name[] = L"session";
+    static const WCHAR state_type[] = L"local";
+    static const WCHAR custom_path[] = L"/tmp/wine-persisted-state";
+    WCHAR path[MAX_PATH], local_app_data[MAX_PATH];
+    DWORD len;
+    NTSTATUS status;
+
+    if (!pRtlGetPersistedStateLocation)
+    {
+        win_skip("RtlGetPersistedStateLocation is not available\n");
+        return;
+    }
+
+    len = GetEnvironmentVariableW(L"LOCALAPPDATA", local_app_data, ARRAY_SIZE(local_app_data));
+    if (!len)
+        wcscpy(local_app_data, L"C:\\Users\\Default\\AppData\\Local");
+
+    status = pRtlGetPersistedStateLocation(state_name, state_type, NULL, path);
+    ok(status == STATUS_SUCCESS, "RtlGetPersistedStateLocation(NULL root) got %#lx\n", status);
+    ok(wcsstr(path, state_name) != NULL, "returned path %s does not contain state_name\n", wine_dbgstr_w(path));
+    ok(wcsstr(path, state_type) != NULL, "returned path %s does not contain state_type\n", wine_dbgstr_w(path));
+    ok(wcsncmp(path, local_app_data, wcslen(local_app_data)) == 0,
+       "unexpected default root %s\n", wine_dbgstr_w(path));
+
+    status = pRtlGetPersistedStateLocation(state_name, state_type, custom_path, path);
+    ok(status == STATUS_SUCCESS, "RtlGetPersistedStateLocation(custom root) got %#lx\n", status);
+    ok(wcsncmp(path, custom_path, wcslen(custom_path)) == 0,
+       "custom path override not honored: %s\n", wine_dbgstr_w(path));
+
+    status = pRtlGetPersistedStateLocation(NULL, state_type, NULL, path);
+    ok(status == STATUS_INVALID_PARAMETER, "null state_name got %#lx\n", status);
+
+    status = pRtlGetPersistedStateLocation(state_name, NULL, NULL, path);
+    ok(status == STATUS_INVALID_PARAMETER, "null state_type got %#lx\n", status);
+
+    status = pRtlGetPersistedStateLocation(state_name, state_type, NULL, NULL);
+    ok(status == STATUS_INVALID_PARAMETER, "null path_buffer got %#lx\n", status);
 }
 
 
@@ -5493,6 +5536,7 @@ START_TEST(rtl)
     test_RtlAreAllAccessesGranted();
     test_RtlAreAnyAccessesGranted();
     test_RtlComputeCrc32();
+    test_RtlGetPersistedStateLocation();
     test_HandleTables();
     test_RtlAllocateAndInitializeSid();
     test_RtlDeleteTimer();

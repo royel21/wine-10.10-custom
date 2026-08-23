@@ -39,7 +39,7 @@ struct system_clock
 {
     IReferenceClock IReferenceClock_iface;
     IUnknown IUnknown_inner;
-    IUnknown *outer_unk;
+    IUnknown* outer_unk;
     LONG refcount;
 
     LONG thread_created;
@@ -57,14 +57,14 @@ static REFERENCE_TIME get_current_time(void)
     return (REFERENCE_TIME)timeGetTime() * 10000;
 }
 
-static inline struct system_clock *impl_from_IUnknown(IUnknown *iface)
+static inline struct system_clock* impl_from_IUnknown(IUnknown* iface)
 {
     return CONTAINING_RECORD(iface, struct system_clock, IUnknown_inner);
 }
 
-static HRESULT WINAPI system_clock_inner_QueryInterface(IUnknown *iface, REFIID iid, void **out)
+static HRESULT WINAPI system_clock_inner_QueryInterface(IUnknown* iface, REFIID iid, void** out)
 {
-    struct system_clock *clock = impl_from_IUnknown(iface);
+    struct system_clock* clock = impl_from_IUnknown(iface);
     TRACE("clock %p, iid %s, out %p.\n", clock, debugstr_guid(iid), out);
 
     if (IsEqualGUID(iid, &IID_IUnknown))
@@ -78,13 +78,13 @@ static HRESULT WINAPI system_clock_inner_QueryInterface(IUnknown *iface, REFIID 
         return E_NOINTERFACE;
     }
 
-    IUnknown_AddRef((IUnknown *)*out);
+    IUnknown_AddRef((IUnknown*)*out);
     return S_OK;
 }
 
-static ULONG WINAPI system_clock_inner_AddRef(IUnknown *iface)
+static ULONG WINAPI system_clock_inner_AddRef(IUnknown* iface)
 {
-    struct system_clock *clock = impl_from_IUnknown(iface);
+    struct system_clock* clock = impl_from_IUnknown(iface);
     ULONG refcount = InterlockedIncrement(&clock->refcount);
 
     TRACE("%p increasing refcount to %lu.\n", clock, refcount);
@@ -92,11 +92,11 @@ static ULONG WINAPI system_clock_inner_AddRef(IUnknown *iface)
     return refcount;
 }
 
-static ULONG WINAPI system_clock_inner_Release(IUnknown *iface)
+static ULONG WINAPI system_clock_inner_Release(IUnknown* iface)
 {
-    struct system_clock *clock = impl_from_IUnknown(iface);
+    struct system_clock* clock = impl_from_IUnknown(iface);
     ULONG refcount = InterlockedDecrement(&clock->refcount);
-    struct advise_sink *sink, *cursor;
+    struct advise_sink* sink, * cursor;
 
     TRACE("%p decreasing refcount to %lu.\n", clock, refcount);
 
@@ -115,12 +115,12 @@ static ULONG WINAPI system_clock_inner_Release(IUnknown *iface)
         LIST_FOR_EACH_ENTRY_SAFE(sink, cursor, &clock->sinks, struct advise_sink, entry)
         {
             list_remove(&sink->entry);
-            heap_free(sink);
+            free(sink);
         }
 
         clock->cs.DebugInfo->Spare[0] = 0;
         DeleteCriticalSection(&clock->cs);
-        heap_free(clock);
+        free(clock);
     }
     return refcount;
 }
@@ -132,15 +132,15 @@ static const IUnknownVtbl system_clock_inner_vtbl =
     system_clock_inner_Release,
 };
 
-static inline struct system_clock *impl_from_IReferenceClock(IReferenceClock *iface)
+static inline struct system_clock* impl_from_IReferenceClock(IReferenceClock* iface)
 {
     return CONTAINING_RECORD(iface, struct system_clock, IReferenceClock_iface);
 }
 
-static DWORD WINAPI SystemClockAdviseThread(void *param)
+static DWORD WINAPI SystemClockAdviseThread(void* param)
 {
-    struct system_clock *clock = param;
-    struct advise_sink *sink, *cursor;
+    struct system_clock* clock = param;
+    struct advise_sink* sink, * cursor;
     REFERENCE_TIME current_time;
 
     TRACE("Starting advise thread for clock %p.\n", clock);
@@ -168,7 +168,7 @@ static DWORD WINAPI SystemClockAdviseThread(void *param)
                 {
                     SetEvent(sink->handle);
                     list_remove(&sink->entry);
-                    heap_free(sink);
+                    free(sink);
                     continue;
                 }
             }
@@ -186,10 +186,10 @@ static DWORD WINAPI SystemClockAdviseThread(void *param)
     }
 }
 
-static HRESULT add_sink(struct system_clock *clock, DWORD_PTR handle,
-        REFERENCE_TIME due_time, REFERENCE_TIME period, DWORD_PTR *cookie)
+static HRESULT add_sink(struct system_clock* clock, DWORD_PTR handle,
+    REFERENCE_TIME due_time, REFERENCE_TIME period, DWORD_PTR* cookie)
 {
-    struct advise_sink *sink;
+    struct advise_sink* sink;
 
     if (!handle)
         return E_INVALIDARG;
@@ -197,7 +197,7 @@ static HRESULT add_sink(struct system_clock *clock, DWORD_PTR handle,
     if (!cookie)
         return E_POINTER;
 
-    if (!(sink = heap_alloc_zero(sizeof(*sink))))
+    if (!(sink = calloc(1, sizeof(*sink))))
         return E_OUTOFMEMORY;
 
     sink->handle = (HANDLE)handle;
@@ -219,27 +219,27 @@ static HRESULT add_sink(struct system_clock *clock, DWORD_PTR handle,
     return S_OK;
 }
 
-static HRESULT WINAPI SystemClockImpl_QueryInterface(IReferenceClock *iface, REFIID iid, void **out)
+static HRESULT WINAPI SystemClockImpl_QueryInterface(IReferenceClock* iface, REFIID iid, void** out)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
     return IUnknown_QueryInterface(clock->outer_unk, iid, out);
 }
 
-static ULONG WINAPI SystemClockImpl_AddRef(IReferenceClock *iface)
+static ULONG WINAPI SystemClockImpl_AddRef(IReferenceClock* iface)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
     return IUnknown_AddRef(clock->outer_unk);
 }
 
-static ULONG WINAPI SystemClockImpl_Release(IReferenceClock *iface)
+static ULONG WINAPI SystemClockImpl_Release(IReferenceClock* iface)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
     return IUnknown_Release(clock->outer_unk);
 }
 
-static HRESULT WINAPI SystemClockImpl_GetTime(IReferenceClock *iface, REFERENCE_TIME *time)
+static HRESULT WINAPI SystemClockImpl_GetTime(IReferenceClock* iface, REFERENCE_TIME* time)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
     REFERENCE_TIME ret;
     HRESULT hr;
 
@@ -260,13 +260,13 @@ static HRESULT WINAPI SystemClockImpl_GetTime(IReferenceClock *iface, REFERENCE_
     return hr;
 }
 
-static HRESULT WINAPI SystemClockImpl_AdviseTime(IReferenceClock *iface,
-        REFERENCE_TIME base, REFERENCE_TIME offset, HEVENT event, DWORD_PTR *cookie)
+static HRESULT WINAPI SystemClockImpl_AdviseTime(IReferenceClock* iface,
+    REFERENCE_TIME base, REFERENCE_TIME offset, HEVENT event, DWORD_PTR* cookie)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
 
     TRACE("clock %p, base %s, offset %s, event %#Ix, cookie %p.\n",
-            clock, debugstr_time(base), debugstr_time(offset), event, cookie);
+        clock, debugstr_time(base), debugstr_time(offset), event, cookie);
 
     if (base + offset <= 0)
         return E_INVALIDARG;
@@ -275,12 +275,12 @@ static HRESULT WINAPI SystemClockImpl_AdviseTime(IReferenceClock *iface,
 }
 
 static HRESULT WINAPI SystemClockImpl_AdvisePeriodic(IReferenceClock* iface,
-        REFERENCE_TIME start, REFERENCE_TIME period, HSEMAPHORE semaphore, DWORD_PTR *cookie)
+    REFERENCE_TIME start, REFERENCE_TIME period, HSEMAPHORE semaphore, DWORD_PTR* cookie)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
 
     TRACE("clock %p, start %s, period %s, semaphore %#Ix, cookie %p.\n",
-            clock, debugstr_time(start), debugstr_time(period), semaphore, cookie);
+        clock, debugstr_time(start), debugstr_time(period), semaphore, cookie);
 
     if (start <= 0 || period <= 0)
         return E_INVALIDARG;
@@ -288,10 +288,10 @@ static HRESULT WINAPI SystemClockImpl_AdvisePeriodic(IReferenceClock* iface,
     return add_sink(clock, semaphore, start, period, cookie);
 }
 
-static HRESULT WINAPI SystemClockImpl_Unadvise(IReferenceClock *iface, DWORD_PTR cookie)
+static HRESULT WINAPI SystemClockImpl_Unadvise(IReferenceClock* iface, DWORD_PTR cookie)
 {
-    struct system_clock *clock = impl_from_IReferenceClock(iface);
-    struct advise_sink *sink;
+    struct system_clock* clock = impl_from_IReferenceClock(iface);
+    struct advise_sink* sink;
 
     TRACE("clock %p, cookie %#Ix.\n", clock, cookie);
 
@@ -302,7 +302,7 @@ static HRESULT WINAPI SystemClockImpl_Unadvise(IReferenceClock *iface, DWORD_PTR
         if (sink->cookie == cookie)
         {
             list_remove(&sink->entry);
-            heap_free(sink);
+            free(sink);
             LeaveCriticalSection(&clock->cs);
             return S_OK;
         }
@@ -324,13 +324,13 @@ static const IReferenceClockVtbl SystemClock_vtbl =
     SystemClockImpl_Unadvise
 };
 
-HRESULT system_clock_create(IUnknown *outer, IUnknown **out)
+HRESULT system_clock_create(IUnknown* outer, IUnknown** out)
 {
-    struct system_clock *object;
-  
+    struct system_clock* object;
+
     TRACE("outer %p, out %p.\n", outer, out);
 
-    if (!(object = heap_alloc_zero(sizeof(*object))))
+    if (!(object = calloc(1, sizeof(*object))))
     {
         *out = NULL;
         return E_OUTOFMEMORY;

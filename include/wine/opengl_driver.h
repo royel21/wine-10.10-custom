@@ -149,6 +149,7 @@ static inline const char *debugstr_opengl_drawable( struct opengl_drawable *draw
     return wine_dbg_sprintf( "%p (format %u, hwnd %p, hdc %p)", drawable, drawable->format, drawable->hwnd, drawable->hdc );
 }
 
+W32KAPI void* opengl_drawable_create(UINT size, const struct opengl_drawable_funcs* funcs, int format, HWND hwnd, HDC hdc);
 W32KAPI void opengl_drawable_add_ref(struct opengl_drawable* drawable);
 W32KAPI void opengl_drawable_release(struct opengl_drawable* drawable);
 
@@ -168,7 +169,6 @@ struct opengl_driver_funcs
     BOOL (*p_context_make_current)(HDC,HDC,void*);
     BOOL (*p_pbuffer_create)( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
                               GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable );
-    BOOL (*p_pbuffer_destroy)( HDC hdc, struct opengl_drawable *drawable );
     BOOL (*p_pbuffer_updated)( HDC hdc, struct opengl_drawable *drawable, GLenum cube_face, GLint mipmap_level );
     UINT (*p_pbuffer_bind)( HDC hdc, struct opengl_drawable *drawable, GLenum buffer );
 };

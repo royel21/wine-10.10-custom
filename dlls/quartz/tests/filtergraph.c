@@ -3018,6 +3018,9 @@ static void test_add_remove_filter(void)
 
     testfilter_init(&filter, NULL, 0);
 
+    hr = IFilterGraph2_RemoveFilter(graph, &filter.IBaseFilter_iface);
+    ok(hr == VFW_E_NOT_FOUND, "Got hr %#lx.\n", hr);
+
     hr = IFilterGraph2_FindFilterByName(graph, L"testid", &ret_filter);
     ok(hr == VFW_E_NOT_FOUND, "Got hr %#lx.\n", hr);
     ok(!ret_filter, "Got filter %p.\n", ret_filter);

@@ -27,18 +27,18 @@ struct seeking_passthrough
     struct strmbase_passthrough passthrough;
 
     IUnknown IUnknown_inner;
-    IUnknown *outer_unk;
+    IUnknown* outer_unk;
     LONG refcount;
 };
 
-static struct seeking_passthrough *impl_from_IUnknown(IUnknown *iface)
+static struct seeking_passthrough* impl_from_IUnknown(IUnknown* iface)
 {
     return CONTAINING_RECORD(iface, struct seeking_passthrough, IUnknown_inner);
 }
 
-static HRESULT WINAPI seeking_passthrough_QueryInterface(IUnknown *iface, REFIID iid, void **out)
+static HRESULT WINAPI seeking_passthrough_QueryInterface(IUnknown* iface, REFIID iid, void** out)
 {
-    struct seeking_passthrough *passthrough = impl_from_IUnknown(iface);
+    struct seeking_passthrough* passthrough = impl_from_IUnknown(iface);
 
     TRACE("passthrough %p, iid %s, out %p.\n", passthrough, debugstr_guid(iid), out);
 
@@ -57,22 +57,22 @@ static HRESULT WINAPI seeking_passthrough_QueryInterface(IUnknown *iface, REFIID
         return E_NOINTERFACE;
     }
 
-    IUnknown_AddRef((IUnknown *)*out);
+    IUnknown_AddRef((IUnknown*)*out);
     return S_OK;
 }
 
-static ULONG WINAPI seeking_passthrough_AddRef(IUnknown *iface)
+static ULONG WINAPI seeking_passthrough_AddRef(IUnknown* iface)
 {
-    struct seeking_passthrough *passthrough = impl_from_IUnknown(iface);
+    struct seeking_passthrough* passthrough = impl_from_IUnknown(iface);
     ULONG refcount = InterlockedIncrement(&passthrough->refcount);
 
     TRACE("%p increasing refcount to %lu.\n", passthrough, refcount);
     return refcount;
 }
 
-static ULONG WINAPI seeking_passthrough_Release(IUnknown *iface)
+static ULONG WINAPI seeking_passthrough_Release(IUnknown* iface)
 {
-    struct seeking_passthrough *passthrough = impl_from_IUnknown(iface);
+    struct seeking_passthrough* passthrough = impl_from_IUnknown(iface);
     ULONG refcount = InterlockedDecrement(&passthrough->refcount);
 
     TRACE("%p decreasing refcount to %lu.\n", passthrough, refcount);
@@ -91,9 +91,9 @@ static const IUnknownVtbl seeking_passthrough_vtbl =
     seeking_passthrough_Release,
 };
 
-HRESULT seeking_passthrough_create(IUnknown *outer, IUnknown **out)
+HRESULT seeking_passthrough_create(IUnknown* outer, IUnknown** out)
 {
-    struct seeking_passthrough *object;
+    struct seeking_passthrough* object;
 
     TRACE("outer %p, out %p.\n", outer, out);
 

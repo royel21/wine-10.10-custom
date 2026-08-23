@@ -1686,8 +1686,38 @@ DWORD WINAPI RtlConvertDeviceFamilyInfoToString(DWORD *device_family_size, DWORD
 NTSTATUS WINAPI RtlGetPersistedStateLocation(const WCHAR* state_name, const WCHAR* state_type,
     const WCHAR* custom_path, WCHAR* path_buffer)
 {
-    FIXME("(%s, %s, %s, %p): stub\n", debugstr_w(state_name), debugstr_w(state_type),
-        debugstr_w(custom_path), path_buffer);
+    WCHAR path[MAX_PATH], *ptr;
 
-    return STATUS_NOT_FOUND;
+    if (!state_name || !state_type || !path_buffer || !state_name[0] || !state_type[0])
+        return STATUS_INVALID_PARAMETER;
+
+    if (custom_path && custom_path[0])
+        lstrcpynW(path_buffer, custom_path, MAX_PATH);
+    else
+    {
+        UNICODE_STRING var_name, var_value;
+
+        RtlInitUnicodeString(&var_name, L"LOCALAPPDATA");
+        var_value.Buffer = path;
+        var_value.Length = 0;
+        var_value.MaximumLength = sizeof(path);
+        if (RtlQueryEnvironmentVariable_U(NULL, &var_name, &var_value) != STATUS_SUCCESS || !var_value.Length)
+            lstrcpynW(path, L"C:\\Users\\Default\\AppData\\Local", ARRAY_SIZE(path));
+        else
+            path[var_value.Length / sizeof(WCHAR)] = 0;
+        lstrcpynW(path_buffer, path, MAX_PATH);
+    }
+
+    ptr = path_buffer + wcslen(path_buffer);
+    if (ptr > path_buffer && ptr[-1] != '\\' && ptr[-1] != '/')
+        *ptr++ = '\\';
+    if (state_type[0])
+    {
+        lstrcpynW(ptr, state_type, MAX_PATH - (ptr - path_buffer));
+        ptr += wcslen(ptr);
+        if (ptr > path_buffer && ptr[-1] != '\\' && ptr[-1] != '/')
+            *ptr++ = '\\';
+    }
+    lstrcpynW(ptr, state_name, MAX_PATH - (ptr - path_buffer));
+    return STATUS_SUCCESS;
 }
