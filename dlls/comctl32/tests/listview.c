@@ -1067,6 +1067,7 @@ static void test_lvm_subitemhittest_(HWND hwnd, INT x, INT y, INT item, INT subi
 
 #define test_lvm_subitemhittest(a,b,c,d,e,f,g,h,i) test_lvm_subitemhittest_(a,b,c,d,e,f,g,h,i,__LINE__)
 
+static void insert_column(HWND hwnd, int idx);
 static void test_images(void)
 {
     HWND hwnd;
@@ -1160,14 +1161,53 @@ static void test_images(void)
 
     flush_sequences(sequences, NUM_MSG_SEQUENCES);
 
+    /*
+     * If LVS_EX_SUBITEMIMAGES is not set, iImage field value is untouched
+     * for subitems.
+     */
     memset(&item, 0, sizeof(item));
     item.mask = LVIF_IMAGE;
     item.iSubItem = 1;
+    item.iImage = 500;
     r = SendMessageA(hwnd, LVM_GETITEMA, 0, (LPARAM)&item);
     ok(r, "Failed to get item.\n");
+    ok(item.iImage == 500, "Unexpected iImage value %d.\n", item.iImage);
 
     ok_sequence(sequences, PARENT_SEQ_INDEX, empty_seq, "get image dispinfo 2", FALSE);
 
+    r = SendMessageA(hwnd, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_SUBITEMIMAGES);
+    ok(!r, "Unexpected return value %d.\n", r);
+
+    /*
+     * LVS_EX_SUBITEMIMAGES is set, iImage field value is set for subitems.
+     */
+    memset(&item, 0, sizeof(item));
+    item.mask = LVIF_IMAGE;
+    item.iSubItem = 1;
+    item.iImage = 500;
+    r = SendMessageA(hwnd, LVM_GETITEMA, 0, (LPARAM)&item);
+    ok(r, "Failed to get item.\n");
+    ok(item.iImage == I_IMAGECALLBACK, "Unexpected iImage value %d.\n", item.iImage);
+
+    insert_column(hwnd, 0);
+    insert_column(hwnd, 1);
+
+    /* Set subitem iImage value. */
+    memset(&item, 0, sizeof(item));
+    item.mask = LVIF_IMAGE;
+    item.iSubItem = 1;
+    item.iImage = 500;
+    r = SendMessageA(hwnd, LVM_SETITEMA, 0, (LPARAM)&item);
+    ok(r, "Failed to set item.\n");
+
+    item.mask = LVIF_IMAGE;
+    item.iSubItem = 1;
+    item.iImage = 0;
+    r = SendMessageA(hwnd, LVM_GETITEMA, 0, (LPARAM)&item);
+    ok(r, "Failed to get item.\n");
+    ok(item.iImage == 500, "Unexpected iImage value %d.\n", item.iImage);
+
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
     DestroyWindow(hwnd);
 }
 
@@ -3480,6 +3520,35 @@ static void test_ownerdata(void)
     expect(1, res);
     res = SendMessageA(hwnd, LVM_GETITEMCOUNT, 0, 0);
     expect(1, res);
+
+    /* LVIF_STATE is not set, state field untouched. */
+    memset(&item, 0, sizeof(item));
+    item.mask = LVIF_TEXT;
+    item.iItem = 0;
+    item.state = 0xffff;
+    res = SendMessageA(hwnd, LVM_GETITEMA, 0, (LPARAM)&item);
+    ok(res, "Failed to get item.\n");
+    ok(item.state == 0xffff, "Unexpected item state %#x.\n", item.state);
+
+    /* LVIF_STATE is set with no statemask, state field zeroed. */
+    memset(&item, 0, sizeof(item));
+    item.mask = LVIF_STATE;
+    item.iItem = 0;
+    item.state = 0xffff;
+    res = SendMessageA(hwnd, LVM_GETITEMA, 0, (LPARAM)&item);
+    ok(res, "Failed to get item.\n");
+    ok(!item.state, "Unexpected item state %#x.\n", item.state);
+
+    res = SendMessageA(hwnd, LVM_GETITEMSTATE, 0, 0xff);
+    ok(res == LVIS_SELECTED, "Unexpected item state %#lx.\n", res);
+
+    /* Set the callback mask for LVIS_SELECTED. */
+    res = SendMessageA(hwnd, LVM_SETCALLBACKMASK, LVIS_SELECTED, 0);
+    expect(TRUE, res);
+
+    res = SendMessageA(hwnd, LVM_GETITEMSTATE, 0, 0xff);
+    ok(!res, "Unexpected item state %#lx.\n", res);
+
     DestroyWindow(hwnd);
 
     /* LVM_SETITEM and LVM_SETITEMTEXT is unsupported on LVS_OWNERDATA */

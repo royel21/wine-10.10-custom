@@ -1048,6 +1048,7 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
         frame->rbx = context->Rbx;
         frame->rcx = context->Rcx;
         frame->rdx = context->Rdx;
+        frame->rbp = context->Rbp;
         frame->rsi = context->Rsi;
         frame->rdi = context->Rdi;
         frame->r8  = context->R8;
@@ -1062,7 +1063,6 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
     if (flags & CONTEXT_CONTROL)
     {
         frame->rsp    = context->Rsp;
-        frame->rbp    = context->Rbp;
         frame->rip    = context->Rip;
         frame->eflags = context->EFlags;
     }
@@ -1113,6 +1113,7 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
         context->Rbx = frame->rbx;
         context->Rcx = frame->rcx;
         context->Rdx = frame->rdx;
+        context->Rbp = frame->rbp;
         context->Rsi = frame->rsi;
         context->Rdi = frame->rdi;
         context->R8  = frame->r8;
@@ -1128,7 +1129,6 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
     if (needed_flags & CONTEXT_CONTROL)
     {
         context->Rsp    = frame->rsp;
-        context->Rbp    = frame->rbp;
         context->Rip    = frame->rip;
         context->EFlags = frame->eflags;
         context->SegCs  = cs64_sel;
