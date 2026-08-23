@@ -72,7 +72,7 @@ struct wayland_context
     struct list entry;
     EGLConfig config;
     EGLContext context;
-    struct wayland_gl_drawable *draw, *read, *new_draw, *new_read;
+    struct wayland_gl_drawable* draw, * read;
 };
 
 struct wgl_pbuffer
@@ -210,18 +210,6 @@ err:
     return NULL;
 }
 
-static void update_context_drawables(struct wayland_gl_drawable *new,
-                                     struct wayland_gl_drawable *old)
-{
-    struct wayland_context *ctx;
-
-    LIST_FOR_EACH_ENTRY(ctx, &gl_contexts, struct wayland_context, entry)
-    {
-        if (ctx->draw == old || ctx->new_draw == old) ctx->new_draw = new;
-        if (ctx->read == old || ctx->new_read == old) ctx->new_read = new;
-    }
-}
-
 static void wayland_update_gl_drawable(HWND hwnd, struct wayland_gl_drawable *new)
 {
     struct wayland_gl_drawable *old;
@@ -230,7 +218,6 @@ static void wayland_update_gl_drawable(HWND hwnd, struct wayland_gl_drawable *ne
 
     if ((old = find_drawable(hwnd, 0))) list_remove(&old->entry);
     if (new) list_add_head(&gl_drawables, &new->entry);
-    if (old && new) update_context_drawables(new, old);
 
     pthread_mutex_unlock(&gl_object_mutex);
 
@@ -265,7 +252,6 @@ static BOOL wayland_context_make_current(HDC draw_hdc, HDC read_hdc, void *priva
     if (!private)
     {
         funcs->p_eglMakeCurrent(egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        NtCurrentTeb()->glReserved2 = NULL;
         return TRUE;
     }
 
@@ -293,8 +279,6 @@ static BOOL wayland_context_make_current(HDC draw_hdc, HDC read_hdc, void *priva
         old_read = ctx->read;
         ctx->draw = draw;
         ctx->read = read;
-        ctx->new_draw = ctx->new_read = NULL;
-        NtCurrentTeb()->glReserved2 = ctx;
     }
     else
     {
@@ -310,37 +294,9 @@ static BOOL wayland_context_make_current(HDC draw_hdc, HDC read_hdc, void *priva
     return ret;
 }
 
-static void wayland_context_refresh(struct wayland_context *ctx)
+static BOOL wayland_opengl_surface_create(HWND hwnd, HDC hdc, int format, struct opengl_drawable** drawable)
 {
-    BOOL refresh = FALSE;
-    struct wayland_gl_drawable *old_draw = NULL, *old_read = NULL;
-
-    pthread_mutex_lock(&gl_object_mutex);
-
-    if (ctx->new_draw)
-    {
-        old_draw = ctx->draw;
-        ctx->draw = wayland_gl_drawable_acquire(ctx->new_draw);
-        ctx->new_draw = NULL;
-        refresh = TRUE;
-    }
-    if (ctx->new_read)
-    {
-        old_read = ctx->read;
-        ctx->read = wayland_gl_drawable_acquire(ctx->new_read);
-        ctx->new_read = NULL;
-        refresh = TRUE;
-    }
-    if (refresh) funcs->p_eglMakeCurrent(egl->display, ctx->draw, ctx->read, ctx->context);
-
-    pthread_mutex_unlock(&gl_object_mutex);
-
-    if (old_draw) opengl_drawable_release(&old_draw->base);
-    if (old_read) opengl_drawable_release(&old_read->base);
-}
-
-static BOOL wayland_set_pixel_format(HWND hwnd, int old_format, int new_format, BOOL internal)
-{
+    struct opengl_drawable* previous;
     struct wayland_gl_drawable *gl;
     RECT rect;
 
@@ -354,8 +310,11 @@ static BOOL wayland_set_pixel_format(HWND hwnd, int old_format, int new_format, 
     if (rect.right == rect.left) rect.right = rect.left + 1;
     if (rect.bottom == rect.top) rect.bottom = rect.top + 1;
 
-    if (!(gl = wayland_gl_drawable_create(hwnd, 0, new_format, rect.right - rect.left, rect.bottom - rect.top))) return FALSE;
+    if (!(gl = wayland_gl_drawable_create(hwnd, 0, format, rect.right - rect.left, rect.bottom - rect.top))) return FALSE;
     wayland_update_gl_drawable(hwnd, gl);
+
+    if (previous) opengl_drawable_release( previous );
+    opengl_drawable_add_ref( (*drawable = &gl->base) );
     return TRUE;
 }
 
@@ -479,7 +438,6 @@ static BOOL wayland_context_flush(void* private, HWND hwnd, HDC hdc, int interva
 
 static BOOL wayland_swap_buffers(void *private, HWND hwnd, HDC hdc, int interval)
 {
-    struct wayland_context *ctx = private;
     HWND toplevel = NtUserGetAncestor(hwnd, GA_ROOT);
     struct wayland_gl_drawable *gl;
 
@@ -492,7 +450,6 @@ static BOOL wayland_swap_buffers(void *private, HWND hwnd, HDC hdc, int interval
         gl->swap_interval = interval;
     }
 
-    if (ctx) wayland_context_refresh(ctx);
     ensure_window_surface_contents(toplevel);
     set_client_surface(hwnd, gl->client);
     
@@ -539,7 +496,7 @@ static UINT wayland_pbuffer_bind(HDC hdc, struct opengl_drawable* base, GLenum b
 static struct opengl_driver_funcs wayland_driver_funcs =
 {
     .p_init_egl_platform = wayland_init_egl_platform,
-    .p_set_pixel_format = wayland_set_pixel_format,
+    .p_surface_create = wayland_opengl_surface_create,
     .p_swap_buffers = wayland_swap_buffers,
     .p_context_create = wayland_context_create,
     .p_context_flush = wayland_context_flush,
