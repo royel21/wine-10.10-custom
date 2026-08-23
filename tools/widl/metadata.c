@@ -1395,6 +1395,8 @@ enum
 #define MODULE_ROW      1
 #define MSCORLIB_ROW    1
 
+#define MAX_NAME        256
+
 static UINT add_name( type_t *type, UINT *namespace )
 {
     UINT name = add_string( type->name );
@@ -1674,7 +1676,7 @@ static void add_contract_attr_step1( type_t *type )
 static void add_contract_attr_step2( type_t *type )
 {
     UINT parent, attr_type, value_size;
-    BYTE value[256 + sizeof(UINT) + 5];
+    BYTE value[MAX_NAME + sizeof(UINT) + 5];
 
     if (!is_attr( type->attrs, ATTR_CONTRACT )) return;
 
@@ -1902,7 +1904,7 @@ static void add_exclusiveto_attr_step1( type_t *type )
 static void add_exclusiveto_attr_step2( type_t *type )
 {
     UINT parent, attr_type, value_size;
-    BYTE value[256 + 5];
+    BYTE value[MAX_NAME + 5];
 
     if (!is_attr( type->attrs, ATTR_EXCLUSIVETO )) return;
 
