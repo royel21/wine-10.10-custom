@@ -2965,13 +2965,41 @@ struct set_queue_mask_reply
     unsigned int changed_bits;
 };
 
+struct add_user_atom_request
+{
+    struct request_header __header;
+    /* VARARG(name,unicode_str); */
+    char __pad_12[4];
+};
 
+struct add_user_atom_reply
+{
+    struct reply_header __header;
+    atom_t        atom;
+    char __pad_12[4];
+};
+
+struct get_user_atom_name_request
+{
+    struct request_header __header;
+    atom_t       atom;
+};
+
+
+struct get_user_atom_name_reply
+{
+    struct reply_header __header;
+    data_size_t  total;
+    /* VARARG(name,unicode_str); */
+    char __pad_12[4];
+};
 
 struct get_queue_status_request
 {
     struct request_header __header;
     unsigned int clear_bits;
 };
+
 struct get_queue_status_reply
 {
     struct reply_header __header;
@@ -6110,6 +6138,7 @@ enum request
     REQ_delete_atom,
     REQ_find_atom,
     REQ_get_atom_information,
+    REQ_add_user_atom,
     REQ_get_msg_queue_handle,
     REQ_get_msg_queue,
     REQ_set_queue_fd,
@@ -6416,6 +6445,7 @@ union generic_request
     struct delete_atom_request delete_atom_request;
     struct find_atom_request find_atom_request;
     struct get_atom_information_request get_atom_information_request;
+    struct add_user_atom_request add_user_atom_request;
     struct get_msg_queue_handle_request get_msg_queue_handle_request;
     struct get_msg_queue_request get_msg_queue_request;
     struct set_queue_fd_request set_queue_fd_request;
@@ -6720,6 +6750,7 @@ union generic_reply
     struct delete_atom_reply delete_atom_reply;
     struct find_atom_reply find_atom_reply;
     struct get_atom_information_reply get_atom_information_reply;
+    struct add_user_atom_reply add_user_atom_reply;
     struct get_msg_queue_handle_reply get_msg_queue_handle_reply;
     struct get_msg_queue_reply get_msg_queue_reply;
     struct set_queue_fd_reply set_queue_fd_reply;
@@ -6909,6 +6940,6 @@ union generic_reply
     struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 878
+#define SERVER_PROTOCOL_VERSION 880
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

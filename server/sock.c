@@ -483,11 +483,11 @@ static const struct object_ops sock_ops =
     sizeof(struct sock),          /* size */
     &file_type,                   /* type */
     sock_dump,                    /* dump */
-    add_queue,                    /* add_queue */
-    remove_queue,                 /* remove_queue */
-    default_fd_signaled,          /* signaled */
+    NULL,                         /* add_queue */
+    NULL,                         /* remove_queue */
+    NULL,                         /* signaled */
     NULL,                         /* get_esync_fd */
-    no_satisfied,                 /* satisfied */
+    NULL,                         /* satisfied */
     no_signal,                    /* signal */
     sock_get_fd,                  /* get_fd */
     default_get_sync,             /* get_sync */
@@ -3917,11 +3917,11 @@ static const struct object_ops socket_device_ops =
     sizeof(struct object),      /* size */
     &device_type,               /* type */
     socket_device_dump,         /* dump */
-    no_add_queue,               /* add_queue */
+    NULL,                         /* add_queue */
     NULL,                       /* remove_queue */
     NULL,                       /* signaled */
     NULL,                       /* get_esync_fd */
-    no_satisfied,               /* satisfied */
+    NULL,                       /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
     default_get_sync,           /* get_sync */

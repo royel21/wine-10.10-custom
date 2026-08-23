@@ -86,6 +86,7 @@ struct thread_wait
 struct thread_apc
 {
     struct object       obj;      /* object header */
+    struct event_sync* sync;     /* sync object for wait/signal */
     struct list         entry;    /* queue linked list */
     struct thread      *caller;   /* thread that queued this apc */
     struct object      *owner;    /* object that queued this apc */
@@ -95,7 +96,7 @@ struct thread_apc
 };
 
 static void dump_thread_apc( struct object *obj, int verbose );
-static int thread_apc_signaled( struct object *obj, struct wait_queue_entry *entry );
+static struct object* thread_apc_get_sync(struct object* obj);
 static void thread_apc_destroy( struct object *obj );
 static void clear_apc_queue( struct list *queue );
 
@@ -104,14 +105,14 @@ static const struct object_ops thread_apc_ops =
     sizeof(struct thread_apc),  /* size */
     &no_type,                   /* type */
     dump_thread_apc,            /* dump */
-    add_queue,                  /* add_queue */
-    remove_queue,               /* remove_queue */
-    thread_apc_signaled,        /* signaled */
+    NULL,                       /* add_queue */
+    NULL,                       /* remove_queue */
+    NULL,                       /* signaled */
     NULL,                       /* get_esync_fd */
-    no_satisfied,               /* satisfied */
+    NULL,                       /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
-    default_get_sync,           /* get_sync */
+    thread_apc_get_sync,        /* get_sync */
     default_map_access,         /* map_access */
     default_get_sd,             /* get_sd */
     default_set_sd,             /* set_sd */
@@ -130,9 +131,10 @@ static const struct object_ops thread_apc_ops =
 
 struct context
 {
-    struct object   obj;        /* object header */
-    unsigned int    status;     /* status of the context */
-    struct context_data regs[2];/* context data */
+    struct object           obj;        /* object header */
+    struct event_sync      *sync;       /* sync object for wait/signal */
+    unsigned int            status;     /* status of the context */
+    struct context_data     regs[2];    /* context data */
 };
 #define CTX_NATIVE  0  /* context for native machine */
 #define CTX_WOW     1  /* context if thread is inside WoW */
@@ -141,21 +143,22 @@ struct context
 static const unsigned int system_flags = SERVER_CTX_DEBUG_REGISTERS;
 
 static void dump_context( struct object *obj, int verbose );
-static int context_signaled( struct object *obj, struct wait_queue_entry *entry );
+static struct object* context_get_sync(struct object* obj);
+static void context_destroy(struct object* obj);
 
 static const struct object_ops context_ops =
 {
     sizeof(struct context),     /* size */
     &no_type,                   /* type */
     dump_context,               /* dump */
-    add_queue,                  /* add_queue */
-    remove_queue,               /* remove_queue */
-    context_signaled,           /* signaled */
+    NULL,                       /* add_queue */
+    NULL,                       /* remove_queue */
+    NULL,                       /* signaled */
     NULL,                       /* get_esync_fd */
-    no_satisfied,               /* satisfied */
+    NULL,                       /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
-    default_get_sync,           /* get_sync */
+    context_get_sync,           /* get_sync */
     default_map_access,         /* map_access */
     default_get_sd,             /* get_sd */
     default_set_sd,             /* set_sd */
@@ -166,7 +169,7 @@ static const struct object_ops context_ops =
     no_open_file,               /* open_file */
     no_kernel_obj_list,         /* get_kernel_obj_list */
     no_close_handle,            /* close_handle */
-    no_destroy                  /* destroy */
+    context_destroy             /* destroy */
 };
 
 
@@ -188,7 +191,7 @@ struct type_descr thread_type =
 };
 
 static void dump_thread( struct object *obj, int verbose );
-static int thread_signaled( struct object *obj, struct wait_queue_entry *entry );
+static struct object* thread_get_sync(struct object* obj);
 static int thread_get_esync_fd( struct object *obj, enum esync_type *type );
 static unsigned int thread_map_access( struct object *obj, unsigned int access );
 static void thread_poll_event( struct fd *fd, int event );
@@ -200,14 +203,14 @@ static const struct object_ops thread_ops =
     sizeof(struct thread),      /* size */
     &thread_type,               /* type */
     dump_thread,                /* dump */
-    add_queue,                  /* add_queue */
-    remove_queue,               /* remove_queue */
-    thread_signaled,            /* signaled */
+    NULL,                       /* add_queue */
+    NULL,                       /* remove_queue */
+    NULL,                       /* signaled */
     thread_get_esync_fd,        /* get_esync_fd */
-    no_satisfied,               /* satisfied */
+    NULL,                       /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
-    default_get_sync,           /* get_sync */
+    thread_get_sync,           /* get_sync */
     thread_map_access,          /* map_access */
     default_get_sd,             /* get_sd */
     default_set_sd,             /* set_sd */
@@ -397,6 +400,7 @@ static inline void init_thread_structure( struct thread *thread )
 {
     int i;
 
+    thread->sync = NULL;
     thread->unix_pid        = -1;  /* not known yet */
     thread->unix_tid        = -1;  /* not known yet */
     thread->context         = NULL;
@@ -458,20 +462,35 @@ static void dump_context( struct object *obj, int verbose )
 }
 
 
-static int context_signaled( struct object *obj, struct wait_queue_entry *entry )
+static struct object* context_get_sync(struct object* obj)
 {
-    struct context *context = (struct context *)obj;
-    return context->status != STATUS_PENDING;
+    struct context* context = (struct context*)obj;
+    assert(obj->ops == &context_ops);
+    return grab_object(context->sync);
 }
 
+static void context_destroy( struct object *obj )
+{
+    struct context *context = (struct context *)obj;
+    assert( obj->ops == &context_ops );
+    if (context->sync) release_object( context->sync );
+}
 
 static struct context *create_thread_context( struct thread *thread )
 {
     struct context *context;
     if (!(context = alloc_object( &context_ops ))) return NULL;
+    context->sync = NULL;
     context->status = STATUS_PENDING;
     memset( &context->regs, 0, sizeof(context->regs) );
     context->regs[CTX_NATIVE].machine = native_machine;
+
+    if (!(context->sync = create_event_sync( 1, 0 )))
+    {
+        release_object( context );
+        return NULL;
+    }
+
     return context;
 }
 
@@ -537,11 +556,10 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
         release_object( thread );
         return NULL;
     }
-    if (!(thread->request_fd = create_anonymous_fd( &thread_fd_ops, fd, &thread->obj, 0 )))
-    {
-        release_object( thread );
-        return NULL;
-    }
+
+    if (!(thread->request_fd = create_anonymous_fd( &thread_fd_ops, fd, &thread->obj, 0 ))) goto error;
+    if (!(thread->sync = create_event_sync( 1, 0 ))) goto error;
+
 
     if (process->desktop)
     {
@@ -562,6 +580,10 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
     set_fd_events( thread->request_fd, POLLIN );  /* start listening to events */
     add_process_thread( thread->process, thread );
     return thread;
+
+error:
+    release_object( thread );
+    return NULL;
 }
 
 /* handle a client event */
@@ -593,7 +615,7 @@ static void cleanup_thread( struct thread *thread )
     if (thread->context)
     {
         thread->context->status = STATUS_ACCESS_DENIED;
-        wake_up( &thread->context->obj, 0 );
+        signal_sync(thread->context->sync);
         release_object( thread->context );
         thread->context = NULL;
     }
@@ -639,6 +661,7 @@ static void destroy_thread( struct object *obj )
     if (thread->exit_poll) remove_timeout_user( thread->exit_poll );
     if (thread->id) free_ptid( thread->id );
     if (thread->token) release_object( thread->token );
+    if (thread->sync) release_object(thread->sync);
 
     if (do_esync())
         close( thread->esync_fd );
@@ -654,10 +677,11 @@ static void dump_thread( struct object *obj, int verbose )
              thread->id, thread->unix_pid, thread->unix_tid, thread->state );
 }
 
-static int thread_signaled( struct object *obj, struct wait_queue_entry *entry )
+static struct object* thread_get_sync(struct object* obj)
 {
-    struct thread *mythread = (struct thread *)obj;
-    return mythread->state == TERMINATED && !mythread->exit_poll;
+    struct thread* thread = (struct thread*)obj;
+    assert(obj->ops == &thread_ops);
+    return grab_object(thread->sync);
 }
 
 static int thread_get_esync_fd( struct object *obj, enum esync_type *type )
@@ -683,10 +707,11 @@ static void dump_thread_apc( struct object *obj, int verbose )
     fprintf( stderr, "APC owner=%p type=%u\n", apc->owner, apc->call.type );
 }
 
-static int thread_apc_signaled( struct object *obj, struct wait_queue_entry *entry )
+static struct object* thread_apc_get_sync(struct object* obj)
 {
-    struct thread_apc *apc = (struct thread_apc *)obj;
-    return apc->executed;
+    struct thread_apc* apc = (struct thread_apc*)obj;
+    assert(obj->ops == &thread_apc_ops);
+    return grab_object(apc->sync);
 }
 
 static void thread_apc_destroy( struct object *obj )
@@ -702,6 +727,7 @@ static void thread_apc_destroy( struct object *obj )
             async_set_result( apc->owner, apc->call.async_io.status, 0 );
         release_object( apc->owner );
     }
+    if (apc->sync) release_object(apc->sync);
 }
 
 /* queue an async procedure call */
@@ -711,6 +737,7 @@ static struct thread_apc *create_apc( struct object *owner, const union apc_call
 
     if ((apc = alloc_object( &thread_apc_ops )))
     {
+        apc->sync = NULL;
         if (call_data) apc->call = *call_data;
         else apc->call.type = APC_NONE;
         apc->caller      = NULL;
@@ -718,6 +745,12 @@ static struct thread_apc *create_apc( struct object *owner, const union apc_call
         apc->executed    = 0;
         apc->result.type = APC_NONE;
         if (owner) grab_object( owner );
+        
+        if (!(apc->sync = create_event_sync( 1, 0 )))
+        {
+            release_object( apc );
+            return NULL;
+        }
     }
     return apc;
 }
@@ -1458,7 +1491,7 @@ void thread_cancel_apc( struct thread *thread, struct object *owner, enum apc_ty
         if (apc->owner != owner) continue;
         list_remove( &apc->entry );
         apc->executed = 1;
-        wake_up( &apc->obj, 0 );
+        signal_sync(apc->sync);
         release_object( apc );
         return;
     }
@@ -1492,7 +1525,7 @@ static void clear_apc_queue( struct list *queue )
         struct thread_apc *apc = LIST_ENTRY( ptr, struct thread_apc, entry );
         list_remove( &apc->entry );
         apc->executed = 1;
-        wake_up( &apc->obj, 0 );
+        signal_sync(apc->sync);
         release_object( apc );
     }
 }
@@ -1594,14 +1627,16 @@ void kill_thread( struct thread *thread, int violent_death )
     }
     kill_console_processes( thread, 0 );
     abandon_mutexes( thread );
+
     if (do_esync())
         esync_abandon_mutexes( thread );
+        
     if (violent_death)
     {
         send_thread_signal( thread, SIGQUIT );
         check_terminated( thread );
     }
-    else wake_up( &thread->obj, 0 );
+    else signal_sync(thread->sync);
     cleanup_thread( thread );
     remove_process_thread( thread->process, thread );
     release_object( thread );
@@ -1954,7 +1989,7 @@ DECL_HANDLER(select)
         }
         ctx->status = STATUS_SUCCESS;
         current->suspend_cookie = req->cookie;
-        wake_up( &ctx->obj, 0 );
+        signal_sync(ctx->sync);
     }
 
     if (!req->cookie) goto invalid_param;
@@ -1978,7 +2013,7 @@ DECL_HANDLER(select)
             apc->result.create_thread.handle = handle;
             clear_error();  /* ignore errors from the above calls */
         }
-        wake_up( &apc->obj, 0 );
+        signal_sync(apc->sync);
         close_handle( current->process, req->prev_apc );
         release_object( apc );
     }

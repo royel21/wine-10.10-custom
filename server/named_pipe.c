@@ -166,14 +166,14 @@ static const struct object_ops pipe_server_ops =
     sizeof(struct pipe_server),   /* size */
     &file_type,                   /* type */
     pipe_server_dump,             /* dump */
-    add_queue,                    /* add_queue */
-    remove_queue,                 /* remove_queue */
-    default_fd_signaled,          /* signaled */
+    NULL,                         /* add_queue */
+    NULL,                         /* remove_queue */
+    NULL,                         /* signaled */
     default_fd_get_esync_fd,      /* get_esync_fd */
-    no_satisfied,                 /* satisfied */
+    NULL,                         /* satisfied */
     no_signal,                    /* signal */
     pipe_end_get_fd,              /* get_fd */
-    default_get_sync,             /* get_sync */
+    default_fd_get_sync,             /* get_sync */
     default_map_access,           /* map_access */
     pipe_end_get_sd,              /* get_sd */
     pipe_end_set_sd,              /* set_sd */
@@ -212,14 +212,14 @@ static const struct object_ops pipe_client_ops =
     sizeof(struct pipe_end),      /* size */
     &file_type,                   /* type */
     pipe_client_dump,             /* dump */
-    add_queue,                    /* add_queue */
-    remove_queue,                 /* remove_queue */
-    default_fd_signaled,          /* signaled */
+    NULL,                         /* add_queue */
+    NULL,                         /* remove_queue */
+    NULL,                         /* signaled */
     default_fd_get_esync_fd,      /* get_esync_fd */
     no_satisfied,                 /* satisfied */
-    no_signal,                    /* signal */
+    NULL,                         /* satisfied */
     pipe_end_get_fd,              /* get_fd */
-    default_get_sync,             /* get_sync */
+    default_fd_get_sync,          /* get_sync */
     default_map_access,           /* map_access */
     pipe_end_get_sd,              /* get_sd */
     pipe_end_set_sd,              /* set_sd */
@@ -295,14 +295,14 @@ static const struct object_ops named_pipe_device_file_ops =
     sizeof(struct named_pipe_device_file),   /* size */
     &file_type,                              /* type */
     named_pipe_device_file_dump,             /* dump */
-    add_queue,                               /* add_queue */
-    remove_queue,                            /* remove_queue */
-    default_fd_signaled,                     /* signaled */
+    NULL,                                    /* add_queue */
+    NULL,                                    /* remove_queue */
+    NULL,                                    /* signaled */
     NULL,                                    /* get_esync_fd */
-    no_satisfied,                            /* satisfied */
+    NULL,                                    /* satisfied */
     no_signal,                               /* signal */
     named_pipe_device_file_get_fd,           /* get_fd */
-    default_get_sync,                        /* get_sync */
+    default_fd_get_sync,                     /* get_sync */
     default_map_access,                      /* map_access */
     default_get_sd,                          /* get_sd */
     default_set_sd,                          /* set_sd */
@@ -347,14 +347,14 @@ static const struct object_ops named_pipe_dir_ops =
     sizeof(struct named_pipe_device_file),   /* size */
     &file_type,                              /* type */
     named_pipe_dir_dump,                     /* dump */
-    add_queue,                               /* add_queue */
-    remove_queue,                            /* remove_queue */
-    default_fd_signaled,                     /* signaled */
+    NULL,                                    /* add_queue */
+    NULL,                                    /* remove_queue */
+    NULL,                                    /* signaled */
     NULL,                                    /* get_esync_fd */
-    no_satisfied,                            /* satisfied */
+    NULL,                                    /* satisfied */
     no_signal,                               /* signal */
     named_pipe_dir_get_fd,                   /* get_fd */
-    default_get_sync,                        /* get_sync */
+    default_fd_get_sync,                        /* get_sync */
     default_map_access,                      /* map_access */
     default_get_sd,                          /* get_sd */
     default_set_sd,                          /* set_sd */

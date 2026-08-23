@@ -135,6 +135,7 @@ struct fd
 {
     struct object        obj;         /* object header */
     const struct fd_ops *fd_ops;      /* file descriptor operations */
+    struct event_sync* sync;        /* sync object for wait/signal */
     struct inode        *inode;       /* inode that this fd belongs to */
     struct list          inode_entry; /* entry in inode fd list */
     struct closed_fd    *closed;      /* structure to store the unix fd at destroy time */
@@ -151,7 +152,6 @@ struct fd
     int                  unix_fd;     /* unix file descriptor */
     unsigned int         no_fd_status;/* status to return when unix_fd is -1 */
     unsigned int         cacheable :1;/* can the fd be cached on the client side? */
-    unsigned int         signaled :1; /* is the fd signaled? */
     unsigned int         fs_locks :1; /* can we use filesystem locks for this fd? */
     int                  poll_index;  /* index of fd in poll array */
     struct async_queue   read_q;      /* async readers of this fd */
@@ -164,6 +164,7 @@ struct fd
 };
 
 static void fd_dump( struct object *obj, int verbose );
+static struct object* fd_get_sync(struct object* obj);
 static void fd_destroy( struct object *obj );
 
 static const struct object_ops fd_ops =
@@ -178,7 +179,7 @@ static const struct object_ops fd_ops =
     NULL,                     /* satisfied */
     no_signal,                /* signal */
     no_get_fd,                /* get_fd */
-    default_get_sync,         /* get_sync */
+    fd_get_sync,              /* get_sync */
     default_map_access,       /* map_access */
     default_get_sd,           /* get_sd */
     default_set_sd,           /* set_sd */
@@ -282,6 +283,7 @@ static const struct object_ops inode_ops =
 struct file_lock
 {
     struct object       obj;         /* object header */
+    struct event_sync* sync;        /* sync object for wait/signal */
     struct fd          *fd;          /* fd owning this lock */
     struct list         fd_entry;    /* entry in list of locks on a given fd */
     struct list         inode_entry; /* entry in inode list of locks */
@@ -293,21 +295,22 @@ struct file_lock
 };
 
 static void file_lock_dump( struct object *obj, int verbose );
-static int file_lock_signaled( struct object *obj, struct wait_queue_entry *entry );
+static struct object* file_lock_get_sync(struct object* obj);
+static void file_lock_destroy(struct object* obj);
 
 static const struct object_ops file_lock_ops =
 {
     sizeof(struct file_lock),   /* size */
     &no_type,                   /* type */
     file_lock_dump,             /* dump */
-    add_queue,                  /* add_queue */
-    remove_queue,               /* remove_queue */
-    file_lock_signaled,         /* signaled */
+    NULL,                       /* add_queue */
+    NULL,                       /* remove_queue */
+    NULL,                       /* signaled */
     NULL,                       /* get_esync_fd */
-    no_satisfied,               /* satisfied */
+    NULL,                       /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
-    default_get_sync,           /* get_sync */
+    file_lock_get_sync,           /* get_sync */
     default_map_access,         /* map_access */
     default_get_sd,             /* get_sd */
     default_set_sd,             /* set_sd */
@@ -318,7 +321,7 @@ static const struct object_ops file_lock_ops =
     no_open_file,               /* open_file */
     no_kernel_obj_list,         /* get_kernel_obj_list */
     no_close_handle,            /* close_handle */
-    no_destroy                  /* destroy */
+    file_lock_destroy,          /* destroy */
 };
 
 
@@ -1326,11 +1329,18 @@ static void file_lock_dump( struct object *obj, int verbose )
     fprintf( stderr, "\n" );
 }
 
-static int file_lock_signaled( struct object *obj, struct wait_queue_entry *entry )
+static struct object *file_lock_get_sync( struct object *obj )
 {
     struct file_lock *lock = (struct file_lock *)obj;
-    /* lock is signaled if it has lost its owner */
-    return !lock->process;
+    assert( obj->ops == &file_lock_ops );
+    return grab_object( lock->sync );
+}
+
+static void file_lock_destroy( struct object *obj )
+ {
+    struct file_lock* lock = (struct file_lock*)obj;
+    assert(obj->ops == &file_lock_ops);
+    if (lock->sync) release_object(lock->sync);
 }
 
 /* set (or remove) a Unix lock if possible for the given range */
@@ -1512,22 +1522,24 @@ static struct file_lock *add_lock( struct fd *fd, int shared, file_pos_t start, 
     struct file_lock *lock;
 
     if (!(lock = alloc_object( &file_lock_ops ))) return NULL;
+    lock->sync = NULL;
     lock->shared  = shared;
     lock->start   = start;
     lock->end     = end;
     lock->fd      = fd;
     lock->process = current->process;
 
+    if (!(lock->sync = create_event_sync(1, 0))) goto error;
     /* now try to set a Unix lock */
-    if (!set_unix_lock( lock->fd, lock->start, lock->end, lock->shared ? F_RDLCK : F_WRLCK ))
-    {
-        release_object( lock );
-        return NULL;
-    }
+    if (!set_unix_lock(lock->fd, lock->start, lock->end, lock->shared ? F_RDLCK : F_WRLCK)) goto error;
     list_add_tail( &fd->locks, &lock->fd_entry );
     list_add_tail( &fd->inode->locks, &lock->inode_entry );
     list_add_tail( &lock->process->locks, &lock->proc_entry );
     return lock;
+
+error:
+    release_object( lock );
+    return NULL;    
 }
 
 /* remove an existing lock */
@@ -1541,7 +1553,7 @@ static void remove_lock( struct file_lock *lock, int remove_unix )
     if (remove_unix) remove_unix_locks( lock->fd, lock->start, lock->end );
     if (list_empty( &inode->locks )) inode_close_pending( inode, 1 );
     lock->process = NULL;
-    wake_up( &lock->obj, 0 );
+    signal_sync(lock->sync);
     release_object( lock );
 }
 
@@ -1650,6 +1662,12 @@ static void fd_dump( struct object *obj, int verbose )
     fprintf( stderr, "\n" );
 }
 
+static struct object *fd_get_sync( struct object *obj )
+{
+    struct fd *fd = (struct fd *)obj;
+    return grab_object( fd->sync );
+}
+
 static void fd_destroy( struct object *obj )
 {
     struct fd *fd = (struct fd *)obj;
@@ -1677,6 +1695,8 @@ static void fd_destroy( struct object *obj )
 
     if (do_esync())
         close( fd->esync_fd );
+
+    if (fd->sync) release_object(fd->sync);
 }
 
 /* check if the desired access is possible without violating */
@@ -1777,6 +1797,7 @@ static struct fd *alloc_fd_object(void)
     if (!fd) return NULL;
 
     fd->fd_ops     = NULL;
+    fd->sync       = NULL;
     fd->user       = NULL;
     fd->inode      = NULL;
     fd->closed     = NULL;
@@ -1790,7 +1811,6 @@ static struct fd *alloc_fd_object(void)
     fd->nt_name    = NULL;
     fd->nt_namelen = 0;
     fd->cacheable  = 0;
-    fd->signaled   = 1;
     fd->fs_locks   = 1;
     fd->poll_index = -1;
     fd->completion = NULL;
@@ -1805,12 +1825,12 @@ static struct fd *alloc_fd_object(void)
     if (do_esync())
         fd->esync_fd = esync_create_fd( 1, 0 );
 
-    if ((fd->poll_index = add_poll_user( fd )) == -1)
-    {
-        release_object( fd );
-        return NULL;
-    }
-    return fd;
+    if (!(fd->sync = create_event_sync(1, 1))) goto error;
+    if ((fd->poll_index = add_poll_user(fd)) == -1) goto error;
+
+error:
+    release_object(fd);
+    return NULL;
 }
 
 /* allocate a pseudo fd object, for objects that need to behave like files but don't have a unix fd */
@@ -1821,6 +1841,7 @@ struct fd *alloc_pseudo_fd( const struct fd_ops *fd_user_ops, struct object *use
     if (!fd) return NULL;
 
     fd->fd_ops     = fd_user_ops;
+fd->sync           = NULL;
     fd->user       = user;
     fd->inode      = NULL;
     fd->closed     = NULL;
@@ -1834,7 +1855,6 @@ struct fd *alloc_pseudo_fd( const struct fd_ops *fd_user_ops, struct object *use
     fd->nt_namelen = 0;
     fd->unix_fd    = -1;
     fd->cacheable  = 0;
-    fd->signaled   = 1;
     fd->fs_locks   = 0;
     fd->poll_index = -1;
     fd->completion = NULL;
@@ -1849,6 +1869,13 @@ struct fd *alloc_pseudo_fd( const struct fd_ops *fd_user_ops, struct object *use
 
     if (do_esync())
         fd->esync_fd = esync_create_fd( 0, 0 );
+
+    if (!(fd->sync = create_event_sync( 1, 1 )))
+    {
+        release_object( fd );
+        return NULL;
+    }
+
     return fd;
 }
 
@@ -2298,11 +2325,12 @@ int is_fd_removable( struct fd *fd )
 void set_fd_signaled( struct fd *fd, int signaled )
 {
     if (fd->comp_flags & FILE_SKIP_SET_EVENT_ON_HANDLE) return;
-    fd->signaled = signaled;
-    if (signaled) wake_up( fd->user, 0 );
 
     if (do_esync() && !signaled)
         esync_clear( fd->esync_fd );
+    
+    if (signaled) signal_sync(fd->sync);
+    else reset_sync(fd->sync);
 }
 
 /* check if events are pending and if yes return which one(s) */
@@ -2319,12 +2347,28 @@ int check_fd_events( struct fd *fd, int events )
     return pfd.revents;
 }
 
-/* default signaled() routine for objects that poll() on an fd */
-int default_fd_signaled( struct object *obj, struct wait_queue_entry *entry )
+/* default get_sync() routine for objects that poll() on an fd */
+struct object* default_fd_get_sync(struct object* obj)
+{
+    struct fd* fd = get_obj_fd(obj);
+    struct object *sync = get_obj_sync( &fd->obj );
+    release_object( fd );
+    return sync;
+}
+
+/* default get_full_name() routine for objects with an fd */
+WCHAR *default_fd_get_full_name( struct object *obj, data_size_t max, data_size_t *ret_len )
 {
     struct fd *fd = get_obj_fd( obj );
-    int ret = fd->signaled;
+    WCHAR *ret = NULL;
+
+    if (fd->nt_name)
+    {
+        *ret_len = fd->nt_namelen;
+        ret = memdup( fd->nt_name, fd->nt_namelen );
+    }
     release_object( fd );
+    if (*ret_len > max) set_error(STATUS_BUFFER_OVERFLOW);
     return ret;
 }
 

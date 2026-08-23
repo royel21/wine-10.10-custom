@@ -143,7 +143,7 @@ struct context_data
     union
     {
         struct { unsigned int eip, ebp, esp, eflags, cs, ss; } i386_regs;
-        struct { unsigned __int64 rip, rsp;
+        struct { unsigned __int64 rip;
                  unsigned int cs, ss, flags, __pad; } x86_64_regs;
         struct { unsigned int sp, lr, pc, cpsr; } arm_regs;
         struct { unsigned __int64 sp, pc, pstate; } arm64_regs;
@@ -2229,6 +2229,23 @@ struct process_info
 @REPLY
     int          count;        /* atom lock count */
     int          pinned;       /* whether the atom has been pinned */
+    data_size_t  total;        /* actual length of atom name */
+    VARARG(name,unicode_str);  /* atom name */
+@END
+
+
+/* Add a user atom */
+@REQ(add_user_atom)
+    VARARG(name,unicode_str);  /* atom name */
+@REPLY
+    atom_t        atom;        /* resulting atom */
+@END
+
+
+/* Get a user atom name */
+@REQ(get_user_atom_name)
+    atom_t       atom;         /* atom handle */
+@REPLY
     data_size_t  total;        /* actual length of atom name */
     VARARG(name,unicode_str);  /* atom name */
 @END
