@@ -1470,8 +1470,8 @@ static HCRYPTMSG CSignedEncodeMsg_Open(DWORD dwFlags,
                         ret = FALSE;
                     for (i = 0; ret && i < msg->msg_data.info->cSignerInfo; i++)
                     {
-                        if (info->rgSigners[i].SignerId.dwIdChoice ==
-                         CERT_ID_KEY_IDENTIFIER)
+                        if (info->rgSigners[i].cbSize == sizeof(CMSG_SIGNER_ENCODE_INFO_WITH_CMS) &&
+                                info->rgSigners[i].SignerId.dwIdChoice == CERT_ID_KEY_IDENTIFIER)
                             msg->msg_data.info->version = CMSG_SIGNED_DATA_V3;
                         ret = CSignerInfo_Construct(
                          &msg->msg_data.info->rgSignerInfo[i],
@@ -3245,6 +3245,8 @@ static BOOL CDecodeSignedMsg_GetParam(CDecodeMsg *msg, DWORD dwParamType,
         {
             if (dwIndex >= msg->u.signed_data.info->cSignerInfo)
                 SetLastError(CRYPT_E_INVALID_INDEX);
+            else if (!msg->u.signed_data.info->rgSignerInfo[dwIndex].AuthAttrs.cAttr)
+                SetLastError(CRYPT_E_ATTRIBUTES_MISSING);
             else
                 ret = CRYPT_CopyAttr(pvData, pcbData,
                  &msg->u.signed_data.info->rgSignerInfo[dwIndex].AuthAttrs);
@@ -3257,6 +3259,8 @@ static BOOL CDecodeSignedMsg_GetParam(CDecodeMsg *msg, DWORD dwParamType,
         {
             if (dwIndex >= msg->u.signed_data.info->cSignerInfo)
                 SetLastError(CRYPT_E_INVALID_INDEX);
+            else if (!msg->u.signed_data.info->rgSignerInfo[dwIndex].UnauthAttrs.cAttr)
+                SetLastError(CRYPT_E_ATTRIBUTES_MISSING);
             else
                 ret = CRYPT_CopyAttr(pvData, pcbData,
                  &msg->u.signed_data.info->rgSignerInfo[dwIndex].UnauthAttrs);
