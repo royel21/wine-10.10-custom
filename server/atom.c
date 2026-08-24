@@ -42,7 +42,6 @@
 #define MIN_HASH_SIZE 4
 #define MAX_HASH_SIZE 0x200
 
-#define MAX_ATOM_LEN  (255 * sizeof(WCHAR))
 #define MIN_STR_ATOM  0xc000
 #define MAX_ATOMS     0x4000
 
@@ -51,7 +50,6 @@ struct atom_entry
     struct atom_entry *next;   /* hash table list */
     struct atom_entry *prev;   /* hash table list */
     int                count;  /* reference count */
-    short              pinned; /* whether the atom is pinned or not */
     atom_t             atom;   /* atom handle */
     unsigned short     hash;   /* string hash */
     unsigned short     len;    /* string len */
@@ -251,6 +249,22 @@ static void atom_table_destroy( struct object *obj )
     for (i = 0; i < table->count; i++) free(table->atoms[i]);
 }
 
+static atom_t get_int_atom_value(const struct unicode_str* name)
+{
+    const WCHAR* ptr = name->str;
+    const WCHAR* end = ptr + name->len / sizeof(WCHAR);
+    unsigned int ret = 0;
+
+    if (*ptr++ != '#') return 0;
+    while (ptr < end)
+    {
+        if (*ptr < '0' || *ptr > '9') return 0;
+        ret = ret * 10 + *ptr++ - '0';
+        if (ret >= MAXINTATOM) return 0;
+    }
+    return ret;
+}
+
 /* find an atom entry in its hash list */
 static struct atom_entry *find_atom_entry( struct atom_table *table, const struct unicode_str *str,
                                            unsigned short hash )
@@ -267,47 +281,48 @@ static struct atom_entry *find_atom_entry( struct atom_table *table, const struc
 /* add an atom to the table */
 atom_t add_atom(struct atom_table* table, const struct unicode_str* str)
 {
-    struct atom_entry *entry;
+    struct atom_entry* entry;
     unsigned short hash;
     atom_t atom = 0;
 
     if (!str->len)
     {
-        set_error( STATUS_OBJECT_NAME_INVALID );
+        set_error(STATUS_OBJECT_NAME_INVALID);
         return 0;
     }
-    if (str->len > MAX_ATOM_LEN)
+    if (str->len > MAX_ATOM_LEN * sizeof(WCHAR))
     {
-        set_error( STATUS_INVALID_PARAMETER );
+        set_error(STATUS_INVALID_PARAMETER);
         return 0;
     }
+    if ((atom = get_int_atom_value(str))) return atom;
 
     hash = hash_strW(str->str, str->len, ARRAY_SIZE(table->entries));
-    if ((entry = find_atom_entry( table, str, hash )))  /* exists already */
+    if ((entry = find_atom_entry(table, str, hash)))  /* exists already */
     {
         entry->count++;
         return entry->atom;
     }
 
-    if ((entry = mem_alloc( FIELD_OFFSET( struct atom_entry, str[str->len / sizeof(WCHAR)] ) )))
+    if ((entry = mem_alloc(FIELD_OFFSET(struct atom_entry, str[str->len / sizeof(WCHAR)]))))
     {
-        if ((atom = add_atom_entry( table, entry )))
+        if ((atom = add_atom_entry(table, entry)))
         {
-            entry->prev  = NULL;
+            entry->prev = NULL;
             if ((entry->next = table->entries[hash])) entry->next->prev = entry;
             table->entries[hash] = entry;
-            entry->count  = 1;
-            entry->hash   = hash;
-            entry->len    = str->len;
-            memcpy( entry->str, str->str, str->len );
+            entry->count = 1;
+            entry->hash = hash;
+            entry->len = str->len;
+            memcpy(entry->str, str->str, str->len);
         }
         else
         {
-            set_error( STATUS_NO_MEMORY );
-            free( entry );
+            set_error(STATUS_NO_MEMORY);
+            free(entry);
         }
     }
-    
+
     return atom;
 }
 

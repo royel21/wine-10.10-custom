@@ -135,7 +135,7 @@ struct fd
 {
     struct object        obj;         /* object header */
     const struct fd_ops *fd_ops;      /* file descriptor operations */
-    struct event_sync* sync;        /* sync object for wait/signal */
+    struct event_sync   *sync;        /* sync object for wait/signal */
     struct inode        *inode;       /* inode that this fd belongs to */
     struct list          inode_entry; /* entry in inode fd list */
     struct closed_fd    *closed;      /* structure to store the unix fd at destroy time */
@@ -172,7 +172,7 @@ static const struct object_ops fd_ops =
     sizeof(struct fd),        /* size */
     &no_type,                 /* type */
     fd_dump,                  /* dump */
-    no_add_queue,             /* add_queue */
+    NULL,                     /* add_queue */
     NULL,                     /* remove_queue */
     NULL,                     /* signaled */
     NULL,                     /* get_esync_fd */
@@ -1827,6 +1827,8 @@ static struct fd *alloc_fd_object(void)
 
     if (!(fd->sync = create_event_sync(1, 1))) goto error;
     if ((fd->poll_index = add_poll_user(fd)) == -1) goto error;
+    
+    return fd;
 
 error:
     release_object(fd);

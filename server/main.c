@@ -28,6 +28,12 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unistd.h>
+#ifdef HAVE_SYS_RESOURCE_H
+# include <sys/resource.h>
+#endif
+#ifdef HAVE_SYS_SYSCTL_H
+# include <sys/sysctl.h>
+#endif
 
 #include "object.h"
 #include "file.h"
@@ -211,6 +217,29 @@ error:
 static void sigterm_handler( int signum )
 {
     exit(1);  /* make sure atexit functions get called */
+}
+
+static void init_limits(void)
+{
+#ifdef RLIMIT_NOFILE
+    struct rlimit rlimit;
+
+    if (!getrlimit(RLIMIT_NOFILE, &rlimit))
+    {
+        rlimit.rlim_cur = rlimit.rlim_max;
+        if (!setrlimit(RLIMIT_NOFILE, &rlimit)) return;
+#ifdef __APPLE__
+        {
+            /* macOS before Big Sur fails if rlim_max is larger than maxfilesperproc */
+            unsigned int nlimit = 0;
+            size_t size = sizeof(nlimit);
+            sysctlbyname("kern.maxfilesperproc", &nlimit, &size, NULL, 0);
+            rlimit.rlim_cur = max(nlimit, OPEN_MAX);
+            setrlimit(RLIMIT_NOFILE, &rlimit);
+        }
+#endif
+    }
+#endif
 }
 
 int main( int argc, char *argv[] )

@@ -444,7 +444,7 @@ static struct debug_event *alloc_debug_event( struct thread *thread, int code, c
 
     /* build the event */
     if (!(event = alloc_object( &debug_event_ops ))) return NULL;
-    event->sync = NULL;
+    event->sync      = NULL;
     event->state     = EVENT_QUEUED;
     event->sender    = (struct thread *)grab_object( thread );
     event->file      = NULL;
@@ -589,7 +589,7 @@ DECL_HANDLER(wait_debug_event)
     if ((event = find_event_to_send( debug_obj )))
     {
         event->state = EVENT_SENT;
-        reset_sync(event->sync);
+        reset_sync((struct object*)event->sync);
         event->sender->process->debug_event = event;
         reply->pid = get_process_id( event->sender->process );
         reply->tid = get_thread_id( event->sender );

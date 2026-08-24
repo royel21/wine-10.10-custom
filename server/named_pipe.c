@@ -216,8 +216,8 @@ static const struct object_ops pipe_client_ops =
     NULL,                         /* remove_queue */
     NULL,                         /* signaled */
     default_fd_get_esync_fd,      /* get_esync_fd */
-    no_satisfied,                 /* satisfied */
     NULL,                         /* satisfied */
+    no_signal,                    /* signal */
     pipe_end_get_fd,              /* get_fd */
     default_fd_get_sync,          /* get_sync */
     default_map_access,           /* map_access */

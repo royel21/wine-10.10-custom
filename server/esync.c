@@ -22,6 +22,7 @@
 
 
 #include <fcntl.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdarg.h>
 #ifdef HAVE_SYS_EVENTFD_H
@@ -358,7 +359,8 @@ void esync_wake_fd( int fd )
 {
     static const uint64_t value = 1;
 
-    if (write( fd, &value, sizeof(value) ) == -1)
+    if (fd == -1) return;
+    if (write( fd, &value, sizeof(value) ) == -1 && errno != EBADF)
         perror( "esync: write" );
 }
 
@@ -379,6 +381,7 @@ void esync_clear( int fd )
 {
     uint64_t value;
 
+    if (fd == -1) return;
     /* we don't care about the return value */
     read( fd, &value, sizeof(value) );
 }

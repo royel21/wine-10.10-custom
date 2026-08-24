@@ -152,12 +152,9 @@ struct hotkey
     unsigned int        flags;        /* key modifiers */
 };
 
-static void msg_queue_dump( struct object *obj, int verbose );
-static int msg_queue_add_queue( struct object *obj, struct wait_queue_entry *entry );
-static void msg_queue_remove_queue( struct object *obj, struct wait_queue_entry *entry );
-static int msg_queue_signaled( struct object *obj, struct wait_queue_entry *entry );
+static void msg_queue_dump(struct object* obj, int verbose);
+static struct object* msg_queue_get_sync(struct object* obj);
 static int msg_queue_get_esync_fd( struct object *obj, enum esync_type *type );
-static void msg_queue_satisfied( struct object *obj, struct wait_queue_entry *entry );
 static void msg_queue_destroy( struct object *obj );
 static void msg_queue_poll_event( struct fd *fd, int event );
 static void thread_input_dump( struct object *obj, int verbose );
@@ -169,14 +166,14 @@ static const struct object_ops msg_queue_ops =
     sizeof(struct msg_queue),  /* size */
     &no_type,                  /* type */
     msg_queue_dump,            /* dump */
-    msg_queue_add_queue,       /* add_queue */
-    msg_queue_remove_queue,    /* remove_queue */
-    msg_queue_signaled,        /* signaled */
+    NULL,                      /* add_queue */
+    NULL,                      /* remove_queue */
+    NULL,                      /* signaled */
     msg_queue_get_esync_fd,    /* get_esync_fd */
-    msg_queue_satisfied,       /* satisfied */
+    NULL,                      /* satisfied */
     no_signal,                 /* signal */
     no_get_fd,                 /* get_fd */
-    default_get_sync,          /* get_sync */
+    msg_queue_get_sync,          /* get_sync */
     default_map_access,        /* map_access */
     default_get_sd,            /* get_sd */
     default_set_sd,            /* set_sd */
@@ -290,6 +287,7 @@ static struct thread_input *create_thread_input( struct thread *thread )
             shared->cursor_count = 0;
             memset( (void *)shared->keystate, 0, sizeof(shared->keystate) );
             shared->keystate_lock = 0;
+            shared->keystate_serial = 1;
         }
         SHARED_WRITE_END;
     }
@@ -313,7 +311,7 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
     if ((queue = alloc_object( &msg_queue_ops )))
     {
         queue->fd              = NULL;
-        queue->signaled        = 0;
+        queue->sync            = NULL;
         queue->paint_count     = 0;
         queue->hotkey_count    = 0;
         queue->quit_message    = 0;
@@ -323,19 +321,15 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         queue->timeout         = NULL;
         queue->input           = (struct thread_input *)grab_object( input );
         queue->hooks           = NULL;
-        queue->last_get_msg    = current_time;
         queue->keystate_lock   = 0;
-        queue->waiting         = 0;
-        queue->ignore_post_msg = 0;
-        queue->esync_fd        = -1;
-        queue->esync_in_msgwait = 0;
         list_init( &queue->send_result );
         list_init( &queue->callback_result );
         list_init( &queue->pending_timers );
         list_init( &queue->expired_timers );
         for (i = 0; i < NB_MSG_KINDS; i++) list_init( &queue->msg_list[i] );
 
-        if (!(queue->shared = alloc_shared_object()))
+        if (!(queue->sync = create_internal_sync( 1, 0 ))) goto error;
+        if (!(queue->shared = alloc_shared_object( sizeof(*queue->shared) )))
         {
             release_object( queue );
             return NULL;
@@ -343,11 +337,13 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
 
         SHARED_WRITE_BEGIN( queue->shared, queue_shm_t )
         {
-            memset( (void *)shared->hooks_count, 0, sizeof(shared->hooks_count) );
+            memset((void*)shared->hooks_count, 0, sizeof(shared->hooks_count));
+            shared->access_time = monotonic_time;
             shared->wake_mask = 0;
             shared->wake_bits = 0;
             shared->changed_mask = 0;
             shared->changed_bits = 0;
+            shared->internal_bits = 0;
         }
         SHARED_WRITE_END;
 
@@ -364,6 +360,10 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
     }
     if (new_input) release_object( new_input );
     return queue;
+
+error:
+    release_object(queue);
+    return NULL;
 }
 
 /* free the message queue of a thread at thread exit */
@@ -392,6 +392,7 @@ static void sync_input_keystate( struct thread_input *input )
             if (input->desktop_keystate[i] == desktop_shm->keystate[i]) continue;
             shared->keystate[i] = input->desktop_keystate[i] = desktop_shm->keystate[i];
         }
+        shared->keystate_serial = desktop_shm->keystate_serial;
     }
     SHARED_WRITE_END;
 }
@@ -713,26 +714,15 @@ void add_queue_hook_count( struct thread *thread, unsigned int index, int count 
 {
     if (!thread->queue) return;
 
-    SHARED_WRITE_BEGIN( thread->queue->shared, queue_shm_t )
+    SHARED_WRITE_BEGIN(thread->queue->shared, queue_shm_t)
     {
         shared->hooks_count[index] += count;
     }
     SHARED_WRITE_END;
 
-    assert( thread->queue->shared->hooks_count[index] >= 0 );
+    assert(thread->queue->shared->hooks_count[index] >= 0);
 }
 
-static void signal_queue_sync( struct msg_queue *queue )
-{
-    if (queue->signaled) return;
-    queue->signaled = 1;
-    wake_up( &queue->obj, 0 );
-}
-
-static void reset_queue_sync( struct msg_queue *queue )
-{
-    queue->signaled = 0;
-}
 
 /* check the queue status */
 static inline int is_signaled( struct msg_queue *queue )
@@ -745,46 +735,51 @@ static inline int is_signaled( struct msg_queue *queue )
 /* set some queue bits */
 static inline void set_queue_bits( struct msg_queue *queue, unsigned int bits )
 {
-    queue_shm_t *queue_shm = queue->shared;
+    queue_shm_t* queue_shm = queue->shared;
+    unsigned int internal = bits & QS_INTERNAL;
+    bits &= ~QS_INTERNAL;
 
+    /* lock the key state on key press, including from hardware messages */
     if (bits & (QS_KEY | QS_MOUSEBUTTON))
     {
-        if (!queue->keystate_lock) lock_input_keystate( queue->input );
+        if (!queue->keystate_lock) lock_input_keystate(queue->input);
         queue->keystate_lock = 1;
     }
 
-    SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+    SHARED_WRITE_BEGIN(queue_shm, queue_shm_t)
     {
         shared->wake_bits |= bits;
         shared->changed_bits |= bits;
+        shared->internal_bits |= internal;
     }
     SHARED_WRITE_END;
 
-    if (is_signaled(queue)) signal_queue_sync(queue);
+    if (get_queue_status(queue)) signal_sync(queue->sync);
 }
 
 /* clear some queue bits */
 static inline void clear_queue_bits( struct msg_queue *queue, unsigned int bits )
 {
-    queue_shm_t *queue_shm = queue->shared;
+    queue_shm_t* queue_shm = queue->shared;
+    unsigned int internal = bits & QS_INTERNAL;
+    bits &= ~QS_INTERNAL;
 
-    SHARED_WRITE_BEGIN( queue_shm, queue_shm_t )
+    SHARED_WRITE_BEGIN(queue_shm, queue_shm_t)
     {
         shared->wake_bits &= ~bits;
         shared->changed_bits &= ~bits;
+        shared->internal_bits &= ~internal;
+        bits = shared->wake_bits;
     }
     SHARED_WRITE_END;
 
-    if (!(queue_shm->wake_bits & (QS_KEY | QS_MOUSEBUTTON)))
+    /* release the keystate lock when last key message has been processed */
+    if (!internal && !(bits & (QS_KEY | QS_MOUSEBUTTON)))
     {
-        if (queue->keystate_lock) unlock_input_keystate( queue->input );
+        if (queue->keystate_lock) unlock_input_keystate(queue->input);
         queue->keystate_lock = 0;
     }
-
-    if (do_esync() && !is_signaled( queue ))
-        esync_clear( queue->esync_fd );
-    
-    if (!is_signaled(queue)) reset_queue_sync(queue);
+    if (!get_queue_status(queue)) reset_sync(queue->sync);
 }
 
 /* check if message is matched by the filter */
@@ -1303,9 +1298,8 @@ static void cleanup_results( struct msg_queue *queue )
 /* check if the thread owning the queue is hung (not checking for messages) */
 static int is_queue_hung( struct msg_queue *queue )
 {
-    if (current_time - queue->last_get_msg <= 5 * TICKS_PER_SEC)
-        return 0;  /* less than 5 seconds since last get message -> not hung */
-    return !queue->waiting;
+    /* queue is hung if it's signaled and thread didn't access it for more than 5 seconds */
+    return get_queue_status(queue) && monotonic_time - queue->shared->access_time > 5 * TICKS_PER_SEC;
 }
 
 static int msg_queue_select( struct msg_queue *queue, int events )

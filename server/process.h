@@ -36,7 +36,7 @@ enum startup_state { STARTUP_IN_PROGRESS, STARTUP_DONE, STARTUP_ABORTED };
 struct process
 {
     struct object        obj;             /* object header */
-    struct event_sync* sync;            /* sync object for wait/signal */
+    struct event_sync   *sync;            /* sync object for wait/signal */
     struct list          entry;           /* entry in system-wide process list */
     process_id_t         parent_id;       /* parent process id (at the time of creation) */
     struct list          thread_list;     /* thread list */
@@ -134,16 +134,22 @@ extern struct thread *console_get_renderer( struct console *console );
 #endif
 
 extern void init_tracing_mechanism(void);
-extern void init_process_tracing( struct process *process );
-extern void finish_process_tracing( struct process *process );
-extern int read_process_memory( struct process *process, client_ptr_t ptr, data_size_t size, char *dest );
-extern int write_process_memory( struct process *process, client_ptr_t ptr, data_size_t size, const char *src );
+extern void init_process_tracing(struct process* process);
+extern void finish_process_tracing(struct process* process);
+extern int read_process_memory(struct process* process, client_ptr_t ptr, data_size_t size, char* dest);
+extern int write_process_memory(struct process* process, client_ptr_t ptr, data_size_t size, const char* src,
+    data_size_t* written);
 
 static inline process_id_t get_process_id( struct process *process ) { return process->id; }
 
 static inline int is_process_init_done( struct process *process )
 {
     return process->startup_state == STARTUP_DONE;
+}
+
+static inline int is_wow64_process(struct process* process)
+{
+    return is_machine_64bit(native_machine) && !is_machine_64bit(process->machine);
 }
 
 static const unsigned int default_session_id = 1;

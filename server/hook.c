@@ -58,11 +58,6 @@ struct hook
     data_size_t         module_size;
 };
 
-#define WH_WINEVENT (WH_MAXHOOK+1)
-
-#define NB_HOOKS (WH_WINEVENT-WH_MINHOOK+1)
-#define HOOK_ENTRY(p)  LIST_ENTRY( (p), struct hook, chain )
-
 struct hook_table
 {
     struct object obj;              /* object header */
@@ -248,15 +243,15 @@ static inline int run_hook_in_current_thread( struct hook *hook )
 }
 
 /* find the first non-deleted hook in the chain */
-static inline struct hook *get_first_valid_hook( struct hook_table *table, int index,
-                                                 int event, user_handle_t win,
-                                                 int object_id, int child_id )
+static inline struct hook* get_first_valid_hook(struct hook_table* table, int index,
+    int event, user_handle_t win,
+    int object_id, int child_id)
 {
-    struct hook *hook = get_first_hook( table, index );
+    struct hook* hook;
 
-    while (hook)
+    LIST_FOR_EACH_ENTRY(hook, &table->hooks[index], struct hook, chain)
     {
-        if (hook->proc && run_hook_in_current_thread( hook ))
+        if (hook->proc && run_hook_in_current_thread(hook))
         {
             if (event >= hook->event_min && event <= hook->event_max)
             {
@@ -264,26 +259,28 @@ static inline struct hook *get_first_valid_hook( struct hook_table *table, int i
 
                 /* only winevent hooks may be out of context */
                 assert(hook->index + WH_MINHOOK == WH_WINEVENT);
-                post_win_event( hook->owner, event, win, object_id, child_id,
-                                hook->proc, hook->module, hook->module_size,
-                                hook->handle );
+                post_win_event(hook->owner, event, win, object_id, child_id,
+                    hook->proc, hook->module, hook->module_size,
+                    hook->handle);
             }
         }
-        hook = HOOK_ENTRY( list_next( &table->hooks[index], &hook->chain ) );
     }
-    return hook;
+    return NULL;
 }
 
+
 /* find the next hook in the chain, skipping the deleted ones */
-static struct hook *get_next_hook( struct thread *thread, struct hook *hook, int event,
-                                   user_handle_t win, int object_id, int child_id )
+static struct hook* get_next_hook(struct thread* thread, struct hook* hook, int event,
+    user_handle_t win, int object_id, int child_id)
 {
-    struct hook_table *global_hooks, *table = hook->table;
+    struct hook_table* global_hooks, * table = hook->table;
+    struct list* ptr;
     int index = hook->index;
 
-    while ((hook = HOOK_ENTRY( list_next( &table->hooks[index], &hook->chain ) )))
+    while ((ptr = list_next(&table->hooks[index], &hook->chain)))
     {
-        if (hook->proc && run_hook_in_current_thread( hook ))
+        hook = LIST_ENTRY(ptr, struct hook, chain);
+        if (hook->proc && run_hook_in_current_thread(hook))
         {
             if (event >= hook->event_min && event <= hook->event_max)
             {
@@ -291,18 +288,16 @@ static struct hook *get_next_hook( struct thread *thread, struct hook *hook, int
 
                 /* only winevent hooks may be out of context */
                 assert(hook->index + WH_MINHOOK == WH_WINEVENT);
-                post_win_event( hook->owner, event, win, object_id, child_id,
-                                hook->proc, hook->module, hook->module_size,
-                                hook->handle );
+                post_win_event(hook->owner, event, win, object_id, child_id,
+                    hook->proc, hook->module, hook->module_size,
+                    hook->handle);
             }
         }
     }
-    global_hooks = get_global_hooks( thread );
-    if (global_hooks && table != global_hooks)  /* now search through the global table */
-    {
-        hook = get_first_valid_hook( global_hooks, index, event, win, object_id, child_id );
-    }
-    return hook;
+    global_hooks = get_global_hooks(thread);
+    if (!global_hooks || global_hooks == table) return NULL;
+    /* now search through the global table */
+    return get_first_valid_hook(global_hooks, index, event, win, object_id, child_id);
 }
 
 static void hook_table_dump( struct object *obj, int verbose )
@@ -311,16 +306,15 @@ static void hook_table_dump( struct object *obj, int verbose )
     fprintf( stderr, "Hook table\n" );
 }
 
-static void hook_table_destroy( struct object *obj )
+static void hook_table_destroy(struct object* obj)
 {
     int i;
-    struct hook *hook;
-    struct hook_table *table = (struct hook_table *)obj;
+    struct hook* hook, * next;
+    struct hook_table* table = (struct hook_table*)obj;
 
     for (i = 0; i < NB_HOOKS; i++)
-    {
-        while ((hook = get_first_hook( table, i )) != NULL) free_hook( hook );
-    }
+        LIST_FOR_EACH_ENTRY_SAFE(hook, next, &table->hooks[i], struct hook, chain)
+        free_hook(hook);
 }
 
 /* remove a hook, freeing it if the chain is not in use */
@@ -364,43 +358,34 @@ void add_desktop_hook_count( struct desktop *desktop, struct thread *thread, int
 }
 
 /* release a hook chain, removing deleted hooks if the use count drops to 0 */
-static void release_hook_chain( struct hook_table *table, int index )
+static void release_hook_chain(struct hook_table* table, int index)
 {
     if (!table->counts[index])  /* use count shouldn't already be 0 */
     {
-        set_error( STATUS_INVALID_PARAMETER );
+        set_error(STATUS_INVALID_PARAMETER);
         return;
     }
     if (!--table->counts[index])
     {
-        struct hook *hook = get_first_hook( table, index );
-        while (hook)
-        {
-            struct hook *next = HOOK_ENTRY( list_next( &table->hooks[hook->index], &hook->chain ) );
-            if (!hook->proc) free_hook( hook );
-            hook = next;
-        }
+        struct hook* hook, * next;
+
+        LIST_FOR_EACH_ENTRY_SAFE(hook, next, &table->hooks[index], struct hook, chain)
+            if (!hook->proc) free_hook(hook);
     }
 }
 
 /* remove all global hooks owned by a given thread */
-void remove_thread_hooks( struct thread *thread )
+void remove_thread_hooks(struct thread* thread)
 {
-    struct hook_table *global_hooks = get_global_hooks( thread );
+    struct hook* hook, * next;
+    struct hook_table* global_hooks = get_global_hooks(thread);
     int index;
 
     if (!global_hooks) return;
 
     for (index = 0; index < NB_HOOKS; index++)
-    {
-        struct hook *hook = get_first_hook( global_hooks, index );
-        while (hook)
-        {
-            struct hook *next = HOOK_ENTRY( list_next( &global_hooks->hooks[index], &hook->chain ) );
-            if (hook->thread == thread || hook->owner == thread) remove_hook( hook );
-            hook = next;
-        }
-    }
+        LIST_FOR_EACH_ENTRY_SAFE(hook, next, &global_hooks->hooks[index], struct hook, chain)
+        if (hook->thread == thread || hook->owner == thread) remove_hook(hook);
 }
 
 /* return the thread that owns the first global hook */

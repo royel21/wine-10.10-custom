@@ -196,6 +196,9 @@ extern void dump_objects(void);
 extern void close_objects(void);
 #endif
 
+struct reserve* reserve_obj_associate_apc(struct process* process, obj_handle_t handle, struct object* apc);
+void reserve_obj_unbind(struct reserve* reserve);
+
 static inline void make_object_permanent( struct object *obj ) { obj->is_permanent = 1; }
 static inline void make_object_temporary( struct object *obj ) { obj->is_permanent = 0; }
 
@@ -217,8 +220,8 @@ static inline void *mem_append( void *ptr, const void *src, data_size_t len )
 
 /* event functions */
 
-struct event_sync;
 struct event;
+struct event_sync;
 struct keyed_event;
 
 extern struct event_sync* create_event_sync(int manual, int signaled);
@@ -237,7 +240,21 @@ extern void reset_event( struct event *event );
 
 /* mutex functions */
 
-extern void abandon_mutexes( struct thread *thread );
+extern void abandon_mutexes(struct thread* thread);
+extern void abandon_d3dkmt_mutexes(struct thread* thread);
+
+/* in-process synchronization functions */
+
+struct inproc_sync;
+extern int get_inproc_device_fd(void);
+extern int get_inproc_sync_fd(struct inproc_sync* sync);
+extern struct inproc_sync* create_inproc_internal_sync(int manual, int signaled);
+extern struct inproc_sync* create_inproc_event_sync(int manual, int signaled);
+extern struct inproc_sync* create_inproc_semaphore_sync(unsigned int initial, unsigned int max);
+extern struct inproc_sync* create_inproc_mutex_sync(thread_id_t owner, unsigned int count);
+extern void abandon_inproc_mutexes(thread_id_t owner);
+extern void signal_inproc_sync(struct inproc_sync* sync);
+extern void reset_inproc_sync(struct inproc_sync* sync);
 
 /* serial functions */
 

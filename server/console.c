@@ -136,7 +136,7 @@ struct console_host_ioctl
 struct console_server
 {
     struct object         obj;         /* object header */
-    struct event_sync* sync;           /* sync object for wait/signal */
+    struct event_sync    *sync;           /* sync object for wait/signal */
     struct fd            *fd;          /* pseudo-fd for ioctls */
     struct console       *console;     /* attached console */
     struct list           queue;       /* ioctl queue */
@@ -215,7 +215,7 @@ struct font_info
 struct screen_buffer
 {
     struct object         obj;           /* object header */
-    struct event_sync* sync;          /* sync object for wait/signal */
+    struct event_sync    *sync;          /* sync object for wait/signal */
     struct list           entry;         /* entry in list of all screen buffers */
     struct console       *input;         /* associated console input */
     unsigned int          id;            /* buffer id */
@@ -874,9 +874,9 @@ static void screen_buffer_destroy( struct object *obj )
             queue_host_ioctl( screen_buffer->input->server, IOCTL_CONDRV_CLOSE_OUTPUT,
                               screen_buffer->id, NULL, NULL );
     }
+    free_async_queue( &screen_buffer->ioctl_q );
     if (screen_buffer->sync) release_object(screen_buffer->sync);
     if (screen_buffer->fd) release_object( screen_buffer->fd );
-    free_async_queue( &screen_buffer->ioctl_q );
 }
 
 static struct object *screen_buffer_open_file( struct object *obj, unsigned int access,
@@ -913,7 +913,7 @@ static void console_server_destroy( struct object *obj )
     struct console_server *server = (struct console_server *)obj;
     assert( obj->ops == &console_server_ops );
     disconnect_console_server( server );
-    if (server->fd) release_object( server->fd );
+    if (server->sync) release_object(server->sync);;
     if (do_esync()) close( server->esync_fd );
 }
 
@@ -998,13 +998,14 @@ static struct object *create_console_server( void )
     list_init( &server->read_queue );
    
     server->esync_fd = -1;
-
-    if (do_esync())
-        server->esync_fd = esync_create_fd( 0, 0 );
         
     if (!(server->sync = create_event_sync(1, 1))) goto error;
     if (!(server->fd = alloc_pseudo_fd(&console_server_fd_ops, &server->obj, FILE_SYNCHRONOUS_IO_NONALERT))) goto error;
     allow_fd_caching(server->fd);
+
+    if (do_esync())
+        server->esync_fd = esync_create_fd(0, 0);
+
     return &server->obj;
 
 error:

@@ -415,7 +415,8 @@ int read_process_memory( struct process *process, client_ptr_t ptr, data_size_t 
 }
 
 /* write data to a process memory space */
-int write_process_memory( struct process *process, client_ptr_t ptr, data_size_t size, const char *src )
+int write_process_memory(struct process* process, client_ptr_t ptr, data_size_t size, const char* src,
+    data_size_t* written)
 {
     kern_return_t ret;
     mach_port_t process_port = get_process_port( process );
@@ -528,6 +529,7 @@ int write_process_memory( struct process *process, client_ptr_t ptr, data_size_t
                     info.protection );
             if (ret != KERN_SUCCESS) break;
 
+            if (written) *written += write_size;
             current_address += write_size;
             remaining_size  -= write_size;
         }
@@ -538,48 +540,9 @@ int write_process_memory( struct process *process, client_ptr_t ptr, data_size_t
 out:
     free( (void *)data );
     mach_set_error( ret );
+    if (ret == KERN_SUCCESS && written) *written = size;
     return (ret == KERN_SUCCESS);
 }
 
-/* retrieve an LDT selector entry */
-void get_selector_entry( struct thread *thread, int entry, unsigned int *base,
-                         unsigned int *limit, unsigned char *flags )
-{
-    const unsigned int total_size = (2 * sizeof(int) + 1) * 8192;
-    struct process *process = thread->process;
-    mach_vm_address_t data;
-    kern_return_t ret;
-    mach_vm_size_t bytes_read;
-    mach_port_t process_port = get_process_port( thread->process );
-
-    if (!process->ldt_copy || !process_port)
-    {
-        set_error( STATUS_ACCESS_DENIED );
-        return;
-    }
-    if (entry >= 8192)
-    {
-        set_error( STATUS_ACCESS_VIOLATION );
-        return;
-    }
-
-    if (!(data = (mach_vm_address_t)malloc( total_size )))
-    {
-        set_error( STATUS_NO_MEMORY );
-        return;
-    }
-
-    ret = mach_vm_read_overwrite( process_port, (mach_vm_address_t)process->ldt_copy, (mach_vm_size_t)total_size, data, &bytes_read );
-    if (ret != KERN_SUCCESS) mach_set_error( ret );
-    else
-    {
-        const int *ldt = (const int *)data;
-        memcpy( base, ldt + entry, sizeof(int) );
-        memcpy( limit, ldt + entry + 8192, sizeof(int) );
-        memcpy( flags, (char *)(ldt + 2 * 8192) + entry, 1 );
-    }
-
-    free( (void *)data );
-}
 
 #endif  /* USE_MACH */

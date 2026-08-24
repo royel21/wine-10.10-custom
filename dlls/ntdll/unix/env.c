@@ -1622,7 +1622,7 @@ static void run_wineboot( WCHAR *env, SIZE_T size )
     if (status == STATUS_OBJECT_NAME_EXISTS) goto wait;
     if (status)
     {
-        ERR( "failed to create wineboot event, expect trouble\n" );
+        ERR( "failed to create wineboot event, status %#x, expect trouble\n", status );
         return;
     }
 

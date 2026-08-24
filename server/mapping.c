@@ -158,13 +158,15 @@ struct type_descr mapping_type =
 
 struct mapping
 {
-    struct object   obj;             /* object header */
-    mem_size_t      size;            /* mapping size */
-    unsigned int    flags;           /* SEC_* flags */
-    struct fd      *fd;              /* fd for mapped file */
+    struct object        obj;        /* object header */
+    mem_size_t           size;       /* mapping size */
+    unsigned int         flags;      /* SEC_* flags */
+    struct fd           *fd;         /* fd for mapped file */
     struct pe_image_info image;      /* image info (for PE image mapping) */
-    struct ranges  *committed;       /* list of committed ranges in this mapping */
-    struct shared_map *shared;       /* temp file for shared PE mapping */
+    struct ranges       *committed;  /* list of committed ranges in this mapping */
+    struct shared_map   *shared;     /* temp file for shared PE mapping */
+    char                *exp_name;   /* export name (for PE image mapping) */
+    data_size_t          exp_len;    /* length of export name (for PE image mapping) */
 };
 
 static void mapping_dump( struct object *obj, int verbose );

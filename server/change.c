@@ -116,7 +116,7 @@ static const struct object_ops dir_ops =
     NULL,                     /* satisfied */
     no_signal,                /* signal */
     dir_get_fd,               /* get_fd */
-    default_get_sync,         /* get_sync */
+    default_fd_get_sync,         /* get_sync */
     default_map_access,       /* map_access */
     dir_get_sd,               /* get_sd */
     dir_set_sd,               /* set_sd */
